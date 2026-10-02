@@ -1,0 +1,105 @@
+name: 작업/리팩토링 이슈
+description: 리팩토링, 문서화, 운영, 마이그레이션, 정리 작업을 수행해요.
+title: "AREA: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목의 `AREA`를 `ANDROID`, `API`, `OPS`, `DOCS`, `DESIGN` 중 하나로 바꿔주세요.
+        기능 구현이 아니라 구조, 운영, 문서, 계약, 마이그레이션을 정리할 때 사용해요.
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      description: 제목 prefix와 같은 영역을 선택해요.
+      options:
+        - ANDROID
+        - API
+        - OPS
+        - DOCS
+        - DESIGN
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      description: 팀 일정과 사용자 영향에 맞는 우선순위를 선택해요.
+      options:
+        - P2 - 계획된 후속 작업
+        - P1 - 현재 작업에서 중요
+        - P0 - 사용 불가 또는 진행 차단
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜 필요한가
+      description: 작업이 필요한 이유와 방치했을 때 생기는 문제를 적어요.
+      placeholder: |
+        현재 ... 때문에 ...가 어렵다.
+        이 이슈에서는 ...를 정리한다.
+    validations:
+      required: true
+  - type: textarea
+    id: current-state
+    attributes:
+      label: 현재 상태
+      description: 관련 파일, 문서, 이슈, PR, 런타임 상태를 적어요.
+      placeholder: |
+        - 현재 파일:
+        - 관련 문서:
+        - 관련 이슈/PR:
+        - 누락/문제:
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 포함 범위
+      description: 이번 작업에 포함할 구체적인 변경을 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: 제외 범위
+      description: 관련되어 보여도 이번 작업에서 제외할 범위를 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 기준
+      description: 작업 완료를 판단할 수 있는 조건을 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 검증
+      description: 완료 전에 실행할 명령이나 점검을 적어요.
+      placeholder: |
+        ```sh
+        git diff --check
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: review-notes
+    attributes:
+      label: 리뷰 참고
+      description: 설계 기준, 호환성, 보안, 운영 리스크, 후속 작업을 적어요.
+      placeholder: |
+        - ...
+    validations:
+      required: false

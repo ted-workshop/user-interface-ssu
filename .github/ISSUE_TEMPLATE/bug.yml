@@ -1,0 +1,119 @@
+name: 버그 이슈
+description: 잘못된 동작, 회귀, 장애, 배포 문제를 수정해요.
+title: "AREA: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목의 `AREA`를 `ANDROID`, `API`, `OPS`, `DOCS`, `DESIGN` 중 하나로 바꿔주세요.
+        재현 가능한 증상, 기대 동작, 영향 범위를 분리해서 적어요.
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      description: 제목 prefix와 같은 영역을 선택해요.
+      options:
+        - ANDROID
+        - API
+        - OPS
+        - DOCS
+        - DESIGN
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      description: 팀 일정과 사용자 영향에 맞는 우선순위를 선택해요.
+      options:
+        - P2 - 계획된 후속 작업
+        - P1 - 현재 작업에서 중요
+        - P0 - 사용 불가 또는 진행 차단
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜 필요한가
+      description: 사용자가 겪는 문제, 깨진 흐름, 운영 영향도를 적어요.
+      placeholder: |
+        현재 ...에서 ...가 실패한다.
+        이 문제로 ...가 불가능하다.
+    validations:
+      required: true
+  - type: textarea
+    id: current-state
+    attributes:
+      label: 현재 상태
+      description: 실제 증상, 에러, 관련 파일, route, 환경을 적어요.
+      placeholder: |
+        - 증상:
+        - 기대 동작:
+        - 실제 동작:
+        - 관련 파일/route:
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 재현 방법
+      description: 가능한 경우 원래 버그를 다시 볼 수 있는 단계를 적어요.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: false
+  - type: textarea
+    id: scope
+    attributes:
+      label: 포함 범위
+      description: 이번 이슈에서 고칠 범위를 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: 제외 범위
+      description: 같이 보이지만 이번 버그 수정에서 제외할 범위를 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 기준
+      description: 버그가 고쳐졌다고 판단할 수 있는 조건을 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 검증
+      description: 원래 버그를 잡는 테스트나 수동 재현 확인을 적어요.
+      placeholder: |
+        ```sh
+        mise run api:check
+        mise run android:check
+        git diff --check
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: review-notes
+    attributes:
+      label: 리뷰 참고
+      description: 회귀 위험, 보안/개인정보, 로그/관측성, 후속 점검을 적어요.
+      placeholder: |
+        - ...
+    validations:
+      required: false

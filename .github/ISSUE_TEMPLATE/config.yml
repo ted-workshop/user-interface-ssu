@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Qletter 이슈 작성 규칙
+    url: https://github.com/ted-workshop/user-interface-ssu/blob/main/CONTRIBUTING.md#이슈와-pr-작성
+    about: 영역별 제목과 완료 기준, 검증 작성 방법을 확인해요.

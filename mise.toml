@@ -1,0 +1,23 @@
+[tools]
+bun = "1.4.2"
+java = "openjdk-25.0.2"
+
+[tasks.setup]
+description = "의존성과 저장소 Git hooks 설정"
+run = "bun run setup"
+
+[tasks."api:dev"]
+description = "로컬 API 실행"
+run = "bun run api:dev"
+
+[tasks."api:check"]
+description = "포맷·API 타입·테스트·빌드 검사"
+run = "bun run api:check"
+
+[tasks."android:check"]
+description = "Android 포맷·lint·단위 테스트·debug 빌드"
+run = "bun run android:check"
+
+[tasks.check]
+description = "API와 Android 전체 검사"
+run = "bun run check"

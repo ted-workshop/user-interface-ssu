@@ -1,0 +1,108 @@
+name: 기능 이슈
+description: 새 API, 화면, 사용자 흐름, 제품 기능을 구현해요.
+title: "AREA: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        제목의 `AREA`를 `ANDROID`, `API`, `OPS`, `DOCS`, `DESIGN` 중 하나로 바꿔주세요.
+        공개 이슈는 한국어로 작성하고, 구현 범위와 제외 범위를 분리해요.
+  - type: dropdown
+    id: area
+    attributes:
+      label: 영역
+      description: 제목 prefix와 같은 영역을 선택해요.
+      options:
+        - ANDROID
+        - API
+        - OPS
+        - DOCS
+        - DESIGN
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      description: 팀 일정과 사용자 영향에 맞는 우선순위를 선택해요.
+      options:
+        - P2 - 계획된 후속 작업
+        - P1 - 현재 작업에서 중요
+        - P0 - 사용 불가 또는 진행 차단
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 왜 필요한가
+      description: 해결하려는 문제, 사용자 가치, 지금 해야 하는 이유를 적어요.
+      placeholder: |
+        현재 ... 때문에 ...할 수 없다.
+        이 이슈에서는 ...를 구현해 ...를 가능하게 한다.
+    validations:
+      required: true
+  - type: textarea
+    id: current-state
+    attributes:
+      label: 현재 상태
+      description: 관련 파일, route, 문서, 이슈, PR, 런타임 상태를 적어요.
+      placeholder: |
+        - 현재 route:
+        - 관련 문서:
+        - 관련 이슈/PR:
+        - 누락:
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 포함 범위
+      description: 이번 이슈에서 실제로 해야 할 일을 짧은 항목으로 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: 제외 범위
+      description: 이번 이슈에서 하지 않을 일을 명확히 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 완료 기준
+      description: 구현 완료를 판단할 수 있는 관찰 가능한 조건을 적어요.
+      placeholder: |
+        - ...
+        - ...
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: 검증
+      description: 완료 전에 실행할 명령이나 수동 확인을 적어요.
+      placeholder: |
+        ```sh
+        mise run api:check
+        mise run android:check
+        git diff --check
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: review-notes
+    attributes:
+      label: 리뷰 참고
+      description: 보안, 개인정보, 호환성, 성능, UX, 파일 경계 등 리뷰 포인트를 적어요.
+      placeholder: |
+        - ...
+    validations:
+      required: false

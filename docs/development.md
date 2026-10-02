@@ -33,6 +33,8 @@ SDK Manager에서 다음을 설치해요.
 - Android SDK Platform-Tools
 - Android Emulator와 API 37 시스템 이미지
 
+CLI 설치 시 SDK 패키지 이름은 `platforms;android-37.0`이에요. CI는 SDK의 최소 도구 버전에 맞춰 Android Command-line Tools 22.0을 사용해요.
+
 에뮬레이터는 Pixel 6급 세로 화면·API 37을 공통 기준으로 삼아요. Apple Silicon은 arm64-v8a, Intel/AMD는 x86_64 이미지를 선택해요. 실제 장치별 차이는 PR에 적어요.
 
 Android Studio가 생성하는 apps/android/local.properties에 로컬 SDK 경로를 두거나 ANDROID_HOME을 설정해요. local.properties는 Git에서 제외돼요.

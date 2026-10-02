@@ -34,8 +34,10 @@ jobs:
         with:
           # 기본값의 tools 패키지는 SDK 저장소에서 더 이상 제공하지 않아요.
           packages: platform-tools
+          # SDK 37.0의 최소 도구 버전인 Command-line Tools 22.0이에요.
+          cmdline-tools-version: '15859902'
       - uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
-      - run: sdkmanager "platforms;android-37" "build-tools;36.0.0"
+      - run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
       - run: mise run android:check
 
   quality:

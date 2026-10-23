@@ -9,7 +9,13 @@ YouTube 영상을 읽기 쉬운 한국어 리포트로 만드는 Android 팀프�
 | apps/api | Bun·TypeScript·Hono API |
 | apps/android | Java·XML Views Android 앱 |
 | docs/qletter | 제품 기획·화면 흐름·개발 설계 |
+| docs/decisions | 선택의 이유·대안·근거·재검토 조건 |
 | scripts, .githooks | 공통 검사와 Git hooks |
+
+다음 서버 구현은 Cloudflare Workers와 D1, 무료 플랜을 기준으로 해요.
+[선택 근거](docs/decisions/0001-workers-d1-free-tier.md)와
+[의사결정 목차](docs/decisions/README.md)에서 확정한 내용과 검토 중인 제안을 확인할 수 있어요.
+Workers 전환과 D1 연결은 아직 구현 전이에요.
 
 ## 시작하기
 
@@ -31,5 +37,7 @@ mise run check
 ```
 
 - [제품 요구사항](docs/qletter/01-prd.md)
+- [API 작업 목록과 팀 참여](https://github.com/ted-workshop/user-interface-ssu/issues/2)
+- [의사결정 기록과 작성 방법](docs/decisions/README.md)
 - [팀 기여·PR·squash 규칙](CONTRIBUTING.md)
 - [공통 AI 작업 규칙](AGENTS.md)

@@ -17,6 +17,7 @@
 | [ADR-0003](0003-shared-modules-sync-async.md) | 모듈 규칙을 통일하고 실행 방식은 요구에 맞춰요 | 확정 | 2026-10-20 |
 | [ADR-0004](0004-github-issue-backlog.md) | GitHub 이슈로 팀 작업과 선행 관계를 관리해요 | 확정 | 2026-10-20 |
 | [ADR-0005](0005-outcome-milestones.md) | 확인할 결과를 기준으로 마일스톤을 나눠요 | 확정 | 2026-10-20 |
+| [ADR-0006](0006-pre-push-repository-isolation.md) | push 검사 전에 상속된 Git 저장소 환경을 정리해요 | 확정 | 2026-10-23 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

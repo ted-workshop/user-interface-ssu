@@ -9,6 +9,7 @@ YouTube 영상을 읽기 쉬운 한국어 리포트로 만드는 Android 팀프�
 | apps/api | Bun·TypeScript·Hono API |
 | apps/android | Java·XML Views Android 앱 |
 | docs/qletter | 제품 기획·화면 흐름·개발 설계 |
+| docs/decisions | 선택의 이유·대안·근거·재검토 조건 |
 | scripts, .githooks | 공통 검사와 Git hooks |
 
 ## 시작하기
@@ -31,5 +32,7 @@ mise run check
 ```
 
 - [제품 요구사항](docs/qletter/01-prd.md)
+- [API 작업 목록과 팀 참여](https://github.com/ted-workshop/user-interface-ssu/issues/2)
+- [서버 구조와 기술 선택의 근거](docs/decisions/README.md)
 - [팀 기여·PR·squash 규칙](CONTRIBUTING.md)
 - [공통 AI 작업 규칙](AGENTS.md)

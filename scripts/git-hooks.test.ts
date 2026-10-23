@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import {
   changedFilesForPush,
   checkStaged,
@@ -69,6 +75,50 @@ describe("staged checks", () => {
 });
 
 describe("push checks", () => {
+  test("isolates repository state inherited by pre-push", () => {
+    const current = repo();
+    const foreign = repo();
+    git(current, "config", "qletter.marker", "current");
+    git(foreign, "config", "qletter.marker", "foreign");
+    const bin = join(current, "bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "mise"),
+      '#!/bin/sh\nexec "$QLETTER_TEST_BUN" "$QLETTER_TEST_PROBE"\n',
+      { mode: 0o755 },
+    );
+    const probe = join(current, "probe.ts");
+    writeFileSync(
+      probe,
+      `const result = Bun.spawnSync(["git", "-C", process.env.QLETTER_TEST_REPO!, "config", "--local", "qletter.marker", "checked"]);
+process.exit(result.exitCode);
+`,
+    );
+    const result = Bun.spawnSync(
+      [
+        "sh",
+        join(import.meta.dir, "../.githooks/pre-push"),
+        "origin",
+        "unused",
+      ],
+      {
+        cwd: current,
+        env: {
+          ...process.env,
+          PATH: `${bin}${delimiter}${process.env.PATH ?? ""}`,
+          GIT_DIR: join(current, ".git"),
+          GIT_WORK_TREE: current,
+          GIT_INDEX_FILE: join(current, ".git", "index"),
+          QLETTER_TEST_BUN: process.execPath,
+          QLETTER_TEST_PROBE: probe,
+          QLETTER_TEST_REPO: foreign,
+        },
+      },
+    );
+    expect(result.exitCode).toBe(0);
+    expect(git(current, "config", "qletter.marker")).toBe("current");
+    expect(git(foreign, "config", "qletter.marker")).toBe("checked");
+  });
   test("selects apps and includes both for shared changes", () => {
     expect(checksForFiles(["apps/api/src/app.ts"])).toEqual(["api:check"]);
     expect(checksForFiles(["apps/android/app/build.gradle.kts"])).toEqual([

@@ -4,4 +4,7 @@ if ! command -v mise >/dev/null 2>&1; then
   echo "mise를 찾지 못했어요. docs/development.md의 IDE PATH 설정을 확인해 주세요." >&2
   exit 1
 fi
+# 검사 안의 임시 저장소가 push 대상의 Git 설정과 index를 사용하지 않게 해요.
+git_local_env=$(git rev-parse --local-env-vars)
+unset $git_local_env
 exec mise exec -- bun scripts/git-hooks.ts pre-push "$@"

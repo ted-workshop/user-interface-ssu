@@ -11,10 +11,6 @@ Codex와 Claude Code는 이 파일을 공통 기준으로 사용해요. CLAUDE.m
 - 로그인은 이메일·비밀번호 방식이에요. Gemini 키와 공급자 호출은 서버에서만 관리해요.
 - 현재 구현은 개발 환경과 debug 앱의 서버 연결 확인까지예요.
   인증·영상 요약·영구 저장을 구현한 것으로 보고하지 않아요.
-- 다음 서버 구현은 Cloudflare Workers와 D1, 무료 플랜을 기준으로 해요.
-  선택 근거와 미검증 항목은 [ADR-0001](docs/decisions/0001-workers-d1-free-tier.md)을 따라요.
-- 한 Worker 프로젝트에서 모듈·검증·에러·로그 규칙을 통일하고, 로그인·조회는 즉시 처리하며
-  요약·발송은 영속 비동기로 실행해요. 확정 범위는 [ADR-0003](docs/decisions/0003-shared-modules-sync-async.md)을 따라요.
 - Bun workspace와 `bun.lock`을 사용해요. 의존성 변경 시 lockfile도 갱신해요.
   Bun·JDK 버전은 `mise.toml`, Android 빌드는 Gradle Wrapper를 따라요.
 - `apps` 아래에는 `android`와 `api`를 나란히 둬요. Android 프로젝트를 `apps` 자체에 생성하지 않아요.

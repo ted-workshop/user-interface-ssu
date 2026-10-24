@@ -11,7 +11,18 @@ mise run infra:check
 
 state 버킷과 애플리케이션의 두 Terraform root를 포맷·`init -backend=false`·`validate`로 검사해요.
 Worker 번들·Bun 의존성·Cloudflare 토큰·원격 state 없이 실행할 수 있어요. provider 다운로드에는 네트워크를 사용해요.
-provider를 의도적으로 갱신할 때는 각 root의 `terraform init -backend=false -upgrade` 후 lockfile을 함께 검토해요.
+provider 버전을 의도적으로 갱신할 때는 각 root의 `terraform init -backend=false -upgrade` 후 아래 명령으로 개발 환경과 CI의 체크섬을 함께 기록해요.
+
+```sh
+for qletter_tf_root in infra/state infra/cloudflare; do
+  mise exec -- terraform -chdir="$qletter_tf_root" providers lock \
+    -platform=darwin_arm64 -platform=darwin_amd64 \
+    -platform=linux_amd64 -platform=windows_amd64
+done
+```
+
+`init`이 현재 OS의 `h1`만 추가한 상태에서는 다른 OS의 `validate`가 실패할 수 있어요.
+두 lockfile을 함께 커밋하고, CI의 `-lockfile=readonly`는 유지해요.
 
 반복 적용은 `Terraform Infrastructure` workflow를 수동 실행해요. API 배포 workflow에서는 Terraform을 실행하지 않아요.
 R2의 S3 backend와 lockfile을 사용하고, API 배포와 인프라 적용은 같은 GitHub concurrency group을 사용해요.

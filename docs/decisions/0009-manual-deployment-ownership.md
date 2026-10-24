@@ -5,7 +5,8 @@
 - 확정 근거: CI 자동 실행, API·인프라 workflow 수동 실행과 관리 범위 분리를 사용자가 승인했어요.
 - 관련 기록: [ADR-0008](0008-workers-d1-local-and-terraform.md)의 원격 인프라·배포 결정을 대체해요. 로컬 Workers·D1 기반은 유지해요.
 - 구현·검증 상태: workflow·관리 범위 분리·R2 backend와 최초 설정 경로를 구현했어요.
-  전체 로컬 검사를 통과했어요. 실제 리소스 생성·GitHub 설정·원격 CI·배포는 수행하지 않았어요.
+  전체 로컬 검사를 통과하고 PR의 Linux CI에서도 검사해요. CI 결과는 해당 PR HEAD의 check를 기준으로 확인해요.
+  실제 리소스 생성·GitHub production 설정·배포는 수행하지 않았어요.
 
 ## 문제와 현재 상태
 
@@ -78,5 +79,7 @@ state 저장·잠금에 호환 문제가 있거나 팀이 다른 backend를 채�
 
 ## 반론과 변경 이력
 
+- 2026-10-24: PR #19의 Linux CI에서 macOS용 `h1`만 기록된 provider lockfile로 인해 설치 후 `validate`가 실패했어요.
+  두 Terraform root에 macOS arm64·amd64, Linux amd64, Windows amd64 체크섬을 `terraform providers lock`으로 생성하고 `readonly` 검사는 유지했어요.
 - 2026-10-24: 매 API 배포마다 Terraform plan/apply를 실행할 필요가 있는지 재검토했어요.
   API 배포와 인프라 적용의 실행·관리 범위를 분리하는 방향을 승인받아 ADR-0008의 해당 부분을 대체했어요.

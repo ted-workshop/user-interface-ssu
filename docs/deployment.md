@@ -8,7 +8,7 @@ CI는 PR·main push에서 자동 실행해요. API 배포와 인프라 적용은
 
 - Terraform: D1, Worker 자체의 생성, 공유 state를 저장할 R2 버킷이에요.
 - Wrangler: Worker 코드·binding·런타임 설정, SQL 마이그레이션과 API 배포예요.
-- `quality.yml`: 키 없이 API·로컬 D1·Android·Terraform을 검사해요.
+- `quality.yml`: 키 없이 변경 파일의 범위에 따라 API·로컬 D1·Android·Terraform을 검사해요. 선택한 검사와 최종 `quality`의 성공을 확인해요.
 
 API 코드를 바꿀 때 Terraform plan/apply는 필요하지 않아요.
 Terraform의 `cloudflare_worker`에는 버전·코드·binding을 선언하지 않아서 API 배포를 이전 코드로 되돌리지 않아요.

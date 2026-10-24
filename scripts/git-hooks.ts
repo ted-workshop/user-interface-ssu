@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { checksForFiles } from "./checks";
 
 const root = resolve(import.meta.dir, "..");
 function git(repo: string, args: string[]) {
@@ -66,34 +67,6 @@ export function checkStaged(repo: string): void {
   }
 }
 
-export function checksForFiles(files: string[]): string[] {
-  let api = false;
-  let android = false;
-  let infra = false;
-  for (const file of files) {
-    if (
-      file.startsWith("docs/") ||
-      ["README.md", "CONTRIBUTING.md"].includes(file)
-    )
-      continue;
-    if (file.startsWith("apps/api/")) {
-      api = true;
-      if (file === "apps/api/wrangler.jsonc") infra = true;
-    } else if (file.startsWith("apps/android/")) android = true;
-    else if (file.startsWith("infra/")) infra = true;
-    else {
-      api = true;
-      android = true;
-      infra = true;
-    }
-  }
-  return [
-    ...(api ? ["api:check"] : []),
-    ...(android ? ["android:check"] : []),
-    ...(infra ? ["infra:check"] : []),
-  ];
-}
-
 export function changedFilesForPush(
   repo: string,
   input: string,
@@ -127,7 +100,7 @@ export function changedFilesForPush(
       base = candidate.exitCode === 0 ? candidate.stdout.toString().trim() : "";
     }
     const names = base
-      ? git(repo, ["diff", "--name-only", "-z", base, local])
+      ? git(repo, ["diff", "--name-only", "--no-renames", "-z", base, local])
       : git(repo, ["ls-tree", "-r", "--name-only", "-z", local]);
     for (const name of names.split("\0").filter(Boolean)) files.add(name);
   }

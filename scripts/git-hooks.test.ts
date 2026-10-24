@@ -8,12 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-import {
-  changedFilesForPush,
-  checkStaged,
-  checksForFiles,
-  installHooks,
-} from "./git-hooks";
+import { changedFilesForPush, checkStaged, installHooks } from "./git-hooks";
 
 const repos: string[] = [];
 function git(repo: string, ...args: string[]) {
@@ -118,25 +113,6 @@ process.exit(result.exitCode);
     expect(result.exitCode).toBe(0);
     expect(git(current, "config", "qletter.marker")).toBe("current");
     expect(git(foreign, "config", "qletter.marker")).toBe("checked");
-  });
-  test("selects apps and infrastructure and includes all for shared changes", () => {
-    expect(checksForFiles(["apps/api/src/app.ts"])).toEqual(["api:check"]);
-    expect(checksForFiles(["apps/android/app/build.gradle.kts"])).toEqual([
-      "android:check",
-    ]);
-    expect(checksForFiles(["mise.toml"])).toEqual([
-      "api:check",
-      "android:check",
-      "infra:check",
-    ]);
-    expect(checksForFiles(["infra/cloudflare/main.tf"])).toEqual([
-      "infra:check",
-    ]);
-    expect(checksForFiles(["apps/api/wrangler.jsonc"])).toEqual([
-      "api:check",
-      "infra:check",
-    ]);
-    expect(checksForFiles(["docs/development.md"])).toEqual([]);
   });
   test("checks commits being pushed, including changes already committed", () => {
     const dir = repo();

@@ -51,12 +51,34 @@ Palate의 이슈 폼과 8개 섹션 PR 템플릿을 Qletter에 맞춰 사용해�
 - 관련 이슈가 있으면 연결하고, 전체 범위를 해결한 경우에만 `Closes #N`을 사용해요. stack의 의존 PR도 표시해요.
 - UI 변경은 실제 기기·에뮬레이터 스크린샷과 확인 환경을 적어요. 아직 확인하지 못했다면 그 이유를 남겨요.
 
+## CI 검사 범위
+
+PR 제목의 category 대신 실제 변경 파일을 [공유 판정 함수](scripts/checks.ts)로 분류해요. pre-push도 같은 함수를 사용해요.
+PR은 merge base부터 PR HEAD까지, main push는 직전 SHA부터 새 SHA까지 비교해요. PR에 포함된 기존 변경도 계속 검사해요.
+
+| 변경 파일 | 실행할 검사 |
+| --- | --- |
+| `docs/**`, 모든 Markdown | 앱 검사 생략 |
+| `apps/api/**` | API |
+| `apps/api/wrangler.jsonc` | API·Infra |
+| `apps/android/**` | Android |
+| `infra/**`, `.github/workflows/infra.yml` | Infra |
+| `scripts/android.ts` | API의 도구 타입 검사·Android |
+| `bun.lock`, `biome.json`, `tsconfig.json`, `scripts/release*.ts`, `.github/workflows/deploy-api.yml` | API |
+| `package.json`, `mise.toml`, Quality workflow·공유 검사 도구·그 밖의 분류되지 않은 파일 | 전체 |
+
+문서 판정을 먼저 적용하므로 `infra`나 앱 디렉터리 안의 Markdown도 앱 검사를 실행하지 않아요.
+Android 실행 도구는 Bun·Java만 설치해요. API 의존성 lockfile은 Bun을 설치하는 데 사용하지 않아요.
+이름 변경은 이전·새 경로를 모두 검사해요. 최초 push는 전체 tracked 파일로 판단하고 비교에 실패하면 CI를 실패시켜요.
+`quality`는 항상 실행해 변경 판정과 선택한 검사들의 성공을 요구해요. 선택하지 않은 job의 `skipped`만 허용해요.
+근거와 검증 범위는 [ADR-0011](docs/decisions/0011-scoped-quality-checks.md)에 있어요.
+
 ## Git hooks
 `mise run setup`은 frozen lockfile로 의존성을 설치하고 저장소 로컬 `core.hooksPath=.githooks`를 설정해요.
 기존 경로가 다르면 중단해요. 기존 hook 내용을 확인하고 팀 hook 호출을 통합하거나, 더 이상 필요 없는 설정인지 확인한 뒤 직접 변경해요. 전역 hooksPath를 무조건 초기화하지 않아요.
 
 - pre-commit: staged whitespace와 TypeScript/JSON 포맷을 검사해요. 파일·index를 수정하지 않아요. Java·Gradle 포맷은 pre-push와 CI에서 검사해요.
-- pre-push: 전송할 커밋 범위를 보고 API·Android·Terraform 검사를 선택해요. 공통 파일은 전체 검사, 문서만 바뀌면 앱 검사를 생략해요. Wrangler 설정은 API와 이를 읽는 Terraform을 함께 검사해요. 새 브랜치의 비교 기준을 찾지 못하면 전송 트리 전체를 검사 대상으로 삼아요.
+- pre-push: 전송할 커밋 범위를 보고 위 CI 검사 범위와 같은 규칙으로 검사를 선택해요. 새 브랜치의 비교 기준을 찾지 못하면 전송 트리 전체를 검사 대상으로 삼아요.
 - 검사 프로세스를 시작하기 전에 Git 저장소 환경변수를 정리해요. 테스트의 임시 저장소가 실제 작업 브랜치와 설정을 바꾸지 않도록 하는 근거는 [ADR-0006](docs/decisions/0006-pre-push-repository-isolation.md)에 있어요.
 - pre-push는 작업 트리가 깨끗해야 실행해요. 검사 대상과 push할 커밋이 달라지는 일을 방지해요. 여러 브랜치를 한 번에 push하는 경우 현재 checkout 이외의 커밋 검증은 각 PR CI가 담당해요.
 - hook이 막으면 원인을 해결해요. hooks를 건너뛰었어도 PR의 필수 CI는 통과해야 해요.

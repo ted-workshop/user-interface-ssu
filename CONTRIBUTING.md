@@ -38,7 +38,7 @@ Palate의 이슈 폼과 8개 섹션 PR 템플릿을 Qletter에 맞춰 사용해�
 기존 경로가 다르면 중단해요. 기존 hook 내용을 확인하고 팀 hook 호출을 통합하거나, 더 이상 필요 없는 설정인지 확인한 뒤 직접 변경해요. 전역 hooksPath를 무조건 초기화하지 않아요.
 
 - pre-commit: staged whitespace와 TypeScript/JSON 포맷을 검사해요. 파일·index를 수정하지 않아요. Java·Gradle 포맷은 pre-push와 CI에서 검사해요.
-- pre-push: 전송할 커밋 범위를 보고 API/Android 검사를 선택해요. 공통 파일은 양쪽 검사, 문서만 바뀌면 앱 검사를 생략해요. 새 브랜치의 비교 기준을 찾지 못하면 전송 트리 전체를 검사 대상으로 삼아요.
+- pre-push: 전송할 커밋 범위를 보고 API·Android·Terraform 검사를 선택해요. 공통 파일은 전체 검사, 문서만 바뀌면 앱 검사를 생략해요. Wrangler 설정은 API와 이를 읽는 Terraform을 함께 검사해요. 새 브랜치의 비교 기준을 찾지 못하면 전송 트리 전체를 검사 대상으로 삼아요.
 - 검사 프로세스를 시작하기 전에 Git 저장소 환경변수를 정리해요. 테스트의 임시 저장소가 실제 작업 브랜치와 설정을 바꾸지 않도록 하는 근거는 [ADR-0006](docs/decisions/0006-pre-push-repository-isolation.md)에 있어요.
 - pre-push는 작업 트리가 깨끗해야 실행해요. 검사 대상과 push할 커밋이 달라지는 일을 방지해요. 여러 브랜치를 한 번에 push하는 경우 현재 checkout 이외의 커밋 검증은 각 PR CI가 담당해요.
 - hook이 막으면 원인을 해결해요. hooks를 건너뛰었어도 PR의 필수 CI는 통과해야 해요.

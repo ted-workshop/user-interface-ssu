@@ -69,20 +69,29 @@ export function checkStaged(repo: string): void {
 export function checksForFiles(files: string[]): string[] {
   let api = false;
   let android = false;
+  let infra = false;
   for (const file of files) {
     if (
       file.startsWith("docs/") ||
       ["README.md", "CONTRIBUTING.md"].includes(file)
     )
       continue;
-    if (file.startsWith("apps/api/")) api = true;
-    else if (file.startsWith("apps/android/")) android = true;
+    if (file.startsWith("apps/api/")) {
+      api = true;
+      if (file === "apps/api/wrangler.jsonc") infra = true;
+    } else if (file.startsWith("apps/android/")) android = true;
+    else if (file.startsWith("infra/")) infra = true;
     else {
       api = true;
       android = true;
+      infra = true;
     }
   }
-  return [...(api ? ["api:check"] : []), ...(android ? ["android:check"] : [])];
+  return [
+    ...(api ? ["api:check"] : []),
+    ...(android ? ["android:check"] : []),
+    ...(infra ? ["infra:check"] : []),
+  ];
 }
 
 export function changedFilesForPush(

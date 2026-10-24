@@ -1,0 +1,88 @@
+name: Deploy API
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "main에 포함된 전체 커밋 SHA (비우면 최신 main)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: qletter-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: ${{ vars.QLETTER_API_URL }}
+    env:
+      CI: "true"
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      QLETTER_API_URL: ${{ vars.QLETTER_API_URL }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install_args: bun node
+      - name: Require a successful main commit
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_SHA: ${{ inputs.sha }}
+        run: |
+          test "$GITHUB_REF" = refs/heads/main
+          RELEASE_SHA="${REQUESTED_SHA:-$(git rev-parse HEAD)}"
+          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+          export RELEASE_SHA
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?branch=main&event=push&head_sha=$RELEASE_SHA&per_page=1" > "$RUNNER_TEMP/quality-runs.json"
+          mise exec -- bun scripts/release.ts check "$RUNNER_TEMP/quality-runs.json"
+          printf 'sha=%s\n' "$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ steps.release.outputs.sha }}
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install_args: bun node
+      - run: bun install --frozen-lockfile
+      - run: mise run api:check
+      - name: Prepare and validate deployment configuration
+        env:
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+        run: |
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[a-f0-9]{32}$ ]]
+          mise exec -- bun scripts/release.ts config
+          mise exec -- bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --dry-run
+      - name: Apply D1 migrations and deploy Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          mise exec -- bun run --cwd apps/api wrangler d1 migrations apply DB --remote --config wrangler.deploy.json
+          mise exec -- bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --tag "$RELEASE_SHA" --message "$RELEASE_SHA" --no-autoconfig
+      - name: Verify the deployed revision and HTTP contracts
+        env:
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if mise exec -- bun scripts/release.ts verify; then
+              printf 'API deployment verified\n\nCommit: `%s`\n\nURL: %s\n' "$RELEASE_SHA" "$QLETTER_API_URL" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1

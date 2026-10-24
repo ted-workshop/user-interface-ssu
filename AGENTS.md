@@ -7,7 +7,8 @@ Codex와 Claude Code는 이 파일을 공통 기준으로 사용해요. CLAUDE.m
 
 - Qletter는 숭실대학교 사용자인터페이스 과목의 Android 팀프로젝트예요.
   제품 기준은 [PRD](docs/qletter/01-prd.md)와 [기능 명세](docs/qletter/02-functional-spec.md)예요.
-- `apps/api`는 Bun·TypeScript·Hono 서버, `apps/android`는 Java·XML Views 앱이에요.
+- `apps/api`는 Workers·TypeScript·Hono 서버, `apps/android`는 Java·XML Views 앱이에요.
+  Bun은 패키지·공통 도구, Wrangler는 로컬 실행·타입 생성·API 배포, Terraform은 원격 인프라 정의를 담당해요.
 - 로그인은 이메일·비밀번호 방식이에요. Gemini 키와 공급자 호출은 서버에서만 관리해요.
 - 현재 구현은 개발 환경과 debug 앱의 서버 연결 확인까지예요.
   인증·영상 요약·영구 저장을 구현한 것으로 보고하지 않아요.
@@ -35,22 +36,11 @@ Codex와 Claude Code는 이 파일을 공통 기준으로 사용해요. CLAUDE.m
 
 ## Decisions And Evidence
 
-- 작업 전에 [의사결정 기록](docs/decisions/README.md)과 연결된 기존 결정을 읽어요.
-  구조·기능·API·DB·라이브러리·UI·운영·비용·보안·검증 등 모든 의사결정을 기록해요.
-  같은 문제의 세부 판단은 한 기록에 묶고, 기존 결정을 적용할 때는 해당 기록을 연결해요.
 - 판단과 제안을 설명할 때는 해결할 문제, 선택지, 추천 이유, 대안의 장점과 채택하지 않은 이유,
   근거, 가정·한계, 검증 방법, 판단을 바꿀 조건을 함께 제시해요.
   사용자가 근거를 검토하고 반박할 수 있도록 구체적인 코드·문서·측정 결과를 연결해요.
 - 확인한 사실과 추론·가정·미검증 항목을 구분해요. 요금·한도·제품 동작처럼 바뀌는 사실은
   공식 출처와 확인 날짜를 남기고, 계산 예시를 실제 측정값으로 쓰지 않아요.
-- 새 결정과 제안은 [템플릿](docs/decisions/template.md)으로 남기고 목차와 관련 변경에서 연결해요.
-  제안·확정·기각·대체 상태와 실제 구현·검증 상태를 별도로 적어요.
-  승인된 범위의 자율적인 구현 판단도 이유를 기록하되 매번 새 승인을 요구하지 않아요.
-- 반론과 답변, 추가 근거, 결론을 기록해요. 반론이 맞으면 판단을 수정하고 변경 이유를 남겨요.
-  확정한 결정을 바꿀 때는 새 기록을 만들고 이전 기록을 대체 상태로 바꿔 서로 연결해요.
-  당시 근거와 확정 이력은 보존하고, 출처 보완·검증 경과는 날짜와 함께 갱신해요.
-- 커밋·PR·최종 전달에는 관련 기록을 연결해요. 결정 기록만으로 구현 완료나
-  커밋·푸시·머지·배포 권한이 생기지는 않아요.
 
 ## Verification
 
@@ -64,6 +54,7 @@ mise run api:dev
 ```
 
 - API·공통 도구 변경: `mise run api:check`
+- 인프라 변경: `mise run infra:check` (원격 state·리소스에 접근하지 않아요)
 - Android 변경: `mise run android:check`
 - 공통 설정 변경 및 최종 전체 검사: `mise run check`
 - 포맷 수정: `bun run format`, `mise exec -- bun scripts/android.ts format`

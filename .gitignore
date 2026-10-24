@@ -13,3 +13,16 @@ local.properties
 *.keystore
 .DS_Store
 .superpowers/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.artifacts/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+*.tfplan
+apps/api/wrangler.deploy.json
+infra/state/backend.tf

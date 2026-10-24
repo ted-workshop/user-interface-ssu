@@ -119,7 +119,7 @@ process.exit(result.exitCode);
     expect(git(current, "config", "qletter.marker")).toBe("current");
     expect(git(foreign, "config", "qletter.marker")).toBe("checked");
   });
-  test("selects apps and includes both for shared changes", () => {
+  test("selects apps and infrastructure and includes all for shared changes", () => {
     expect(checksForFiles(["apps/api/src/app.ts"])).toEqual(["api:check"]);
     expect(checksForFiles(["apps/android/app/build.gradle.kts"])).toEqual([
       "android:check",
@@ -127,6 +127,14 @@ process.exit(result.exitCode);
     expect(checksForFiles(["mise.toml"])).toEqual([
       "api:check",
       "android:check",
+      "infra:check",
+    ]);
+    expect(checksForFiles(["infra/cloudflare/main.tf"])).toEqual([
+      "infra:check",
+    ]);
+    expect(checksForFiles(["apps/api/wrangler.jsonc"])).toEqual([
+      "api:check",
+      "infra:check",
     ]);
     expect(checksForFiles(["docs/development.md"])).toEqual([]);
   });

@@ -20,8 +20,9 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
-          install_args: bun
+          install_args: bun node
       - run: bun install --frozen-lockfile
+      - run: mise run api:db:migrate
       - run: mise run api:check
 
   android:
@@ -40,13 +41,24 @@ jobs:
       - run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
       - run: mise run android:check
 
+  infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install_args: bun terraform
+      - run: mise run infra:check
+
   quality:
     if: always()
-    needs: [api, android]
+    needs: [api, android, infra]
     runs-on: ubuntu-latest
     steps:
       - name: Require all checks
         env:
           API_RESULT: ${{ needs.api.result }}
           ANDROID_RESULT: ${{ needs.android.result }}
-        run: test "$API_RESULT" = success && test "$ANDROID_RESULT" = success
+          INFRA_RESULT: ${{ needs.infra.result }}
+        run: test "$API_RESULT" = success && test "$ANDROID_RESULT" = success && test "$INFRA_RESULT" = success

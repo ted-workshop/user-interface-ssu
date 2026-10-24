@@ -9,9 +9,12 @@
   "scripts": {
     "setup": "bun scripts/setup.ts",
     "api:dev": "bun run --cwd apps/api dev",
+    "api:types": "bun run --cwd apps/api types",
+    "api:db:migrate": "bun run --cwd apps/api db:migrate",
     "api:check": "bun run lint && bun run typecheck:tools && bun run --cwd apps/api check && bun test scripts",
     "android:check": "bun scripts/android.ts check",
-    "check": "bun run api:check && bun run android:check",
+    "check": "bun run api:check && bun run android:check && bun run infra:check",
+    "infra:check": "terraform fmt -check -recursive infra && terraform -chdir=infra/state init -backend=false -input=false -lockfile=readonly && terraform -chdir=infra/state validate && terraform -chdir=infra/cloudflare init -backend=false -input=false -lockfile=readonly && terraform -chdir=infra/cloudflare validate",
     "lint": "bun run --bun biome check .",
     "format": "bun run --bun biome format --write .",
     "typecheck:tools": "bun run --bun tsc --noEmit -p tsconfig.json"

@@ -7,7 +7,8 @@ Codex와 Claude Code는 이 파일을 공통 기준으로 사용해요. CLAUDE.m
 
 - Qletter는 숭실대학교 사용자인터페이스 과목의 Android 팀프로젝트예요.
   제품 기준은 [PRD](docs/qletter/01-prd.md)와 [기능 명세](docs/qletter/02-functional-spec.md)예요.
-- `apps/api`는 Bun·TypeScript·Hono 서버, `apps/android`는 Java·XML Views 앱이에요.
+- `apps/api`는 Workers·TypeScript·Hono 서버, `apps/android`는 Java·XML Views 앱이에요.
+  Bun은 패키지·공통 도구, Wrangler는 로컬 실행·타입 생성·API 배포, Terraform은 원격 인프라 정의를 담당해요.
 - 로그인은 이메일·비밀번호 방식이에요. Gemini 키와 공급자 호출은 서버에서만 관리해요.
 - 현재 구현은 개발 환경과 debug 앱의 서버 연결 확인까지예요.
   인증·영상 요약·영구 저장을 구현한 것으로 보고하지 않아요.
@@ -64,6 +65,7 @@ mise run api:dev
 ```
 
 - API·공통 도구 변경: `mise run api:check`
+- 인프라 변경: `mise run infra:check` (원격 state·리소스에 접근하지 않아요)
 - Android 변경: `mise run android:check`
 - 공통 설정 변경 및 최종 전체 검사: `mise run check`
 - 포맷 수정: `bun run format`, `mise exec -- bun scripts/android.ts format`
@@ -90,9 +92,12 @@ mise run api:dev
   mixed worktree에서 `git add -A`를 사용하지 않아요.
 - 커밋·푸시 전에 `git status --short`, `git diff --cached --name-only`,
   `git diff --cached --check`와 staged diff를 확인해요.
-- 커밋 제목은 `TYPE: 한국어 요약` 형식을 사용해요.
+- 커밋 제목은 `TYPE(Category): 한국어 요약` 형식을 사용해요.
   type은 `FEAT`, `FIX`, `CHORE`, `DOCS`, `TEST`, `REFACTOR`, `STYLE`, `PERF`,
   `BUILD`, `CI`, `REVERT` 중 선택하고 본문에는 필요에 맞게 이유와 검증을 적어요.
+  category는 `API`, `Android`, `Infra`, `Docs`, `Repo`처럼 변경 영역을 적고, 여러 영역이면 `API, Android`처럼 쉼표와 공백으로 구분해요.
+  PR 번호가 정해졌으면 끝에 `(#N)`을 붙여요. 예: `FEAT(API, Android): 로그인 연결 (#3)`.
+  PR 제목은 같은 형식에서 번호를 생략하고, 최종 squash 커밋에는 PR 번호를 한 번만 붙여요.
 - PR은 한국어로 작성하고 저장소 PR 템플릿을 따라요. 실제 범위·위험·검증과
   남은 일을 적고, issue 전체를 해결할 때만 `Closes #N`을 사용해요.
 - 의존하는 변경은 `gh stack`으로 관리해요. UI 변경은 실제 기기/에뮬레이터

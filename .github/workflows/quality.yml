@@ -13,23 +13,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      api: ${{ steps.scopes.outputs.api }}
+      android: ${{ steps.scopes.outputs.android }}
+      infra: ${{ steps.scopes.outputs.infra }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install_args: bun
+      - name: Select checks from changed files
+        id: scopes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]
+          if [[ "$BASE_SHA" =~ ^0+$ ]]; then
+            git ls-tree -r --name-only -z "$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          elif [[ "$GITHUB_EVENT_NAME" = pull_request ]]; then
+            git diff --name-only --no-renames -z "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          else
+            git diff --name-only --no-renames -z "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
+          fi
+          mise exec -- bun scripts/checks.ts < "$RUNNER_TEMP/changed-files"
+
   api:
+    needs: changes
+    if: needs.changes.outputs.api == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
-          install_args: bun
+          install_args: bun node
       - run: bun install --frozen-lockfile
+      - run: mise run api:db:migrate
       - run: mise run api:check
 
   android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install_args: bun java
       - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           # 기본값의 tools 패키지는 SDK 저장소에서 더 이상 제공하지 않아요.
@@ -40,13 +79,34 @@ jobs:
       - run: sdkmanager "platforms;android-37.0" "build-tools;36.0.0"
       - run: mise run android:check
 
+  infra:
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          install_args: bun terraform
+      - run: mise run infra:check
+
   quality:
     if: always()
-    needs: [api, android]
+    needs: [changes, api, android, infra]
     runs-on: ubuntu-latest
     steps:
-      - name: Require all checks
+      - name: Require selected checks
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          API_REQUIRED: ${{ needs.changes.outputs.api }}
+          ANDROID_REQUIRED: ${{ needs.changes.outputs.android }}
+          INFRA_REQUIRED: ${{ needs.changes.outputs.infra }}
           API_RESULT: ${{ needs.api.result }}
           ANDROID_RESULT: ${{ needs.android.result }}
-        run: test "$API_RESULT" = success && test "$ANDROID_RESULT" = success
+          INFRA_RESULT: ${{ needs.infra.result }}
+        run: |
+          [[ "$CHANGES_RESULT" = success ]]
+          [[ "$API_RESULT" = success || ( "$API_REQUIRED" = false && "$API_RESULT" = skipped ) ]]
+          [[ "$ANDROID_RESULT" = success || ( "$ANDROID_REQUIRED" = false && "$ANDROID_RESULT" = skipped ) ]]
+          [[ "$INFRA_RESULT" = success || ( "$INFRA_REQUIRED" = false && "$INFRA_RESULT" = skipped ) ]]

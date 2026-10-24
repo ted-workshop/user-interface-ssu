@@ -3,14 +3,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/server.ts",
-    "start": "bun dist/server.js",
-    "typecheck": "bun run --bun tsc --noEmit",
-    "test": "bun test",
-    "build": "bun build src/server.ts --target=bun --outdir=dist",
-    "check": "bun run typecheck && bun run test && bun run build"
+    "dev": "wrangler dev --local",
+    "types": "wrangler types --include-runtime=false --strict-vars=false",
+    "types:check": "wrangler types --include-runtime=false --strict-vars=false --check",
+    "db:migrate": "wrangler d1 migrations apply DB --local",
+    "typecheck": "bun run --bun tsc --noEmit && bun run --bun tsc --noEmit -p test/tsconfig.json",
+    "test": "vitest run",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "check": "bun run types:check && bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {
     "hono": "4.13.12"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.4.7",
+    "@cloudflare/workers-types": "5.20261019.1",
+    "vitest": "5.0.5",
+    "wrangler": "4.152.0"
   }
 }

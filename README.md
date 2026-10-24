@@ -6,8 +6,9 @@ YouTube 영상을 읽기 쉬운 한국어 리포트로 만드는 Android 팀프�
 
 | 경로 | 역할 |
 | --- | --- |
-| apps/api | Bun·TypeScript·Hono API |
+| apps/api | Workers·TypeScript·Hono API와 로컬 D1 |
 | apps/android | Java·XML Views Android 앱 |
+| infra | Terraform으로 관리할 D1·Worker 생성·R2 state 정의 |
 | docs/qletter | 제품 기획·화면 흐름·개발 설계 |
 | docs/decisions | 선택의 이유·대안·근거·재검토 조건 |
 | scripts, .githooks | 공통 검사와 Git hooks |
@@ -28,6 +29,7 @@ Android SDK를 준비하고 Android Studio에서 **apps/android**를 열어요. 
 ```sh
 mise run api:check
 mise run android:check
+mise run infra:check
 mise run check
 ```
 
@@ -35,4 +37,5 @@ mise run check
 - [API 작업 목록과 팀 참여](https://github.com/ted-workshop/user-interface-ssu/issues/2)
 - [서버 구조와 기술 선택의 근거](docs/decisions/README.md)
 - [팀 기여·PR·squash 규칙](CONTRIBUTING.md)
+- [API 수동 배포와 인프라 적용](docs/deployment.md)
 - [공통 AI 작업 규칙](AGENTS.md)

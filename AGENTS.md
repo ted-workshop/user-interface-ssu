@@ -92,9 +92,12 @@ mise run api:dev
   mixed worktree에서 `git add -A`를 사용하지 않아요.
 - 커밋·푸시 전에 `git status --short`, `git diff --cached --name-only`,
   `git diff --cached --check`와 staged diff를 확인해요.
-- 커밋 제목은 `TYPE: 한국어 요약` 형식을 사용해요.
+- 커밋 제목은 `TYPE(Category): 한국어 요약` 형식을 사용해요.
   type은 `FEAT`, `FIX`, `CHORE`, `DOCS`, `TEST`, `REFACTOR`, `STYLE`, `PERF`,
   `BUILD`, `CI`, `REVERT` 중 선택하고 본문에는 필요에 맞게 이유와 검증을 적어요.
+  category는 `API`, `Android`, `Infra`, `Docs`, `Repo`처럼 변경 영역을 적고, 여러 영역이면 `API, Android`처럼 쉼표와 공백으로 구분해요.
+  PR 번호가 정해졌으면 끝에 `(#N)`을 붙여요. 예: `FEAT(API, Android): 로그인 연결 (#3)`.
+  PR 제목은 같은 형식에서 번호를 생략하고, 최종 squash 커밋에는 PR 번호를 한 번만 붙여요.
 - PR은 한국어로 작성하고 저장소 PR 템플릿을 따라요. 실제 범위·위험·검증과
   남은 일을 적고, issue 전체를 해결할 때만 `Closes #N`을 사용해요.
 - 의존하는 변경은 `gh stack`으로 관리해요. UI 변경은 실제 기기/에뮬레이터

@@ -8,6 +8,24 @@ Claude Code와 Codex는 같은 AGENTS.md와 검사 명령을 사용해요. 모�
 - 작성자가 변경된 앱의 검사와 실제 화면 확인을 수행하고 다른 팀원이 리뷰해요.
 - 로그인은 이메일·비밀번호이고 Gemini API 키는 서버에만 둬요.
 
+## 커밋과 PR 제목
+
+커밋 제목은 `TYPE(Category): 한국어 요약 (#PR번호)` 형식을 사용해요.
+
+- type은 [AGENTS.md](AGENTS.md)의 대문자 목록을 따라요.
+- category는 `API`, `Android`, `Infra`, `Docs`, `Repo`처럼 변경 영역을 적어요. 여러 영역이면 쉼표와 공백으로 구분해요.
+- 끝의 `(#N)`은 PR 번호예요. PR을 만들기 전에는 생략하고, 번호가 정해진 뒤의 새 커밋에는 붙여요.
+- PR 제목은 `TYPE(Category): 한국어 요약`으로 작성해요. squash할 때 최종 커밋 제목에 PR 번호를 한 번만 포함해요.
+- 이슈는 PR 본문에서 연결해요. 기존 커밋 제목을 바꾸기 위한 rebase·강제 push는 하지 않아요.
+
+```text
+FEAT(API, Android): 로그인 연결 (#3)
+FIX(API): 오류 응답에서 내부 정보 제거 (#4)
+DOCS(Repo): 커밋 제목 형식 통일 (#19)
+```
+
+형식과 적용 범위의 근거는 [ADR-0010](docs/decisions/0010-commit-title-format.md)에 있어요.
+
 ## 판단과 의사결정 기록
 
 - 작업 전에 [의사결정 목차](docs/decisions/README.md)에서 관련 결정을 확인해요.

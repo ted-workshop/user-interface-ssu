@@ -32,7 +32,7 @@ Wrangler로 따로 배포하면 다음 Terraform 적용이 코드·설정을 덮
 - health JSON은 유지하고 `X-Qletter-Revision` 헤더를 추가해요. 배포 검증은 해당 SHA와 health·JSON 404 계약을 모두 확인해요.
   확인할 수 없는 이전 배포나 실패한 CI를 성공으로 처리하지 않아요.
   revision은 실행마다 바뀌므로 `wrangler types --strict-vars=false`로 환경 변수 타입을 문자열로 생성해요.
-- `AGENTS.md`에는 의사결정 문서 언급을 추가하지 않아요.
+- 의사결정 기록 규칙은 [AGENTS.md](../../AGENTS.md)의 `Decisions And Evidence`를 따라요.
 
 ## 근거와 대안
 
@@ -79,6 +79,7 @@ state 저장·잠금에 호환 문제가 있거나 팀이 다른 backend를 채�
 
 ## 반론과 변경 이력
 
+- 2026-10-24: `AGENTS.md`에서 의사결정 문서 언급을 제외하는 항목을 철회하고, 기존 기록·근거·상태·변경 이력 관리 규칙을 유지해요.
 - 2026-10-24: PR #19의 Linux CI에서 macOS용 `h1`만 기록된 provider lockfile로 인해 설치 후 `validate`가 실패했어요.
   두 Terraform root에 macOS arm64·amd64, Linux amd64, Windows amd64 체크섬을 `terraform providers lock`으로 생성하고 `readonly` 검사는 유지했어요.
 - 2026-10-24: 매 API 배포마다 Terraform plan/apply를 실행할 필요가 있는지 재검토했어요.

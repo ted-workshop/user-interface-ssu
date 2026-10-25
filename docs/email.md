@@ -35,6 +35,26 @@ chmod 600 apps/api/.artifacts/email/credentials.json
 `{ user: env.SMTP_USER, appPassword: env.SMTP_APP_PASSWORD }`를 공통 함수에 전달해요.
 제품 연결 시 선언·환경 타입 생성과 배포 환경 Secret 준비를 함께 진행해요.
 
+## 운영 자격증명 관리 제안
+
+현재 `Deploy API` workflow에는 SMTP Secret 전달을 구현하지 않았어요. 아래는 제품 메일 연결 때 적용할 제안이에요.
+
+GitHub 저장소의 `Settings → Environments → production → Environment secrets`에 운영 값을 보관해요.
+
+| Secret | 값 |
+| --- | --- |
+| `SMTP_USER` | 발신 Gmail 계정 주소 |
+| `SMTP_APP_PASSWORD` | 해당 계정의 Google 앱 비밀번호 |
+
+수동 배포에서 이 두 값만 runner의 임시 파일로 전달하고, Wrangler의 `--secrets-file`로 코드와 함께
+Cloudflare Worker Secrets에 등록하는 구성을 제안해요. Worker는 `env.SMTP_USER`와 `env.SMTP_APP_PASSWORD`를 사용해요.
+GitHub Secret 변경만으로 실행 중인 Worker에 반영되지는 않으며 수동 배포가 필요해요.
+PR·일반 Quality CI는 지금처럼 Gmail 키 없이 검사하고 실제 메일을 보내지 않아요.
+
+로컬 수동 검증은 위의 Git 제외 파일을 계속 사용해요. 개인 `testRecipient`는 운영 Secret에 넣지 않아요.
+앱 비밀번호는 Terraform 입력·state, Wrangler의 공개 `vars`, 로그·artifact에 넣지 않는 방향이에요.
+근거·대안·미구현 범위는 [ADR-0012의 운영 관리 제안](decisions/0012-gmail-smtp-email-foundation.md#운영-자격증명-원본과-배포-전달-제안--2026-10-25)에 있어요.
+
 ## 단계별 검증
 
 ```sh

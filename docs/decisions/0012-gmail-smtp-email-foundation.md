@@ -225,6 +225,32 @@ Message-ID는 [RFC 5322 §3.6.4](https://www.rfc-editor.org/rfc/rfc5322.html#sec
 `mise run api:check`에서 workerd 32개·Bun 메일 도구 10개·공통 도구 39개와 타입·Worker 빌드 검사를 통과했어요.
 이 검사는 임시 폴더와 SMTP 테스트 대역을 사용하며 개인 설정의 실제 발송 기록과 공급자에 접근하지 않아요.
 
+### 운영 자격증명 원본과 배포 전달 제안 — 2026-10-25
+
+- 상태: 제안. 사용자가 GitHub Secrets 사용 의견을 주었으며 등록·배포 연결은 아직 구현하지 않았어요.
+- 현재 확인: GitHub에 `production` 환경과 Cloudflare 배포용 Secret이 있어요. 해당 환경의 Secret 이름 목록에는
+  `SMTP_USER`·`SMTP_APP_PASSWORD`가 없고, [배포 workflow](../../.github/workflows/deploy-api.yml)에도 SMTP 전달 코드가 없어요.
+  이름·설정만 읽었으며 Secret 값이나 Cloudflare의 현재 SMTP Secret 등록 상태는 조회하지 않았어요.
+
+로컬 `credentials.json`은 Git 제외·권한 `0600`으로 유지하고, 운영 원본은 기존 GitHub `production` Environment Secrets에 두는 구성을 제안해요.
+`SMTP_USER`에는 발신 계정 주소, `SMTP_APP_PASSWORD`에는 Google 앱 비밀번호를 넣어요. 개인 테스트 수신 주소는 운영 값으로 올리지 않아요.
+수동 `Deploy API`에서 승인된 main SHA·키 없는 검사를 확인한 뒤 해당 배포 step에만 두 값을 전달해요.
+runner의 임시 Secret 파일을 `0600`으로 만들고 `wrangler deploy --secrets-file`로 Worker 코드와 함께 업로드한 뒤 정리해요.
+운영 Worker는 Cloudflare의 Secret binding으로 읽으며 GitHub 값을 직접 조회하지 않아요. GitHub 값을 바꾸면 수동 배포로 전달해야 해요.
+
+2026-10-25 [GitHub 환경 Secret](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets#creating-secrets-for-an-environment),
+[Cloudflare 코드와 Secret 동시 업로드](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code)와
+설치된 Wrangler 4.152.0의 `--secrets-file` 옵션을 확인했어요. 이는 지원 여부를 확인한 결과이며 실제 동기화 검증은 아니에요.
+기존 배포 환경에 운영 입력을 모을 수 있고 [ADR-0009](0009-manual-deployment-ownership.md)의 Wrangler binding 관리 범위에 맞아 추천해요.
+Cloudflare Dashboard에서만 등록하면 보관 지점이 하나라 단순하지만 배포 입력 관리를 GitHub에 모으려는 요구에 맞지 않아 우선안으로 두지 않아요.
+Terraform으로 값을 관리하면 인프라와 함께 적용할 수 있지만 현재 binding 소유권과 맞지 않아 채택하지 않아요.
+[Terraform의 `sensitive` 표시는 state 저장을 막지 않아요](https://developer.hashicorp.com/terraform/language/manage-sensitive-data#hide-sensitive-variables-and-outputs).
+write-only·ephemeral 방식도 있지만 이번 제안에서 provider 지원 검토나 별도 인프라 경로를 추가하지 않아요.
+
+구현 검증은 환경 타입 생성·키 없는 CI 유지·누락 Secret의 배포 전 거부·값의 로그/artifact 비노출부터 확인해요.
+실제 Secret 등록과 원격 전달·제품 메일 발송은 별도 실행 범위예요. GitHub Actions를 배포 경로에서 제거하거나
+여러 Worker가 같은 자격증명을 공유하게 되면 Cloudflare 단독 보관 등 관리 원본을 다시 비교해요.
+
 ## 반론과 변경 이력
 
 - 2026-10-25: 중복 키·조회가 있는 Resend를 검토했지만 사용자는 도메인 없이 Gmail SMTP 사용을 지정했어요.
@@ -241,3 +267,4 @@ Message-ID는 [RFC 5322 §3.6.4](https://www.rfc-editor.org/rfc/rfc5322.html#sec
 - 2026-10-25: `z.email()`로 충분하다는 의견을 반영했어요. 별도 주소 parser를 유지할 제품 계약이 없어 제거하고 기본 형식 검사로 단순화했어요.
 - 2026-10-25: 성공 결과 재검사·오류 분류·도메인 추출이 복잡하다는 의견을 반영했어요. 고정 단일 수신자 SMTP 경로의 중복 검사는 제거하고, 공식 오류 타입·일시/영구 판정과 단순한 도메인 분리를 적용했어요.
 - 2026-10-25: 수동 검증 도구를 다시 정리해 달라는 요청에 따라 명령 분기와 발송 순서를 명시하고, 중복 발송 방지 검증을 실제 명령 경로로 옮겼어요. 잘못된 수신 주소의 준비 파일 생성도 차단했어요.
+- 2026-10-25: GitHub Secrets 관리 의견에 따라 운영 원본·Worker 런타임·로컬 검증의 경계를 제안으로 기록했어요. 실제 값 등록과 배포 연결은 미구현으로 구분해요.

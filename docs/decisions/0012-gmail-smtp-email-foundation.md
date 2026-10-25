@@ -1,0 +1,121 @@
+# ADR-0012: 기존 Gmail SMTP 경로로 공통 메일 발송 기반을 만들어요
+
+- 상태: 확정
+- 작성·확정일: 2026-10-25
+- 확정 근거: 사용자가 도메인 없이 Gmail SMTP를 사용하도록 지정했어요. 오류 분류·연결 처리·검증 도구는 승인된 #6 범위의 구현 판단이에요.
+- 관련 기록: [ADR-0001](0001-workers-d1-free-tier.md), [ADR-0003](0003-shared-modules-sync-async.md), [ADR-0009](0009-manual-deployment-ownership.md), [이슈 #6](https://github.com/ted-workshop/user-interface-ssu/issues/6)
+- 구현·검증 상태: 공통 함수·수동 검증 도구와 전체 로컬 검사를 완료했어요.
+  사용자에게 허가받은 기존 Gmail 계정으로 실제 로컬 workerd의 인증·1통 발송과 해당 발신 계정 자체의 받은편지함 도착을 확인했어요.
+  SMTP 접수와 별도로 IMAP 읽기 전용 조회에서 제목·Message-ID·text/HTML 본문을 대조했어요.
+  추가로 지정한 외부 iCloud 주소의 받은편지함 도착은 사용자가 확인했어요. 원격 Worker 배포·배포 위치 검증은 하지 않았어요.
+
+## 문제와 현재 상태
+
+계정 확인·복구와 채널 리포트에 사용할 메일 경로가 필요해요. 제품의 메일 정책·스키마·발송 작업은
+아직 구현하지 않았어요. 사용자는 그램 랩의 기존 YouTube 요약 시스템 로직 재사용을 제안했고,
+이번 작업 대상은 본인에게 배정된 #6 메일 기반으로 명시했어요.
+
+2026-10-25 SSH로 기존 `youtube-report` 컨테이너의 실행 코드와 설정 구조를 읽었어요.
+기존 구현은 Nodemailer 7.0.13, Gmail SMTP 465/TLS와 text·정제된 HTML 본문을 사용해요.
+확인한 `/app/dist/email.js`의 SHA-256은
+`39956ba0250d71c388914ec3f91f985777293a17090bb741d505a8682fc3da36`예요.
+서버 설정과 구독자 목록을 바꾸지 않았고 비밀번호·개인 주소를 기록하지 않았어요.
+
+## 결정
+
+- 도메인 구매·DNS 변경 없이 Gmail SMTP와 앱 비밀번호를 사용해요. 발신 주소와 SMTP envelope는 인증 계정으로 고정해요.
+- 기존 발송의 text/HTML 분리와 Nodemailer 사용 방식을 적용해요. 리포트 템플릿·Markdown 처리·요약 로직은 이번 기반 작업에 복사하지 않아요.
+- Nodemailer 10.2.1을 고정하고 내장 타입을 사용해요. Node 24 타입은 24.19.2로 고정해 Bun lockfile에 함께 남겨요.
+- 공통 `sendEmail`·`verifyGmailConnection`을 제공해요. 수신 주소는 한 번에 한 개이며 API·작업 코드가 같은 함수를 사용할 수 있어요.
+- 요청 안에서 연결을 열고 작업 뒤 닫아요. TLS 인증서 검증·TLS 1.2 이상을 유지하며 SMTP 원문/자격증명 로그를 끄고 파일·URL 첨부 접근을 막아요.
+- Nodemailer의 `getSocket` 확장점에서 호스트명을 유지한 `node:tls` 연결을 제공해요. SMTP 프로토콜·MIME·인증은 SDK가 처리해요.
+- 명시적 SMTP 거부와 접수 결과 불명을 구분해요. 함수 자체에서 재시도하지 않고 원문 오류 대신 제한된 reason과 SMTP 코드를 반환해요.
+- 발송 ID로 Message-ID를 만들되 중복 방지 키로 해석하지 않아요. 결과 불명이면 Gmail 보낸편지함/수신함을 확인하고 자동 재발송을 멈춰요.
+- 수동 검증은 Git에서 제외한 개인 자격증명·메시지·시도 기록을 사용해요. 시도 기록을 독점 생성해 같은 테스트의 동시 발송과 중단 후 자동 재실행을 막아요.
+- 수동 검증 명령은 발신 계정과 수신 주소를 각각 마스킹해 표시해요. 실제 조회한 계정과 사용자가 확인할 계정을 구분해서 전달해요.
+- 제품의 영구 발송 기록·재시도·인증·채널 설정은 후속 이슈의 책임이에요. 공개 메일 발송 HTTP 경로를 추가하지 않아요.
+
+## 근거와 대안
+
+아래 공식 자료와 설치 패키지 타입·소스를 2026-10-25에 확인했어요.
+
+- [Nodemailer Gmail 지침](https://nodemailer.com/guides/using-gmail)은 2단계 인증과 앱 비밀번호, 발신 계정과 일일 제한·접속 위치 차단을 설명해요.
+  기존 계정/서비스의 발송 방식을 재사용할 수 있고 도메인이 없는 현재 조건에 맞아요.
+- [Google의 개인 Gmail 한도](https://support.google.com/mail/answer/22839?hl=en)는 하루 500통 초과 등 제한과 1~24시간 복구 안내예요.
+  이는 Qletter의 실제 잔여 할당량 측정이 아니며 기존 서비스와 계정을 공유하면 사용량도 공유해요.
+- [Cloudflare Email Service 요금](https://developers.cloudflare.com/email-service/platform/pricing/)은 임의 수신자 발송에 Workers Paid를 요구해요.
+  binding 관리가 간단하지만 현재 무료 플랜·도메인 없음 조건에서 선택하지 않아요.
+- [Resend](https://resend.com/docs/dashboard/emails/idempotency-keys)는 조회와 24시간 중복 키를 제공하고 무료 요금제가 있어 운영상 장점이 있어요.
+  일반 수신자 발송에 [검증한 도메인](https://resend.com/docs/dashboard/domains/introduction)이 필요하며 사용자가 Gmail을 지정해 채택하지 않아요.
+- OAuth 2.0은 공식 권장 인증이며 갱신 토큰 관리에 장점이 있어요. 기존 앱 비밀번호 경로를 쓰는 이번 소규모 기반 검증에는 별도 OAuth 앱을 추가하지 않아요.
+- [Workers의 net](https://developers.cloudflare.com/workers/runtime-apis/nodejs/net/)·[tls](https://developers.cloudflare.com/workers/runtime-apis/nodejs/tls/) 지원을 확인했어요.
+  로컬 workerd에서 Nodemailer 기본 DNS/IP 연결은 `ESOCKET: proxy request failed, cannot connect to the specified address`로 실패했어요.
+  같은 Gmail의 호스트명 직접 연결과 `getSocket` TLS 전달 방식은 greeting/EHLO까지 성공했어요. 프로토콜을 직접 구현하는 대신 SDK 연결 확장점을 사용해요.
+- 설치한 Nodemailer의 SMTP 소스는 DATA 이후 소켓 오류에도 `command=CONN`을 붙여요.
+  이 필드로 미발송을 추정하지 않으며, SMTP 거부 코드가 없는 오류는 결과 불명으로 처리해요.
+
+## 가정·한계와 영향
+
+Gmail SMTP에는 공급자 멱등성 키나 SMTP 발송 상태 조회 API가 없어요. 같은 Message-ID를 반복해도 중복 발송이 제거된다고 보장하지 않아요.
+[SMTP 표준 RFC 5321 §6.1](https://www.rfc-editor.org/rfc/rfc5321.html#section-6.1)도 최종 접수 응답 지연과 시간 초과로 인한 중복 가능성을 다뤄요.
+[Google의 Message-ID 검색](https://support.google.com/mail/answer/7190?hl=en)으로 보낸편지함을 확인할 수 있지만,
+검색 결과 없음은 미발송 증거가 아니에요. 자동 결과 복구와 정확히 한 번 발송 보장은 미해결이에요.
+향후 #10·#15는 영구 발송 기록과 동시 실행 제어를 구현하고 결과 불명을 사람이 확인할 수 있어야 해요.
+
+기존 Gmail 계정 재사용과 그 계정 자신에게 테스트 메일 1통 발송을 사용자가 승인했어요.
+실제 계정 인증·수신을 확인했지만 SMTP에서 계정의 잔여 할당량을 조회한 결과는 없어요.
+로컬 workerd의 실제 SMTP 발송도 배포된 Worker의 접속 위치와 동작까지 입증하지는 않아요.
+Gmail의 지역/IP 보안 정책과 향후 실제 제품 사용량은 아직 검증하지 않았어요.
+HTML 정제·제품 인증 메일·예약 발송·DB migration·DNS·원격 인프라 변경은 이번 구현에 추가하지 않아요.
+
+## 검증과 재검토 조건
+
+키 없는 workerd 테스트로 단일 수신자, MIME 입력, SMTP 4xx/5xx·인증·한도·결과 불명·TLS 연결 정리와 민감값 비노출을 확인해요.
+Bun 도구 테스트로 동시 claim과 프로세스 중단 후 같은 메시지의 재발송 거부를 확인해요.
+`mise run api:check`와 최종 전체 검사를 실행해요. 실제 계정 인증·단일 테스트 발송·수신은 별도로 기록해요.
+
+2026-10-25 macOS arm64의 실제 로컬 workerd에서 공통 함수의 인증 없는 `verifyGmailConnection()`이
+`{"status":"ready","authenticated":false}`를 반환했어요. 자격증명은 사용하지 않았고 메일도 보내지 않았어요.
+이후 아래 실제 계정 검증을 진행했어요. 배포 위치 검증은 여전히 미실행이에요.
+
+같은 날짜에 `mise run api:check`와 `ANDROID_HOME=<개인 SDK 경로> mise run check`를 통과했어요.
+전체 검사는 Android 포맷·lint·단위 테스트·debug 빌드와 두 Terraform root의 backend 없는 schema 검사까지 포함해요.
+최종 연결 deadline 회귀 테스트를 추가한 뒤 API 타입 검사와 workerd 22개·Bun 검증 도구 2개도 통과했어요.
+공통 Bun 도구 39개가 통과했고, 새 Markdown의 로컬 링크와 `git diff --check`를 확인했어요.
+CLI의 `email handshake`도 Gmail 접속에 성공했지만 인증 없는 검사예요.
+
+2026-10-25의 실제 Gmail 검증 결과예요. 원격 Worker를 배포하지 않고, loopback에만 열린 임시 로컬 workerd에서 같은 공통 함수를 실행했어요.
+검증한 `apps/api/src/email.ts`의 SHA-256은 `42f03454af0aef72cefd53d26e736953956a3ca6a8e575304c08b2be9bf9bd6e`예요.
+
+- `verifyGmailConnection(config)`가 `ready / authenticated: true`를 반환했어요. SMTP 인증만 검사하며 메일은 보내지 않았어요.
+- `sendEmail`로 본인 주소에 테스트 메일 1통을 보냈고 `accepted` 결과를 받았어요.
+  deliveryId는 `e2b61b05-4f2e-4734-a4ff-2b577f15abf7`, Message-ID는 `<qletter.e2b61b05-4f2e-4734-a4ff-2b577f15abf7@gmail.com>`예요.
+- 같은 계정의 IMAP을 읽기 전용으로 열고 그 Message-ID의 메일만 조회했어요. 받은편지함과 보낸편지함에서 각각 1건을 찾았어요.
+  `BODY.PEEK[]`로 읽음 상태를 바꾸지 않고 제목·Message-ID·한국어 text 본문·HTML 본문이 준비한 테스트 메시지와 일치함을 확인했어요.
+  이는 실제 받은편지함 도착 증거이며 사람의 열람 완료를 뜻하지 않아요.
+- 같은 deliveryId로 CLI `send`를 다시 실행했을 때 기존 시도 파일 때문에 SMTP 호출 전에 거부됐고 접수 기록은 바뀌지 않았어요.
+- 실제 한도 소진이나 실제 SMTP 응답 유실을 유발하지는 않았어요. 해당 오류 분류·자동 재발송 중단은 위의 fixture 테스트로 확인했어요.
+  보낸편지함의 Message-ID 조회 방법은 실제 테스트 메일에서 확인했지만, 결과 없음으로 미발송을 확정하는 방법은 아니에요.
+- 발신 계정 주소·앱 비밀번호·실제 메일 전문을 이 기록에 넣지 않았어요. 임시 검증 서버를 종료하고 임시 binding·접속 토큰 파일을 정리했어요.
+
+수신 대상 안내를 보완한 뒤, 사용자가 지정한 별도의 iCloud 주소에도 테스트 1통을 보냈어요.
+이번 발송은 Bun 수동 검증 도구에서 같은 공통 함수를 사용했으며 로컬 workerd 발송과 구분해요.
+deliveryId는 `2ab84509-6b34-4751-ab0e-62479c471a39`, 발송 시각은 2026-10-25 07:08:48 UTC예요.
+SMTP `accepted`와 Gmail 보낸편지함 1건을 확인하고 To 헤더가 지정한 수신 주소와 일치함을 대조했어요.
+iCloud 메일함을 직접 조회하지는 않았어요. 사용자가 해당 테스트 메일이 받은편지함에 도착했다고 응답해 실제 외부 수신을 확인했어요.
+이 확인은 사용자 응답에 따른 증거이며, 앞선 Gmail 계정의 IMAP 본문 대조와 구분해요.
+개인 설정의 수신 주소를 변경한 뒤에도 첫 테스트의 결과 명령은 최초 메시지에 저장된 수신 계정을 표시함을 확인했어요.
+
+허가된 계정에서도 배포 IP 차단·무료 한도·결과 불명 수동 확인이 요구를 충족하지 못하면 전용 공급자나 OAuth 방식을 재검토해요.
+도메인이 준비되거나 공급자 멱등성이 필요한 운영 규모가 되면 이번 선택을 다시 비교해요.
+
+## 반론과 변경 이력
+
+- 2026-10-25: 중복 키·조회가 있는 Resend를 검토했지만 사용자는 도메인 없이 Gmail SMTP 사용을 지정했어요.
+  Gmail의 중복 억제 한계를 남기고, 결과 불명 시 자동 재발송하지 않는 방식을 구현해요.
+- 2026-10-25: 기존 Gmail 계정 재사용과 본인 수신 테스트를 승인받아 실제 인증·발송·받은편지함 대조 결과를 추가했어요.
+- 2026-10-25: 사용자가 메일을 받지 못했다고 알려 수신 대상을 다시 확인했어요. 첫 검증은 기존 발신 계정 자체의 수신함이었으며,
+  사용자가 평소 확인하는 주소와 동일한지 명확히 안내하지 않았어요. 명시적인 수신 주소를 다시 확인하고, CLI에 발신·수신 마스킹 표시를 추가했어요.
+  첫 테스트의 실제 수신 증거는 보존하며 사용자 지정 주소의 수신과 구분해요.
+- 2026-10-25: 사용자가 명시한 외부 iCloud 수신 주소로 별도 테스트를 접수하고 보낸편지함의 수신 헤더를 대조했어요.
+  이후 사용자가 받은편지함 도착을 확인해 외부 수신 검증을 완료했어요.

@@ -1,0 +1,240 @@
+import { EventEmitter } from "node:events";
+import tls from "node:tls";
+import nodemailer from "nodemailer";
+import type { SMTPTransportOptions } from "nodemailer/lib/smtp-transport";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { EmailError, sendEmail, verifyGmailConnection } from "../src/email";
+
+const smtp = vi.hoisted(() => ({
+  sendMail: vi.fn(),
+  verify: vi.fn(),
+  close: vi.fn(),
+}));
+vi.mock("nodemailer", () => ({
+  default: { createTransport: vi.fn(() => smtp) },
+}));
+vi.mock("node:tls", () => ({ default: { connect: vi.fn() } }));
+const config = {
+  user: "sender@gmail.com",
+  appPassword: "fixture-app-password",
+};
+const message = {
+  deliveryId: "fdcce475-8231-4ebc-9e33-d02c57389264",
+  to: "recipient@example.net",
+  subject: "Qletter 메일 연결 확인",
+  text: "메일 연결을 확인해요.",
+  html: "<p>메일 연결을 확인해요.</p>",
+};
+const messageId = `<qletter.${message.deliveryId}@gmail.com>`;
+
+describe("Gmail SMTP delivery", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    smtp.sendMail.mockReset();
+    smtp.verify.mockReset();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test("uses authenticated TLS and sends one recipient with both bodies", async () => {
+    smtp.sendMail.mockResolvedValue({
+      messageId,
+      accepted: [message.to],
+      rejected: [],
+      response: "250 2.0.0 OK fixture",
+    });
+    expect(await sendEmail(config, message)).toEqual({
+      status: "accepted",
+      messageId,
+    });
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+        auth: { user: config.user, pass: config.appPassword },
+        logger: false,
+        debug: false,
+        disableFileAccess: true,
+        disableUrlAccess: true,
+        getSocket: expect.any(Function),
+      }),
+    );
+    expect(smtp.sendMail).toHaveBeenCalledExactlyOnceWith({
+      from: { name: "Qletter", address: config.user },
+      to: message.to,
+      envelope: { from: config.user, to: [message.to] },
+      subject: message.subject,
+      text: message.text,
+      html: message.html,
+      messageId,
+    });
+    expect(smtp.close).toHaveBeenCalledTimes(1);
+  });
+
+  test.each([
+    [
+      { responseCode: 535, code: "EAUTH", command: "AUTH PLAIN" },
+      "configuration",
+    ],
+    [{ responseCode: 454, code: "EAUTH", command: "AUTH PLAIN" }, "temporary"],
+    [{ responseCode: 450, code: "EENVELOPE", command: "RCPT TO" }, "temporary"],
+    [{ responseCode: 550, code: "EENVELOPE", command: "RCPT TO" }, "permanent"],
+    [{ responseCode: 552, code: "EMESSAGE", command: "DATA" }, "permanent"],
+    [
+      {
+        responseCode: 550,
+        response: "550 5.4.5 Daily user sending limit exceeded",
+      },
+      "quota",
+    ],
+    [{ code: "ETIMEDOUT", command: "DATA" }, "ambiguous"],
+    // Nodemailer labels socket failures CONN even after DATA; this is not proof of rejection.
+    [{ code: "ECONNECTION", command: "CONN" }, "ambiguous"],
+    [{ code: "ETIMEDOUT", command: "CONN" }, "ambiguous"],
+  ])("classifies SMTP %j as %s without replaying", async (metadata, reason) => {
+    smtp.sendMail.mockRejectedValue(
+      Object.assign(
+        new Error("private provider response with credentials"),
+        metadata,
+      ),
+    );
+    const result = await sendEmail(config, message).catch(
+      (error: unknown) => error,
+    );
+    expect(result).toBeInstanceOf(EmailError);
+    expect(result).toMatchObject({ reason });
+    expect(String(result)).not.toContain("private");
+    expect(JSON.stringify(result)).not.toContain("credentials");
+    expect(smtp.sendMail).toHaveBeenCalledTimes(1);
+    expect(smtp.close).toHaveBeenCalledTimes(1);
+  });
+
+  test("missing acknowledgement or inconsistent recipients stays uncertain", async () => {
+    for (const info of [
+      { accepted: [], rejected: [], response: "250 OK" },
+      { accepted: [message.to], rejected: [message.to], response: "250 OK" },
+      { accepted: [message.to], rejected: [], response: "354 continue" },
+    ]) {
+      smtp.sendMail.mockResolvedValueOnce({ ...info, messageId });
+      await expect(sendEmail(config, message)).rejects.toMatchObject({
+        reason: "ambiguous",
+      });
+    }
+  });
+
+  test("invalid settings and multi-recipient input never connect", async () => {
+    for (const settings of [
+      { ...config, user: "" },
+      { ...config, appPassword: " " },
+    ]) {
+      await expect(sendEmail(settings, message)).rejects.toMatchObject({
+        reason: "configuration",
+      });
+    }
+    for (const change of [
+      { deliveryId: "not-a-uuid" },
+      { to: "a@example.com,b@example.com" },
+      { to: "a@example.com\r\nBcc: other@example.com" },
+      { subject: "injected\r\nheader" },
+      { text: "" },
+    ]) {
+      await expect(
+        sendEmail(config, { ...message, ...change }),
+      ).rejects.toMatchObject({ reason: "invalid_input" });
+    }
+    expect(nodemailer.createTransport).not.toHaveBeenCalled();
+  });
+
+  test("auth verification sends no email and closes the connection", async () => {
+    smtp.verify.mockResolvedValue(true);
+    expect(await verifyGmailConnection(config)).toEqual({
+      status: "ready",
+      authenticated: true,
+    });
+    expect(smtp.verify).toHaveBeenCalledTimes(1);
+    expect(smtp.sendMail).not.toHaveBeenCalled();
+    expect(smtp.close).toHaveBeenCalledTimes(1);
+  });
+
+  test("a handshake without credentials is reported as unauthenticated", async () => {
+    smtp.verify.mockResolvedValue(true);
+    expect(await verifyGmailConnection()).toEqual({
+      status: "ready",
+      authenticated: false,
+    });
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({ auth: undefined }),
+    );
+    expect(smtp.sendMail).not.toHaveBeenCalled();
+  });
+
+  test("TLS handoff keeps the hostname and removes the connection deadline", async () => {
+    vi.useFakeTimers();
+    const socket = Object.assign(new EventEmitter(), { destroy: vi.fn() });
+    vi.mocked(tls.connect).mockReturnValue(socket as unknown as tls.TLSSocket);
+    smtp.verify.mockResolvedValue(true);
+    await verifyGmailConnection();
+    const options = vi.mocked(nodemailer.createTransport).mock
+      .calls[0]?.[0] as SMTPTransportOptions;
+    const callback = vi.fn();
+    options.getSocket?.({}, callback);
+    expect(tls.connect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: "smtp.gmail.com",
+        servername: "smtp.gmail.com",
+        port: 465,
+        rejectUnauthorized: true,
+        minVersion: "TLSv1.2",
+      }),
+    );
+    socket.emit("secureConnect");
+    expect(callback).toHaveBeenCalledExactlyOnceWith(null, {
+      connection: socket,
+      secured: true,
+    });
+    vi.advanceTimersByTime(20_000);
+    expect(socket.destroy).not.toHaveBeenCalled();
+  });
+
+  test("a TLS failure before SMTP is safe to retry and cannot hand off twice", async () => {
+    vi.useFakeTimers();
+    const socket = Object.assign(new EventEmitter(), { destroy: vi.fn() });
+    vi.mocked(tls.connect).mockReturnValue(socket as unknown as tls.TLSSocket);
+    smtp.verify.mockResolvedValue(true);
+    await verifyGmailConnection();
+    const options = vi.mocked(nodemailer.createTransport).mock
+      .calls[0]?.[0] as SMTPTransportOptions;
+    const callback = vi.fn();
+    options.getSocket?.({}, callback);
+    socket.emit("error", new Error("private TLS diagnostic"));
+    socket.emit("secureConnect");
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback.mock.calls[0]?.[0]).toMatchObject({ reason: "temporary" });
+    expect(String(callback.mock.calls[0]?.[0])).not.toContain("private");
+    expect(socket.destroy).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test("an unresponsive TLS peer is closed at the connection deadline", async () => {
+    vi.useFakeTimers();
+    const socket = new EventEmitter();
+    const destroy = vi.fn((error?: Error) => {
+      if (error) socket.emit("error", error);
+    });
+    Object.assign(socket, { destroy });
+    vi.mocked(tls.connect).mockReturnValue(socket as unknown as tls.TLSSocket);
+    smtp.verify.mockResolvedValue(true);
+    await verifyGmailConnection();
+    const options = vi.mocked(nodemailer.createTransport).mock
+      .calls[0]?.[0] as SMTPTransportOptions;
+    const callback = vi.fn();
+    options.getSocket?.({}, callback);
+    vi.advanceTimersByTime(10_000);
+    expect(destroy).toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback.mock.calls[0]?.[0]).toMatchObject({ reason: "temporary" });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});

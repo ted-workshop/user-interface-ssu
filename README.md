@@ -38,4 +38,5 @@ mise run check
 - [서버 구조와 기술 선택의 근거](docs/decisions/README.md)
 - [팀 기여·PR·squash 규칙](CONTRIBUTING.md)
 - [API 수동 배포와 인프라 적용](docs/deployment.md)
+- [Gmail 메일 기반과 수동 검증](docs/email.md)
 - [공통 AI 작업 규칙](AGENTS.md)

@@ -29,14 +29,14 @@ afterEach(() => {
     rmSync(path, { recursive: true, force: true });
 });
 
-describe("hook installation", () => {
-  test("installs repository-local hooks idempotently", () => {
+describe("Git 훅 설치", () => {
+  test("저장소 훅을 반복해서 설치해도 같은 상태를 유지해요", () => {
     const dir = repo();
     installHooks(dir);
     installHooks(dir);
     expect(git(dir, "config", "--local", "core.hooksPath")).toBe(".githooks");
   });
-  test("preserves an existing custom hook path", () => {
+  test("기존 사용자 훅 경로를 보존해요", () => {
     const dir = repo();
     git(dir, "config", "core.hooksPath", "custom-hooks");
     expect(() => installHooks(dir)).toThrow();
@@ -44,8 +44,8 @@ describe("hook installation", () => {
   });
 });
 
-describe("staged checks", () => {
-  test("checks staged bytes while preserving unstaged changes and index", () => {
+describe("스테이징한 변경 검사", () => {
+  test("미스테이징 변경과 인덱스를 보존하며 스테이징한 내용을 검사해요", () => {
     const dir = repo();
     writeFileSync(join(dir, "sample.ts"), "export const value = 1;\n");
     git(dir, "add", "sample.ts");
@@ -60,7 +60,7 @@ describe("staged checks", () => {
       "this is deliberately not TypeScript",
     );
   });
-  test("rejects invalid staged code even if the working file is fixed", () => {
+  test("작업 파일을 고쳐도 스테이징한 코드가 잘못됐으면 거부해요", () => {
     const dir = repo();
     writeFileSync(join(dir, "sample.ts"), "export const = ;\n");
     git(dir, "add", "sample.ts");
@@ -69,8 +69,8 @@ describe("staged checks", () => {
   });
 });
 
-describe("push checks", () => {
-  test("isolates repository state inherited by pre-push", () => {
+describe("푸시할 변경 검사", () => {
+  test("pre-push에 상속된 저장소 상태를 격리해요", () => {
     const current = repo();
     const foreign = repo();
     git(current, "config", "qletter.marker", "current");
@@ -114,7 +114,7 @@ process.exit(result.exitCode);
     expect(git(current, "config", "qletter.marker")).toBe("current");
     expect(git(foreign, "config", "qletter.marker")).toBe("checked");
   });
-  test("checks commits being pushed, including changes already committed", () => {
+  test("이미 커밋한 변경을 포함해 푸시할 커밋을 검사해요", () => {
     const dir = repo();
     writeFileSync(join(dir, "README.md"), "base\n");
     git(dir, "add", "README.md");

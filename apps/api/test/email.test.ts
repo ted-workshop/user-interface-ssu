@@ -27,7 +27,7 @@ const message = {
 };
 const messageId = `<qletter.${message.deliveryId}@gmail.com>`;
 
-describe("Gmail SMTP delivery", () => {
+describe("Gmail SMTP 메일 발송", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     smtp.sendMail.mockReset();
@@ -37,7 +37,7 @@ describe("Gmail SMTP delivery", () => {
     vi.useRealTimers();
   });
 
-  test("uses authenticated TLS and sends one recipient with both bodies", async () => {
+  test("TLS로 인증하고 한 수신자에게 텍스트와 HTML 본문을 함께 보내요", async () => {
     smtp.sendMail.mockResolvedValue({
       messageId,
       accepted: [message.to],
@@ -90,28 +90,31 @@ describe("Gmail SMTP delivery", () => {
       "quota",
     ],
     [{ code: "ETIMEDOUT", command: "DATA" }, "ambiguous"],
-    // Nodemailer labels socket failures CONN even after DATA; this is not proof of rejection.
+    // DATA 이후 소켓 오류도 CONN으로 표시되므로 메일이 거부됐다는 증거가 아니에요.
     [{ code: "ECONNECTION", command: "CONN" }, "ambiguous"],
     [{ code: "ETIMEDOUT", command: "CONN" }, "ambiguous"],
-  ])("classifies SMTP %j as %s without replaying", async (metadata, reason) => {
-    smtp.sendMail.mockRejectedValue(
-      Object.assign(
-        new Error("private provider response with credentials"),
-        metadata,
-      ),
-    );
-    const result = await sendEmail(config, message).catch(
-      (error: unknown) => error,
-    );
-    expect(result).toBeInstanceOf(EmailError);
-    expect(result).toMatchObject({ reason });
-    expect(String(result)).not.toContain("private");
-    expect(JSON.stringify(result)).not.toContain("credentials");
-    expect(smtp.sendMail).toHaveBeenCalledTimes(1);
-    expect(smtp.close).toHaveBeenCalledTimes(1);
-  });
+  ])(
+    "SMTP 오류 %j를 %s로 분류하고 재발송하지 않아요",
+    async (metadata, reason) => {
+      smtp.sendMail.mockRejectedValue(
+        Object.assign(
+          new Error("private provider response with credentials"),
+          metadata,
+        ),
+      );
+      const result = await sendEmail(config, message).catch(
+        (error: unknown) => error,
+      );
+      expect(result).toBeInstanceOf(EmailError);
+      expect(result).toMatchObject({ reason });
+      expect(String(result)).not.toContain("private");
+      expect(JSON.stringify(result)).not.toContain("credentials");
+      expect(smtp.sendMail).toHaveBeenCalledTimes(1);
+      expect(smtp.close).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  test("missing acknowledgement or inconsistent recipients stays uncertain", async () => {
+  test("접수 응답이 없거나 수신 결과가 일치하지 않으면 결과 불명으로 남겨요", async () => {
     for (const info of [
       { accepted: [], rejected: [], response: "250 OK" },
       { accepted: [message.to], rejected: [message.to], response: "250 OK" },
@@ -124,7 +127,7 @@ describe("Gmail SMTP delivery", () => {
     }
   });
 
-  test("invalid settings and multi-recipient input never connect", async () => {
+  test("잘못된 설정과 여러 수신자 입력은 SMTP 연결 전에 거부해요", async () => {
     for (const settings of [
       { ...config, user: "" },
       { ...config, appPassword: " " },
@@ -154,7 +157,7 @@ describe("Gmail SMTP delivery", () => {
     expect(nodemailer.createTransport).not.toHaveBeenCalled();
   });
 
-  test("auth verification sends no email and closes the connection", async () => {
+  test("인증 확인에서는 메일을 보내지 않고 연결을 닫아요", async () => {
     smtp.verify.mockResolvedValue(true);
     expect(await verifyGmailConnection(config)).toEqual({
       status: "ready",
@@ -165,7 +168,7 @@ describe("Gmail SMTP delivery", () => {
     expect(smtp.close).toHaveBeenCalledTimes(1);
   });
 
-  test("a handshake without credentials is reported as unauthenticated", async () => {
+  test("자격증명 없는 연결 확인은 미인증 상태로 표시해요", async () => {
     smtp.verify.mockResolvedValue(true);
     expect(await verifyGmailConnection()).toEqual({
       status: "ready",
@@ -177,7 +180,7 @@ describe("Gmail SMTP delivery", () => {
     expect(smtp.sendMail).not.toHaveBeenCalled();
   });
 
-  test("TLS handoff keeps the hostname and removes the connection deadline", async () => {
+  test("TLS 연결을 넘길 때 호스트명을 유지하고 연결 제한 시간을 해제해요", async () => {
     vi.useFakeTimers();
     const socket = Object.assign(new EventEmitter(), { destroy: vi.fn() });
     vi.mocked(tls.connect).mockReturnValue(socket as unknown as tls.TLSSocket);
@@ -206,7 +209,7 @@ describe("Gmail SMTP delivery", () => {
     expect(socket.destroy).not.toHaveBeenCalled();
   });
 
-  test("a TLS failure before SMTP is safe to retry and cannot hand off twice", async () => {
+  test("SMTP 전 TLS 실패는 재시도할 수 있고 소켓을 두 번 전달하지 않아요", async () => {
     vi.useFakeTimers();
     const socket = Object.assign(new EventEmitter(), { destroy: vi.fn() });
     vi.mocked(tls.connect).mockReturnValue(socket as unknown as tls.TLSSocket);
@@ -225,7 +228,7 @@ describe("Gmail SMTP delivery", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  test("an unresponsive TLS peer is closed at the connection deadline", async () => {
+  test("TLS 상대가 응답하지 않으면 연결 제한 시간에 소켓을 닫아요", async () => {
     vi.useFakeTimers();
     const socket = new EventEmitter();
     const destroy = vi.fn((error?: Error) => {

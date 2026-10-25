@@ -21,7 +21,7 @@ public class HealthViewModelTest {
   private final Queue<Runnable> main = new ArrayDeque<>();
 
   @Test
-  public void failedConnectionCanBeRetriedSuccessfully() {
+  public void 연결_실패_후_재시도에_성공해요() {
     AtomicBoolean fail = new AtomicBoolean(true);
     HealthViewModel model =
         new HealthViewModel(
@@ -44,7 +44,7 @@ public class HealthViewModelTest {
   }
 
   @Test
-  public void repeatedTapDoesNotStartConcurrentRequests() {
+  public void 반복해서_눌러도_요청을_동시에_시작하지_않아요() {
     AtomicInteger calls = new AtomicInteger();
     HealthViewModel model = new HealthViewModel(calls::incrementAndGet, worker, main::add);
     model.check();
@@ -58,7 +58,7 @@ public class HealthViewModelTest {
   }
 
   @Test
-  public void clearedModelDoesNotPublishLateResults() {
+  public void 해제된_모델은_늦게_도착한_결과를_전달하지_않아요() {
     HealthViewModel model = new HealthViewModel(() -> {}, worker, main::add);
     model.check();
     assertEquals(HealthViewModel.State.CHECKING, model.getState().getValue());

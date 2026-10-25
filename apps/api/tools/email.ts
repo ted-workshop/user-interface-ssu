@@ -55,7 +55,7 @@ export async function runEmailCommand(
   return { deliveryId, messageId, ...addresses, result };
 }
 
-/** An existing claim means the attempt may have reached Gmail, including after a crash. */
+/** 기존 시도 기록은 프로세스 중단 여부와 관계없이 Gmail에 접수됐을 가능성을 뜻해요. */
 export async function claimEmailAttempt(path: string) {
   await writePrivateJson(path, {
     state: "started",

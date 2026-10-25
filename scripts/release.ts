@@ -1,3 +1,4 @@
+import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 type QualityRun = {
@@ -120,6 +121,21 @@ if (import.meta.main) {
     const payload = await Bun.file(process.argv[3] ?? "").json();
     assertSuccessfulRelease(sha, payload.workflow_runs);
     console.info(`Quality 성공 확인: ${sha}`);
+  } else if (mode === "secrets") {
+    const path = process.argv[3];
+    if (!path) throw new Error("시크릿 파일의 저장 경로가 필요해요.");
+    const secrets = {
+      SMTP_USER: process.env.SMTP_USER,
+      SMTP_APP_PASSWORD: process.env.SMTP_APP_PASSWORD,
+    };
+    for (const [name, value] of Object.entries(secrets)) {
+      if (!value?.trim())
+        throw new Error(`${name}을 production 환경 Secret에 설정해 주세요.`);
+    }
+    await writeFile(path, `${JSON.stringify(secrets)}\n`, {
+      flag: "wx",
+      mode: 0o600,
+    });
   } else if (mode === "config") {
     deploymentUrl(process.env.QLETTER_API_URL ?? "");
     const local = await Bun.file(
@@ -138,6 +154,8 @@ if (import.meta.main) {
     await verifyDeployment(process.env.QLETTER_API_URL ?? "", sha);
     console.info(`배포 SHA·health·404 확인: ${sha}`);
   } else {
-    throw new Error("release 작업은 check, config, verify 중 하나여야 해요.");
+    throw new Error(
+      "release 작업은 check, secrets, config, verify 중 하나여야 해요.",
+    );
   }
 }

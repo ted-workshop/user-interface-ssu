@@ -1,4 +1,7 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   assertSuccessfulRelease,
   createDeploymentConfig,
@@ -14,6 +17,77 @@ const successfulRun = {
   status: "completed",
   conclusion: "success",
 };
+
+describe("운영 메일 시크릿 파일", () => {
+  const directories: string[] = [];
+  const credentials = {
+    SMTP_USER: "fixture-sender@gmail.com",
+    SMTP_APP_PASSWORD: 'fixture "password"\\value\n두 번째 줄',
+  };
+
+  afterEach(() => {
+    for (const directory of directories.splice(0))
+      rmSync(directory, { recursive: true, force: true });
+  });
+
+  function temporaryFile() {
+    const directory = mkdtempSync(join(tmpdir(), "qletter-release-secrets-"));
+    directories.push(directory);
+    return join(directory, "smtp.json");
+  }
+
+  function prepare(path: string, values = credentials) {
+    return Bun.spawnSync({
+      cmd: [
+        process.execPath,
+        resolve(import.meta.dir, "release.ts"),
+        "secrets",
+        path,
+      ],
+      env: { ...process.env, ...values },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+  }
+
+  test("환경의 두 값만 0600 JSON으로 저장하고 출력하지 않아요", async () => {
+    const path = temporaryFile();
+    const result = prepare(path);
+    expect(result.exitCode).toBe(0);
+    expect(await Bun.file(path).json()).toEqual(credentials);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+    expect(result.stdout.toString()).toBe("");
+    expect(result.stderr.toString()).toBe("");
+  });
+
+  test("필수 값이 비어 있으면 파일을 만들지 않고 값 대신 이름만 알려줘요", async () => {
+    for (const key of ["SMTP_USER", "SMTP_APP_PASSWORD"] as const) {
+      for (const value of ["", " \n\t "]) {
+        const path = temporaryFile();
+        const result = prepare(path, { ...credentials, [key]: value });
+        expect(result.exitCode).not.toBe(0);
+        expect(await Bun.file(path).exists()).toBe(false);
+        const output = result.stdout.toString() + result.stderr.toString();
+        expect(output).toContain(key);
+        for (const secret of Object.values(credentials))
+          expect(output).not.toContain(secret);
+      }
+    }
+  });
+
+  test("기존 파일을 덮어쓰거나 공개 권한의 파일에 비밀번호를 기록하지 않아요", async () => {
+    const path = temporaryFile();
+    writeFileSync(path, "existing fixture", { mode: 0o644 });
+    const result = prepare(path);
+    expect(result.exitCode).not.toBe(0);
+    expect(await Bun.file(path).text()).toBe("existing fixture");
+    expect(statSync(path).mode & 0o777).toBe(0o644);
+    for (const secret of Object.values(credentials))
+      expect(result.stdout.toString() + result.stderr.toString()).not.toContain(
+        secret,
+      );
+  });
+});
 
 describe("release eligibility", () => {
   test("accepts the latest successful main push for the exact SHA", () => {

@@ -1,0 +1,296 @@
+# ADR-0012: 기존 Gmail SMTP 경로로 공통 메일 발송 기반을 만들어요
+
+- 상태: 확정
+- 작성·확정일: 2026-10-25
+- 확정 근거: 사용자가 도메인 없이 Gmail SMTP를 사용하도록 지정했어요. 오류 분류·연결 처리·검증 도구는 승인된 #6 범위의 구현 판단이에요.
+- 관련 기록: [ADR-0001](0001-workers-d1-free-tier.md), [ADR-0003](0003-shared-modules-sync-async.md), [ADR-0009](0009-manual-deployment-ownership.md), [이슈 #6](https://github.com/ted-workshop/user-interface-ssu/issues/6)
+- 구현·검증 상태: 공통 함수·수동 검증 도구와 전체 로컬 검사를 완료했어요.
+  사용자에게 허가받은 기존 Gmail 계정으로 실제 로컬 workerd의 인증·1통 발송과 해당 발신 계정 자체의 받은편지함 도착을 확인했어요.
+  SMTP 접수와 별도로 IMAP 읽기 전용 조회에서 제목·Message-ID·text/HTML 본문을 대조했어요.
+  추가로 지정한 외부 iCloud 주소의 받은편지함 도착은 사용자가 확인했어요. 원격 Worker 배포·배포 위치 검증은 하지 않았어요.
+
+## 문제와 현재 상태
+
+계정 확인·복구와 채널 리포트에 사용할 메일 경로가 필요해요. 제품의 메일 정책·스키마·발송 작업은
+아직 구현하지 않았어요. 사용자는 그램 랩의 기존 YouTube 요약 시스템 로직 재사용을 제안했고,
+이번 작업 대상은 본인에게 배정된 #6 메일 기반으로 명시했어요.
+
+2026-10-25 SSH로 기존 `youtube-report` 컨테이너의 실행 코드와 설정 구조를 읽었어요.
+기존 구현은 Nodemailer 7.0.13, Gmail SMTP 465/TLS와 text·정제된 HTML 본문을 사용해요.
+확인한 `/app/dist/email.js`의 SHA-256은
+`39956ba0250d71c388914ec3f91f985777293a17090bb741d505a8682fc3da36`예요.
+서버 설정과 구독자 목록을 바꾸지 않았고 비밀번호·개인 주소를 기록하지 않았어요.
+
+## 결정
+
+- 도메인 구매·DNS 변경 없이 Gmail SMTP와 앱 비밀번호를 사용해요. 발신 주소와 SMTP envelope는 인증 계정으로 고정해요.
+- 기존 발송의 text/HTML 분리와 Nodemailer 사용 방식을 적용해요. 리포트 템플릿·Markdown 처리·요약 로직은 이번 기반 작업에 복사하지 않아요.
+- Nodemailer 10.2.1을 고정하고 내장 타입을 사용해요. Node 24 타입은 24.19.2로 고정해 Bun lockfile에 함께 남겨요.
+- Zod 4.6.5 스키마에서 런타임 입력 검증과 TypeScript 타입을 함께 정의해요. 발신·수신 주소는 `z.email()`의 기본 형식으로 검사하고, Gmail 연결 설정은 Nodemailer의 서비스 프리셋을 사용해요.
+- 공통 `sendEmail`·`verifyGmailConnection`을 제공해요. 수신 주소는 한 번에 한 개이며 API·작업 코드가 같은 함수를 사용할 수 있어요.
+- 요청 안에서 연결을 열고 작업 뒤 닫아요. TLS 인증서 검증·TLS 1.2 이상을 유지하며 SMTP 원문/자격증명 로그를 끄고 파일·URL 첨부 접근을 막아요.
+- Nodemailer의 `getSocket` 확장점에서 호스트명을 유지한 `node:tls` 연결을 제공해요. SMTP 프로토콜·MIME·인증은 SDK가 처리해요.
+- 명시적 SMTP 거부와 접수 결과 불명을 구분해요. 함수 자체에서 재시도하지 않고 원문 오류 대신 제한된 reason과 SMTP 코드를 반환해요.
+- 발송 ID로 Message-ID를 만들되 중복 방지 키로 해석하지 않아요. 결과 불명이면 Gmail 보낸편지함/수신함을 확인하고 자동 재발송을 멈춰요.
+- 수동 검증은 Git에서 제외한 개인 자격증명·메시지·시도 기록을 사용해요. 시도 기록을 독점 생성해 같은 테스트의 동시 발송과 중단 후 자동 재실행을 막아요.
+- 수동 검증 명령은 발신 계정과 수신 주소를 각각 마스킹해 표시해요. 실제 조회한 계정과 사용자가 확인할 계정을 구분해서 전달해요.
+- 제품의 영구 발송 기록·재시도·인증·채널 설정은 후속 이슈의 책임이에요. 공개 메일 발송 HTTP 경로를 추가하지 않아요.
+
+## 근거와 대안
+
+아래 공식 자료와 설치 패키지 타입·소스를 2026-10-25에 확인했어요.
+
+- [Nodemailer Gmail 지침](https://nodemailer.com/guides/using-gmail)은 2단계 인증과 앱 비밀번호, 발신 계정과 일일 제한·접속 위치 차단을 설명해요.
+  기존 계정/서비스의 발송 방식을 재사용할 수 있고 도메인이 없는 현재 조건에 맞아요.
+- [Google의 개인 Gmail 한도](https://support.google.com/mail/answer/22839?hl=en)는 하루 500통 초과 등 제한과 1~24시간 복구 안내예요.
+  이는 Qletter의 실제 잔여 할당량 측정이 아니며 기존 서비스와 계정을 공유하면 사용량도 공유해요.
+- [Cloudflare Email Service 요금](https://developers.cloudflare.com/email-service/platform/pricing/)은 임의 수신자 발송에 Workers Paid를 요구해요.
+  binding 관리가 간단하지만 현재 무료 플랜·도메인 없음 조건에서 선택하지 않아요.
+- [Resend](https://resend.com/docs/dashboard/emails/idempotency-keys)는 조회와 24시간 중복 키를 제공하고 무료 요금제가 있어 운영상 장점이 있어요.
+  일반 수신자 발송에 [검증한 도메인](https://resend.com/docs/dashboard/domains/introduction)이 필요하며 사용자가 Gmail을 지정해 채택하지 않아요.
+- OAuth 2.0은 공식 권장 인증이며 갱신 토큰 관리에 장점이 있어요. 기존 앱 비밀번호 경로를 쓰는 이번 소규모 기반 검증에는 별도 OAuth 앱을 추가하지 않아요.
+- [Workers의 net](https://developers.cloudflare.com/workers/runtime-apis/nodejs/net/)·[tls](https://developers.cloudflare.com/workers/runtime-apis/nodejs/tls/) 지원을 확인했어요.
+  로컬 workerd에서 Nodemailer 기본 DNS/IP 연결은 `ESOCKET: proxy request failed, cannot connect to the specified address`로 실패했어요.
+  같은 Gmail의 호스트명 직접 연결과 `getSocket` TLS 전달 방식은 greeting/EHLO까지 성공했어요. 프로토콜을 직접 구현하는 대신 SDK 연결 확장점을 사용해요.
+- 설치한 Nodemailer의 SMTP 소스는 DATA 이후 소켓 오류에도 `command=CONN`을 붙여요.
+  이 필드로 미발송을 추정하지 않으며, SMTP 거부 코드가 없는 오류는 결과 불명으로 처리해요.
+
+## 가정·한계와 영향
+
+Gmail SMTP에는 공급자 멱등성 키나 SMTP 발송 상태 조회 API가 없어요. 같은 Message-ID를 반복해도 중복 발송이 제거된다고 보장하지 않아요.
+[SMTP 표준 RFC 5321 §6.1](https://www.rfc-editor.org/rfc/rfc5321.html#section-6.1)도 최종 접수 응답 지연과 시간 초과로 인한 중복 가능성을 다뤄요.
+[Google의 Message-ID 검색](https://support.google.com/mail/answer/7190?hl=en)으로 보낸편지함을 확인할 수 있지만,
+검색 결과 없음은 미발송 증거가 아니에요. 자동 결과 복구와 정확히 한 번 발송 보장은 미해결이에요.
+향후 #10·#15는 영구 발송 기록과 동시 실행 제어를 구현하고 결과 불명을 사람이 확인할 수 있어야 해요.
+
+기존 Gmail 계정 재사용과 그 계정 자신에게 테스트 메일 1통 발송을 사용자가 승인했어요.
+실제 계정 인증·수신을 확인했지만 SMTP에서 계정의 잔여 할당량을 조회한 결과는 없어요.
+로컬 workerd의 실제 SMTP 발송도 배포된 Worker의 접속 위치와 동작까지 입증하지는 않아요.
+Gmail의 지역/IP 보안 정책과 향후 실제 제품 사용량은 아직 검증하지 않았어요.
+HTML 정제·제품 인증 메일·예약 발송·DB migration·DNS·원격 인프라 변경은 이번 구현에 추가하지 않아요.
+
+## 검증과 재검토 조건
+
+키 없는 workerd 테스트로 단일 수신자, MIME 입력, SMTP 4xx/5xx·인증·한도·결과 불명·TLS 연결 정리와 민감값 비노출을 확인해요.
+Bun 도구 테스트로 동시 claim과 프로세스 중단 후 같은 메시지의 재발송 거부를 확인해요.
+`mise run api:check`와 최종 전체 검사를 실행해요. 실제 계정 인증·단일 테스트 발송·수신은 별도로 기록해요.
+
+2026-10-25 macOS arm64의 실제 로컬 workerd에서 공통 함수의 인증 없는 `verifyGmailConnection()`이
+`{"status":"ready","authenticated":false}`를 반환했어요. 자격증명은 사용하지 않았고 메일도 보내지 않았어요.
+이후 아래 실제 계정 검증을 진행했어요. 배포 위치 검증은 여전히 미실행이에요.
+
+같은 날짜에 `mise run api:check`와 `ANDROID_HOME=<개인 SDK 경로> mise run check`를 통과했어요.
+전체 검사는 Android 포맷·lint·단위 테스트·debug 빌드와 두 Terraform root의 backend 없는 schema 검사까지 포함해요.
+최종 연결 deadline 회귀 테스트를 추가한 뒤 API 타입 검사와 workerd 22개·Bun 검증 도구 2개도 통과했어요.
+공통 Bun 도구 39개가 통과했고, 새 Markdown의 로컬 링크와 `git diff --check`를 확인했어요.
+CLI의 `email handshake`도 Gmail 접속에 성공했지만 인증 없는 검사예요.
+
+2026-10-25의 실제 Gmail 검증 결과예요. 원격 Worker를 배포하지 않고, loopback에만 열린 임시 로컬 workerd에서 같은 공통 함수를 실행했어요.
+검증한 `apps/api/src/email.ts`의 SHA-256은 `42f03454af0aef72cefd53d26e736953956a3ca6a8e575304c08b2be9bf9bd6e`예요.
+
+- `verifyGmailConnection(config)`가 `ready / authenticated: true`를 반환했어요. SMTP 인증만 검사하며 메일은 보내지 않았어요.
+- `sendEmail`로 본인 주소에 테스트 메일 1통을 보냈고 `accepted` 결과를 받았어요.
+  deliveryId는 `e2b61b05-4f2e-4734-a4ff-2b577f15abf7`, Message-ID는 `<qletter.e2b61b05-4f2e-4734-a4ff-2b577f15abf7@gmail.com>`예요.
+- 같은 계정의 IMAP을 읽기 전용으로 열고 그 Message-ID의 메일만 조회했어요. 받은편지함과 보낸편지함에서 각각 1건을 찾았어요.
+  `BODY.PEEK[]`로 읽음 상태를 바꾸지 않고 제목·Message-ID·한국어 text 본문·HTML 본문이 준비한 테스트 메시지와 일치함을 확인했어요.
+  이는 실제 받은편지함 도착 증거이며 사람의 열람 완료를 뜻하지 않아요.
+- 같은 deliveryId로 CLI `send`를 다시 실행했을 때 기존 시도 파일 때문에 SMTP 호출 전에 거부됐고 접수 기록은 바뀌지 않았어요.
+- 실제 한도 소진이나 실제 SMTP 응답 유실을 유발하지는 않았어요. 해당 오류 분류·자동 재발송 중단은 위의 fixture 테스트로 확인했어요.
+  보낸편지함의 Message-ID 조회 방법은 실제 테스트 메일에서 확인했지만, 결과 없음으로 미발송을 확정하는 방법은 아니에요.
+- 발신 계정 주소·앱 비밀번호·실제 메일 전문을 이 기록에 넣지 않았어요. 임시 검증 서버를 종료하고 임시 binding·접속 토큰 파일을 정리했어요.
+
+수신 대상 안내를 보완한 뒤, 사용자가 지정한 별도의 iCloud 주소에도 테스트 1통을 보냈어요.
+이번 발송은 Bun 수동 검증 도구에서 같은 공통 함수를 사용했으며 로컬 workerd 발송과 구분해요.
+deliveryId는 `2ab84509-6b34-4751-ab0e-62479c471a39`, 발송 시각은 2026-10-25 07:08:48 UTC예요.
+SMTP `accepted`와 Gmail 보낸편지함 1건을 확인하고 To 헤더가 지정한 수신 주소와 일치함을 대조했어요.
+iCloud 메일함을 직접 조회하지는 않았어요. 사용자가 해당 테스트 메일이 받은편지함에 도착했다고 응답해 실제 외부 수신을 확인했어요.
+이 확인은 사용자 응답에 따른 증거이며, 앞선 Gmail 계정의 IMAP 본문 대조와 구분해요.
+개인 설정의 수신 주소를 변경한 뒤에도 첫 테스트의 결과 명령은 최초 메시지에 저장된 수신 계정을 표시함을 확인했어요.
+
+허가된 계정에서도 배포 IP 차단·무료 한도·결과 불명 수동 확인이 요구를 충족하지 못하면 전용 공급자나 OAuth 방식을 재검토해요.
+도메인이 준비되거나 공급자 멱등성이 필요한 운영 규모가 되면 이번 선택을 다시 비교해요.
+
+### 가독성 보완과 검증 — 2026-10-25
+
+이 절은 초기 정리 시점의 내용이에요. 입력 검증 함수와 타입은 아래 라이브러리 활용 절의 스키마로 통합했어요.
+
+- [메일 모듈](../../apps/api/src/email.ts)의 공개 함수를 먼저 배치하고 메시지 검증을 `validateMessage`로 분리해요.
+  발송 함수에서 입력 검사·발송·접수 결과 확인 순서를 바로 읽을 수 있고, 제목·두 본문의 빈 값 검사는 `hasText`로 통일해요.
+- `createGmailTransport`, `isMailbox`, `toEmailError`처럼 동작이 드러나는 이름을 사용해요.
+  설정 검증은 공개 함수 진입 시 한 번 수행해요. TLS 콜백은 기존 [`once`](https://nodejs.org/api/events.html#emitteronceeventname-listener)와 반대쪽 리스너 제거로 단일 완료가 보장돼 중복 상태 플래그를 제거해요.
+  2026-10-25 공식 문서의 호출 전 리스너 제거 규칙과 실제 workerd의 이벤트 회귀 검사를 확인했어요.
+- 별도 공급자 클래스·파일 분리·범용 transport 실행 래퍼도 가능하지만 현재 두 동작에는 추가 추적 비용이 더 크다고 판단해 한 파일을 유지해요.
+  공급자 선택이나 여러 실행 경로가 실제로 추가되면 다시 검토해요. 외부 함수의 인자·반환값·오류 분류와 인증서·연결 deadline 정책은 유지해요.
+
+기존 회귀 검사를 보완해 연결 확인에서도 잘못된 설정을 SMTP 전에 거부하고, 공백뿐인 제목·본문을 거부하며, TLS 완료가 반복되어도 한 번만 전달함을 확인했어요.
+`mise run api:check`에서 workerd 22개·Bun 도구 2개·공통 도구 39개, 타입·생성 타입·dry-run 빌드 검사가 통과했어요.
+최종 `ANDROID_HOME=<개인 SDK 경로> mise run check`도 Android 검사·debug 빌드와 두 Terraform root의 backend 없는 검사까지 통과했어요.
+위 실제 메일 증거는 정리 전 SHA-256의 결과로 보존해요. 이번 정리에서는 실제 메일을 추가로 보내지 않았어요.
+
+### 수동 검증 도구 가독성 보완 — 2026-10-25
+
+- [검증 도구](../../apps/api/tools/email.ts)의 명령 처리를 `runEmailCommand`, 메시지 준비를 `prepareProbe`, 발송·시도 기록을 `sendProbe`로 나눠요.
+  인자와 저장 디렉터리를 명시적으로 받아 테스트에서는 임시 폴더만 사용해요. 실제 CLI의 명령 형식과 저장 위치는 유지해요.
+- 최종 JSON 출력·종료 코드는 CLI 진입점이 처리해요. 발송 전 마스킹된 주소 출력은 유지하고, 결과 타입으로 접수와 오류 상태를 구분해요.
+  공통 `writePrivateJson`에 독점 생성·권한 `0600`을 모으고, 최초 시도 기록과 임시 파일의 원자적 교체 순서를 유지해요.
+- 명령 프레임워크나 추가 설정 옵션은 다섯 명령에 필요한 범위를 넘어 도입하지 않아요. 명령·공급자 요구가 실제로 늘어나면 다시 비교해요.
+  같은 JSON 필드로 읽고 쓰므로 기존 개인 기록의 마이그레이션은 필요하지 않아요. JSON 파일의 들여쓰기는 공통 저장 함수로 통일해요.
+
+Bun 테스트 8개에서 다섯 명령, 실제 CLI의 잘못된 명령 종료 코드, 원래 수신 주소 유지, 저장 권한·주소 마스킹,
+SMTP 호출 전 시도 기록, 중복·중단 후 재실행 차단과 결과 불명 보존을 확인했어요. 공급자 함수는 테스트 대역이며 실제 메일 발송 증거가 아니에요.
+최종 `ANDROID_HOME=<개인 SDK 경로> mise run check`에서 workerd 22개·Bun 도구 8개·공통 도구 39개와 Android·두 Terraform root 검사까지 통과했어요.
+실제 개인 설정·발송 기록은 이번 테스트에 사용하지 않았고, 추가 메일은 보내지 않았어요.
+
+### 라이브러리로 입력 검증을 통합해요 — 2026-10-25
+
+사용자가 좋은 라이브러리를 활용해 코드를 더 단순하게 만들도록 요청했어요. 별도 인터페이스와 런타임 검사에 같은 입력 형태를 중복 정의하고 있었어요.
+Zod 4.6.5를 직접 의존성으로 고정하고, 스키마의 `validate`로 판정하며 `z.infer`로 기존 타입을 제공해요.
+이미 lockfile의 전이 의존성에 같은 버전이 있어 새 패키지 버전은 추가되지 않았어요. 스키마 오류 원문은 전달하지 않고 기존 `EmailError` 분류를 유지해요.
+
+2026-10-25에 확인한 [Zod 기본 사용법](https://zod.dev/basics)은 boolean 판정과 타입 추론을 제공해요.
+[형식 API](https://zod.dev/api#uuids)의 `z.guid()`는 기존 발송 ID의 8-4-4-4-12 형식을 유지해요.
+최초 적용 때는 기존 Nodemailer parser를 refinement에서 재사용했어요. 아래 재검토에서 `z.email()` 기본 검사로 단순화했어요. 본문·제목은 검증만 하고 원문을 변환하지 않아요.
+
+[Nodemailer 서비스 옵션](https://nodemailer.com/smtp#general-options)도 같은 날 확인했어요.
+설치한 10.2.1의 `service: "gmail"`을 실제 생성자에 전달했을 때 `smtp.gmail.com:465 / secure: true`로 해석됨을 확인했어요. 이 검사는 접속·인증·발송을 수행하지 않아요.
+workerd에 필요한 호스트명 TLS 전달·제한 시간과 명시적 거부/결과 불명 구분은 유지해요.
+
+수동 검사는 의존성이 없다는 장점이 있지만 타입과 검증을 중복 관리해야 해요. 현재 두 입력의 규칙을 한곳에서 읽도록 Zod를 선택했어요.
+Commander는 도움말·옵션·여러 명령 구성에 장점이 있지만 현재 CLI는 두 위치 인수를 읽는 고정 다섯 명령이에요.
+[공식 API](https://github.com/tj/commander.js#action-handler)로 전환하면 명령 등록과 기존 JSON 출력·오류 처리를 연결해야 하므로 단순화 이점이 충분하지 않다고 판단해 도입하지 않았어요. 이는 코드량 실측이 아닌 설계 비교예요.
+
+`apps/api/src/email.ts`는 변경 전 192줄에서 170줄로 줄고 수동 검증 함수 네 개를 제거했어요. 소스 행수의 비교이며 번들 크기·성능 개선을 측정한 결과는 아니에요.
+추가 회귀 검사를 기존 구현에서 먼저 통과시켜 발송 ID·본문 원문·비밀번호 공백 처리·잘못된 필드 타입을 보존함을 확인했어요.
+`null`·`0` 등 제공된 설정이 미인증 확인으로 빠지던 경로는 실패 테스트로 재현한 뒤 `undefined`만 미인증 검사로 허용하도록 수정했어요. 실제 공급자 인증 우회를 재현한 결과는 아니에요.
+최종 `mise run check`에서 workerd 27개·Bun 도구 8개·공통 도구 39개와 Android·두 Terraform root 검사를 통과했어요. 실제 메일 재발송은 하지 않았어요.
+검증 규칙의 호환성이 깨지거나 제품 메일 연결 후 실제 번들·운영 비용이 부담이 되면 선택을 다시 비교해요.
+
+### 이메일 형식 검사를 기본 API로 단순화해요 — 2026-10-25
+
+기존 parser의 허용 범위를 보존할 필요가 있는지 다시 검토했어요. 현재 제품 명세는 이메일 주소 형식 검사를 요구하며,
+표시 이름·따옴표로 감싼 로컬 부분·국제화 주소를 지원하는 계약이나 저장 데이터 마이그레이션은 없어요.
+별도 parser와 refinement 대신 `z.email()`을 발신·수신 검사의 공통 스키마로 사용해요.
+도메인도 이 스키마가 검사하므로 Message-ID 생성의 중복 정규식은 제거해요.
+
+2026-10-25에 [Zod 이메일 API](https://zod.dev/api#emails)와 설치된 4.6.5의 타입·정규식을 확인했어요.
+기본 검사는 일반적인 주소를 대상으로 해요. Gmail·iCloud·`+` 별칭·하위 도메인·대문자 주소는 허용하고,
+표시 이름과 연속 점, 도메인 없는 주소, 따옴표로 감싼 로컬 부분 등은 거부해요. 주소를 trim하거나 소문자로 바꾸지는 않아요.
+기존 parser를 유지하면 더 넓은 형식을 받을 수 있지만, 현재 요구 없는 형식 때문에 별도 판정을 관리할 이유가 없어 채택하지 않아요.
+국제화 등 다른 주소 형식이 실제 제품 요구로 확정되면 Zod의 `pattern` 옵션과 해당 수신 경로를 함께 검증해 재검토해요.
+
+잘못된 형식을 발신·수신 모두 연결 전에 거부하는 테스트가 기존 코드에서 실패함을 확인했어요.
+변경 후 메일 모듈은 170줄에서 160줄로 줄었어요. 소스 행수의 비교이며 성능 측정은 아니에요.
+`mise run api:check`에서 workerd 29개·Bun 도구 8개·공통 도구 39개와 타입·Worker 빌드 검사를 통과했어요.
+이 회귀 검사는 SMTP 테스트 대역을 사용하며 실제 메일을 다시 보내지는 않았어요.
+
+### SMTP 결과·오류 분류와 Message-ID의 가독성 보완 — 2026-10-25
+
+발송 성공 뒤 `messageId`·수신자 개수·최종 `250` 응답을 재검사하던 조건을 제거해요.
+2026-10-25에 확인한 [Nodemailer 성공 결과 계약](https://nodemailer.com/#response-object)과 설치된 10.2.1의
+`smtp-connection`·`smtp-transport` 구현은 수신자가 모두 거부되거나 최종 SMTP 응답이 실패하면 오류를 반환해요.
+현재 공통 함수는 검증한 주소 하나를 envelope에 넣고 고정 SMTP transport를 사용하므로 성공 결과의 부분 수신 문제는 없어요.
+`info.messageId`도 서버의 수신 증명이 아니라 라이브러리가 메시지에 부여한 헤더 값이에요.
+반환값을 추가로 검사하는 방법은 별도 transport 계약을 다룰 때 도움이 되지만, 현재 경로에서는 SDK 판정을 중복 구현해 제거해요.
+반환 상태는 계속 `accepted`이며 실제 받은편지함 도착과 구분해요. 여러 수신자나 다른 transport를 지원하게 되면 이 경계를 재검토해요.
+
+[공식 오류 타입과 분류](https://nodemailer.com/errors#permanent-and-transient-failures)를 적용해 수동 필드 타입 선언과 숫자 구간 판정을 제거해요.
+공식 `NodemailerError` 타입과 `permanent` 값을 사용하고, 한도 초과·인증 설정 오류는 별도 reason을 유지해요.
+일시적 인증 거부는 설정 오류보다 먼저 분류해 `454`를 보존해요. 공식 분류의 `503`은 세션 순서 오류로 일시적 실패이며,
+기존 코드가 이를 영구 실패로 처리하던 경로를 실패 테스트로 재현한 뒤 수정했어요.
+응답 없는 연결 종료·시간 초과는 결과 불명으로 남겨요. 원문 오류를 반환하거나 자동 재발송하지 않아요.
+
+Message-ID는 [RFC 5322 §3.6.4](https://www.rfc-editor.org/rfc/rfc5322.html#section-3.6.4)의 `<식별자@도메인>` 형식을 사용해요.
+현재 발신 주소와 발송 ID로 사전에 계산해 보낸편지함을 조회하는 계약은 유지해요. `z.email()`로 검증한 주소는 `@`가 하나라
+`lastIndexOf`·`slice` 대신 `split("@")`의 도메인을 읽고, 기존 소문자 정규화와 저장된 Message-ID 형식을 보존해요.
+대문자 도메인·별칭·하위 도메인의 ID와 알 수 없는 오류의 비노출을 회귀 검사에 포함해요.
+`mise run api:check`에서 workerd 32개·Bun 메일 도구 8개·공통 도구 39개와 타입·Worker 빌드 검사를 통과했어요.
+이 검사는 테스트 대역을 사용하며 실제 메일을 추가로 보내지는 않았어요.
+
+### 수동 검증 명령과 발송 순서를 직접 읽게 정리해요 — 2026-10-25
+
+명령별 동작을 하나의 `switch`에 모으고 별도 허용 명령 목록과 암묵적인 발송 분기를 제거해요.
+설정 파일은 각 명령에서 필요한 시점에 읽어요. 2026-10-25 [Bun 파일 API](https://bun.sh/docs/runtime/file-io#reading-files-bunfile)의
+지연 읽기 계약과 Bun 1.4.2의 테스트에서 `handshake`와 잘못된 명령에 자격증명이 필요하지 않음을 확인했어요.
+별도 명령 클래스·등록 테이블·프레임워크를 추가하지 않고 기존 다섯 명령과 JSON 출력·저장 형식을 유지해요.
+
+테스트에서만 직접 부르던 `claimEmailAttempt`는 제거하고 실제 발송 함수에 시도 기록의 독점 생성을 넣어요.
+시도 기록 생성 → SMTP 호출 → 임시 결과 파일 작성 → 원자적 교체 순서를 한 함수에서 읽게 해요.
+독점 생성 실패는 SMTP 오류 처리 밖에서 전파해요. 이를 잡아서 계속 보내거나 기존 기록을 지우면 안 돼요.
+테스트도 helper 호출 대신 실제 `send` 명령을 사용해 동시 여덟 번 실행·중단 기록·접수 뒤 결과 저장 실패에서 재발송이 차단됨을 확인해요.
+
+수신 주소 준비 검사와 마스킹은 이미 설치된 Zod의 `z.email()`을 사용하고 수동 도메인 정규식을 제거해요.
+잘못된 주소도 준비 파일을 만들던 경로를 실패 테스트로 재현해 파일 생성 전에 거부하도록 수정했어요.
+최초 수신 주소·마스킹·파일 권한 `0600`과 기존 개인 기록을 읽는 경로는 유지해요. 새 패키지나 기록 마이그레이션은 필요하지 않아요.
+명령·옵션이 늘어나 등록과 도움말 관리가 실제로 반복되면 명령 프레임워크를 다시 비교해요.
+`mise run api:check`에서 workerd 32개·Bun 메일 도구 10개·공통 도구 39개와 타입·Worker 빌드 검사를 통과했어요.
+이 검사는 임시 폴더와 SMTP 테스트 대역을 사용하며 개인 설정의 실제 발송 기록과 공급자에 접근하지 않아요.
+
+### 오류 분류의 조건을 switch에 모아요 — 2026-10-25
+
+`toEmailError`의 분류를 `switch (true)`에 모아 위에서부터 첫 조건을 적용해요. 한도 초과 → 일시적 실패 → 인증 설정 오류 →
+영구 실패 → 결과 불명의 기존 우선순위와 공개 reason·저장 형식을 유지해요. `code` 하나로 분기하면 같은 `EAUTH`인
+`454`와 `535`를 구분할 수 없어 `permanent`와 SMTP 응답 조건도 함께 사용해요.
+
+설치된 Nodemailer 10.2.1의 `lib/errors`가 `EAUTH` 상수와 `ErrorCode` 타입을 제공하는 것을 2026-10-25 확인했어요.
+별도 enum 대신 제공 상수를 가져와 문자열 오타를 피하고, 기존 `EmailError.reason`의 문자열 유니온은 유지해요.
+guard clause도 동일한 동작을 간결하게 표현하지만 이번에는 사용자의 가독성 제안에 따라 분기와 기본 결과를 한곳에 모아요.
+자체 enum은 관련 값의 이름을 통일할 수 있지만 현재 공급자 상수와 타입을 중복 정의하므로 추가하지 않아요.
+분류 정책을 바꾸지 않는 내부 정리이며 새 의존성·마이그레이션이 없어요. `mise run api:check`에서 workerd 32개·Bun 메일 도구
+10개·공통 도구 39개와 타입·Worker 빌드 검사를 통과했어요. SMTP 테스트 대역으로 기존 분류·원문 비노출·재발송 방지를 확인했고
+실제 메일은 추가로 보내지 않았어요. 오류 계약이 단일 식별자로 정규화되면 값 자체를 대상으로 하는 `switch`를 다시 검토해요.
+
+### 운영 자격증명 원본과 배포 전달 — 2026-10-25
+
+- 상태: 확정. GitHub 원본·수동 배포 전달 제안에 따라 사용자가 운영 값을 등록한 뒤, 승인된 메일 기반 작업에서 연결을 구현해요.
+- 현재 확인: 2026-10-25 GitHub `production` 환경의 Secret 이름 목록에서 `SMTP_USER`·`SMTP_APP_PASSWORD`를 확인했어요.
+  이름·설정만 읽었으며 Secret 값이나 Cloudflare의 현재 SMTP Secret 등록 상태는 조회하지 않았어요.
+- 구현 상태: [배포 workflow](../../.github/workflows/deploy-api.yml)의 파일 준비·코드와 동시 전달·정리와 환경 타입을 구현했어요.
+  실제 원격 배포·Cloudflare 전달·추가 메일 발송은 실행하지 않았어요.
+
+로컬 `credentials.json`은 Git 제외·권한 `0600`으로 유지하고, 운영 원본은 기존 GitHub `production` Environment Secrets에 둬요.
+`SMTP_USER`에는 발신 계정 주소, `SMTP_APP_PASSWORD`에는 Google 앱 비밀번호를 넣어요. 개인 테스트 수신 주소는 운영 값으로 올리지 않아요.
+수동 `Deploy API`에서 승인된 main SHA·키 없는 검사를 확인한 뒤 해당 배포 step에만 두 값을 전달해요.
+runner의 임시 Secret 파일을 `0600`·독점 생성으로 만들고 `wrangler deploy --secrets-file`로 Worker 코드와 함께 업로드해요.
+누락되거나 공백뿐인 값은 파일 생성·원격 D1 migration 전에 거부하며, 값 대신 Secret 이름만 오류에 포함해요.
+마지막 `always()` step에서 성공·실패 때 모두 임시 파일 정리를 실행해요. 값은 명령 인자·로그·artifact로 내보내지 않아요.
+운영 Worker는 Cloudflare의 Secret binding으로 읽으며 GitHub 값을 직접 조회하지 않아요. GitHub 값을 바꾸면 수동 배포로 전달해야 해요.
+
+필수 이름은 `wrangler.jsonc`의 `secrets.required`에 선언하고 `wrangler types`로 생성해요. 개인 자격증명을 읽어 타입을 추론하지 않아요.
+2026-10-25 [공식 선언·타입 생성 계약](https://developers.cloudflare.com/workers/wrangler/configuration/#secrets-configuration-property)과
+설치된 Wrangler 4.152.0 schema·구현을 확인했어요. 키 없는 로컬 실행에서는 누락 경고만 나며 health와 CI는 계속 실행할 수 있어요.
+
+2026-10-25 [GitHub 환경 Secret](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets#creating-secrets-for-an-environment),
+[Cloudflare 코드와 Secret 동시 업로드](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code)와
+설치된 Wrangler 4.152.0의 `--secrets-file` 옵션을 확인했어요. 이는 지원 여부와 로컬 경로 검증이며 실제 원격 동기화 증거는 아니에요.
+기존 배포 환경에 운영 입력을 모을 수 있고 [ADR-0009](0009-manual-deployment-ownership.md)의 Wrangler binding 관리 범위에 맞아 추천해요.
+Cloudflare Dashboard에서만 등록하면 보관 지점이 하나라 단순하지만 배포 입력 관리를 GitHub에 모으려는 요구에 맞지 않아 우선안으로 두지 않아요.
+Terraform으로 값을 관리하면 인프라와 함께 적용할 수 있지만 현재 binding 소유권과 맞지 않아 채택하지 않아요.
+[Terraform의 `sensitive` 표시는 state 저장을 막지 않아요](https://developer.hashicorp.com/terraform/language/manage-sensitive-data#hide-sensitive-variables-and-outputs).
+write-only·ephemeral 방식도 있지만 이번 변경에 provider 지원 검토나 별도 인프라 경로를 추가하지 않아요.
+
+실제 CLI 테스트에서 두 값의 비공개 JSON 저장·누락 거부·기존 파일 보존을 확인했어요. workerd에서는 가짜 binding과 SMTP 테스트 대역으로
+공통 함수에 환경 값을 전달하는 경로를 확인했어요. `mise run api:check`의 workerd 33개·Bun 메일 도구 10개·공통 도구 42개를 통과했어요.
+선택한 workflow의 실제 Bash step을 fixture 환경·Wrangler 대역으로 실행해 성공·두 값 각각의 누락·배포 실패에서 전달·정리를 확인했어요.
+Wrangler 자체의 `--secrets-file` dry-run에서도 fixture 값이 로그에 노출되지 않았고 actionlint 1.7.12를 통과했어요.
+실제 Cloudflare Secret 등록과 원격 전달·제품 메일 발송은 별도 실행 범위예요. GitHub Actions를 배포 경로에서 제거하거나
+여러 Worker가 같은 자격증명을 공유하게 되면 Cloudflare 단독 보관 등 관리 원본을 다시 비교해요.
+
+## 반론과 변경 이력
+
+- 2026-10-25: 중복 키·조회가 있는 Resend를 검토했지만 사용자는 도메인 없이 Gmail SMTP 사용을 지정했어요.
+  Gmail의 중복 억제 한계를 남기고, 결과 불명 시 자동 재발송하지 않는 방식을 구현해요.
+- 2026-10-25: 기존 Gmail 계정 재사용과 본인 수신 테스트를 승인받아 실제 인증·발송·받은편지함 대조 결과를 추가했어요.
+- 2026-10-25: 사용자가 메일을 받지 못했다고 알려 수신 대상을 다시 확인했어요. 첫 검증은 기존 발신 계정 자체의 수신함이었으며,
+  사용자가 평소 확인하는 주소와 동일한지 명확히 안내하지 않았어요. 명시적인 수신 주소를 다시 확인하고, CLI에 발신·수신 마스킹 표시를 추가했어요.
+  첫 테스트의 실제 수신 증거는 보존하며 사용자 지정 주소의 수신과 구분해요.
+- 2026-10-25: 사용자가 명시한 외부 iCloud 수신 주소로 별도 테스트를 접수하고 보낸편지함의 수신 헤더를 대조했어요.
+  이후 사용자가 받은편지함 도착을 확인해 외부 수신 검증을 완료했어요.
+- 2026-10-25: 사용자의 가독성 보완 요청에 따라 공개 동작·검증·SMTP 설정의 배치를 정리했어요. 기존 발송 계약을 적용한 내부 정리이며 공급자 선택을 바꾸지 않아요.
+- 2026-10-25: 수동 검증 도구도 정리해 달라는 요청에 따라 명령 처리·메시지 준비·발송·최종 출력을 나눴어요. 기존 명령·보관 기록·중복 발송 방지 계약을 회귀 검사로 확인했어요.
+- 2026-10-25: 라이브러리 활용 요청에 따라 Zod 스키마·타입 추론과 Nodemailer Gmail 프리셋을 적용했어요. 한국어 주석·테스트 일괄 정리는 별도 후속 PR의 범위로 유지해요.
+- 2026-10-25: `z.email()`로 충분하다는 의견을 반영했어요. 별도 주소 parser를 유지할 제품 계약이 없어 제거하고 기본 형식 검사로 단순화했어요.
+- 2026-10-25: 성공 결과 재검사·오류 분류·도메인 추출이 복잡하다는 의견을 반영했어요. 고정 단일 수신자 SMTP 경로의 중복 검사는 제거하고, 공식 오류 타입·일시/영구 판정과 단순한 도메인 분리를 적용했어요.
+- 2026-10-25: 수동 검증 도구를 다시 정리해 달라는 요청에 따라 명령 분기와 발송 순서를 명시하고, 중복 발송 방지 검증을 실제 명령 경로로 옮겼어요. 잘못된 수신 주소의 준비 파일 생성도 차단했어요.
+- 2026-10-25: GitHub Secrets 관리 의견에 따라 운영 원본·Worker 런타임·로컬 검증의 경계를 제안으로 기록했어요. 실제 값 등록과 배포 연결은 미구현으로 구분해요.
+- 2026-10-25: switch·enum 제안을 검토해 분류 순서를 유지하는 `switch (true)`와 Nodemailer 제공 오류 상수를 적용해요. 중복 enum은 추가하지 않고 기존 문자열 reason 계약을 유지해요.
+- 2026-10-25: 사용자가 운영 Secret 등록을 알려 이름 목록을 확인하고 GitHub 원본·수동 배포 전달 제안을 확정했어요. 파일 보호·누락 거부·환경 타입·키 없는 검사를 구현했으며, 실제 원격 전달은 미실행으로 구분해요.

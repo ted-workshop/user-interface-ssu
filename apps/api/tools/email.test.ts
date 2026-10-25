@@ -7,11 +7,18 @@ import {
   spyOn,
   test,
 } from "bun:test";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import * as email from "../src/email";
-import { claimEmailAttempt, runEmailCommand } from "./email";
+import { runEmailCommand } from "./email";
 
 const directories: string[] = [];
 const settings = {
@@ -62,11 +69,12 @@ async function preparedProbe() {
 }
 
 describe("live email probe guard", () => {
-  test("concurrent invocations can claim a delivery only once", async () => {
-    const directory = await temporaryDirectory();
-    const path = join(directory, "attempt.json");
+  test("같은 발송 명령을 동시에 실행해도 한 번만 보내요", async () => {
+    const { directory, deliveryId } = await preparedProbe();
     const outcomes = await Promise.allSettled(
-      Array.from({ length: 8 }, () => claimEmailAttempt(path)),
+      Array.from({ length: 8 }, () =>
+        runEmailCommand(["send", deliveryId], directory),
+      ),
     );
     expect(
       outcomes.filter((result) => result.status === "fulfilled"),
@@ -74,25 +82,77 @@ describe("live email probe guard", () => {
     expect(
       outcomes.filter((result) => result.status === "rejected"),
     ).toHaveLength(7);
-    expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
-      state: "started",
+    for (const outcome of outcomes) {
+      if (outcome.status === "rejected")
+        expect(outcome.reason).toMatchObject({ code: "EEXIST" });
+    }
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(
+      await Bun.file(join(directory, `${deliveryId}.attempt.json`)).json(),
+    ).toMatchObject({
+      state: "accepted",
     });
   });
 
-  test("a crash after claiming cannot cause an automatic resend", async () => {
-    const directory = await temporaryDirectory();
-    const path = join(directory, "attempt.json");
-    await claimEmailAttempt(path);
-    await expect(claimEmailAttempt(path)).rejects.toMatchObject({
+  test("프로세스 중단 때 남은 시도 기록이 있으면 다시 보내지 않아요", async () => {
+    const { directory, deliveryId } = await preparedProbe();
+    const path = join(directory, `${deliveryId}.attempt.json`);
+    const checkpoint = JSON.stringify({
+      state: "started",
+      at: "2026-10-25T00:00:00.000Z",
+    });
+    await writeFile(path, checkpoint, { flag: "wx", mode: 0o600 });
+    await expect(
+      runEmailCommand(["send", deliveryId], directory),
+    ).rejects.toMatchObject({
       code: "EEXIST",
     });
-    expect(JSON.parse(await readFile(path, "utf8"))).toMatchObject({
-      state: "started",
-    });
+    expect(await readFile(path, "utf8")).toBe(checkpoint);
+    expect(send).not.toHaveBeenCalled();
   });
 });
 
 describe("email verification commands", () => {
+  test("잘못된 수신 주소는 준비 파일을 만들기 전에 거부해요", async () => {
+    const directory = await temporaryDirectory();
+    for (const testRecipient of [
+      "person@localhost",
+      "a@example.net,b@example.net",
+      42,
+    ]) {
+      await Bun.write(
+        join(directory, "credentials.json"),
+        JSON.stringify({ ...settings, testRecipient }),
+      );
+      await expect(
+        runEmailCommand(["prepare"], directory),
+      ).rejects.toMatchObject({
+        reason: "invalid_input",
+      });
+      expect(await readdir(directory)).toEqual(["credentials.json"]);
+    }
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  test("접수 뒤 결과 저장이 실패해도 기존 시도 기록으로 재발송을 막아요", async () => {
+    const { directory, deliveryId } = await preparedProbe();
+    const attemptPath = join(directory, `${deliveryId}.attempt.json`);
+    await writeFile(`${attemptPath}.tmp`, "existing temporary result", {
+      flag: "wx",
+      mode: 0o600,
+    });
+    await expect(
+      runEmailCommand(["send", deliveryId], directory),
+    ).rejects.toMatchObject({ code: "EEXIST" });
+    expect(await Bun.file(attemptPath).json()).toMatchObject({
+      state: "started",
+    });
+    await expect(
+      runEmailCommand(["send", deliveryId], directory),
+    ).rejects.toMatchObject({ code: "EEXIST" });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
   test("handshake needs no credentials, verify authenticates, and unknown commands fail early", async () => {
     const directory = await temporaryDirectory();
     expect(await runEmailCommand(["handshake"], directory)).toEqual({
@@ -141,8 +201,10 @@ describe("email verification commands", () => {
       deliveryId: prepared.deliveryId,
     });
     expect((await stat(messagePath)).mode & 0o777).toBe(0o600);
-    await claimEmailAttempt(
+    await writeFile(
       join(prepared.directory, `${prepared.deliveryId}.attempt.json`),
+      JSON.stringify({ state: "started" }),
+      { flag: "wx", mode: 0o600 },
     );
     await Bun.write(
       join(prepared.directory, "credentials.json"),

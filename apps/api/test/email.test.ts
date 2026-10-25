@@ -50,9 +50,7 @@ describe("Gmail SMTP delivery", () => {
     });
     expect(nodemailer.createTransport).toHaveBeenCalledWith(
       expect.objectContaining({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
+        service: "gmail",
         auth: { user: config.user, pass: config.appPassword },
         logger: false,
         debug: false,
@@ -244,5 +242,81 @@ describe("Gmail SMTP delivery", () => {
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback.mock.calls[0]?.[0]).toMatchObject({ reason: "temporary" });
     expect(vi.getTimerCount()).toBe(0);
+  });
+
+  test.each([
+    "00000000-0000-0000-0000-000000000000",
+    "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+  ])("기존 발송 ID 형식 %s를 그대로 허용해요", async (deliveryId) => {
+    const expectedId = `<qletter.${deliveryId}@gmail.com>`;
+    smtp.sendMail.mockResolvedValue({
+      messageId: expectedId,
+      accepted: [message.to],
+      rejected: [],
+      response: "250 2.0.0 OK fixture",
+    });
+    expect(await sendEmail(config, { ...message, deliveryId })).toEqual({
+      status: "accepted",
+      messageId: expectedId,
+    });
+  });
+
+  test("제목·본문 원문을 보존하고 앱 비밀번호의 공백만 제거해요", async () => {
+    const content = {
+      ...message,
+      subject: "  Qletter 메일 연결 확인  ",
+      text: "  본문 앞뒤 공백을 보존해요.\n ",
+      html: " <p>본문 앞뒤 공백을 보존해요.</p> ",
+    };
+    smtp.sendMail.mockResolvedValue({
+      messageId,
+      accepted: [message.to],
+      rejected: [],
+      response: "250 2.0.0 OK fixture",
+    });
+    await sendEmail({ ...config, appPassword: " abc def\t " }, content);
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({ auth: { user: config.user, pass: "abcdef" } }),
+    );
+    expect(smtp.sendMail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: content.subject,
+        text: content.text,
+        html: content.html,
+      }),
+    );
+  });
+
+  test("JSON 입력의 잘못된 필드 타입을 연결 전에 거부하고 민감값을 숨겨요", async () => {
+    for (const input of [
+      '{"user":42,"appPassword":"secret-fixture"}',
+      '{"user":"sender@gmail.com","appPassword":7}',
+    ]) {
+      const invalid = JSON.parse(input);
+      const result = await sendEmail(invalid, message).catch(
+        (error: unknown) => error,
+      );
+      expect(result).toBeInstanceOf(EmailError);
+      expect(result).toMatchObject({ reason: "configuration" });
+      expect(String(result)).not.toContain("secret-fixture");
+      await expect(verifyGmailConnection(invalid)).rejects.toMatchObject({
+        reason: "configuration",
+      });
+    }
+    for (const input of ['{"to":42}', '{"subject":null}', '{"html":[]}']) {
+      await expect(
+        sendEmail(config, { ...message, ...JSON.parse(input) }),
+      ).rejects.toMatchObject({ reason: "invalid_input" });
+    }
+    expect(nodemailer.createTransport).not.toHaveBeenCalled();
+  });
+
+  test("설정값이 있지만 객체가 아니면 미인증 연결 확인으로 넘기지 않아요", async () => {
+    for (const input of ["null", "0", "false", '\"\"']) {
+      await expect(
+        verifyGmailConnection(JSON.parse(input)),
+      ).rejects.toMatchObject({ reason: "configuration" });
+    }
+    expect(nodemailer.createTransport).not.toHaveBeenCalled();
   });
 });

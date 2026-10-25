@@ -2,21 +2,36 @@ import tls from "node:tls";
 import nodemailer from "nodemailer";
 import addressparser from "nodemailer/lib/addressparser";
 import type { SMTPTransportGetSocket } from "nodemailer/lib/smtp-transport";
+import { z } from "zod";
 
-export interface GmailConfig {
-  user: string;
-  appPassword: string;
-}
+const mailboxSchema = z.string().refine((value) => {
+  const addresses = addressparser(value);
+  return (
+    addresses.length === 1 &&
+    addresses[0]?.address === value &&
+    value.includes("@") &&
+    !/[\r\n]/.test(value)
+  );
+});
+const textSchema = z.string().refine((value) => value.trim().length > 0);
+const deliveryIdSchema = z.guid();
 
-export interface EmailMessage {
-  /** Persist one ID per recipient and delivery before sending. It is not a deduplication key. */
-  deliveryId: string;
-  to: string;
-  subject: string;
-  text: string;
-  /** The caller must provide safely rendered HTML, separate from the plain text. */
-  html: string;
-}
+const gmailConfigSchema = z.object({
+  user: mailboxSchema,
+  appPassword: z.string().regex(/\S/),
+});
+const emailMessageSchema = z.object({
+  /** 발송 전에 수신자·발송별 ID를 저장해요. 중복 방지 키는 아니에요. */
+  deliveryId: deliveryIdSchema,
+  to: mailboxSchema,
+  subject: textSchema.refine((value) => !/[\r\n]/.test(value)),
+  text: textSchema,
+  /** 호출부에서 일반 텍스트와 별도로 안전하게 렌더링한 HTML을 전달해요. */
+  html: textSchema,
+});
+
+export type GmailConfig = z.infer<typeof gmailConfigSchema>;
+export type EmailMessage = z.infer<typeof emailMessageSchema>;
 
 export class EmailError extends Error {
   constructor(
@@ -35,8 +50,10 @@ export class EmailError extends Error {
 }
 
 export async function sendEmail(config: GmailConfig, message: EmailMessage) {
-  validateConfig(config);
-  validateMessage(message);
+  if (!gmailConfigSchema.validate(config))
+    throw new EmailError("configuration");
+  if (!emailMessageSchema.validate(message))
+    throw new EmailError("invalid_input");
   const messageId = emailMessageId(config.user, message.deliveryId);
   const transport = createGmailTransport(config);
   try {
@@ -66,7 +83,8 @@ export async function sendEmail(config: GmailConfig, message: EmailMessage) {
 }
 
 export async function verifyGmailConnection(config?: GmailConfig) {
-  if (config) validateConfig(config);
+  if (config !== undefined && !gmailConfigSchema.validate(config))
+    throw new EmailError("configuration");
   const transport = createGmailTransport(config);
   try {
     await transport.verify();
@@ -79,56 +97,16 @@ export async function verifyGmailConnection(config?: GmailConfig) {
 }
 
 export function emailMessageId(user: string, deliveryId: string) {
-  const uuid = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
-  if (!isMailbox(user) || !uuid.test(deliveryId))
+  if (!mailboxSchema.validate(user) || !deliveryIdSchema.validate(deliveryId))
     throw new EmailError("invalid_input");
   const domain = user.slice(user.lastIndexOf("@") + 1).toLowerCase();
   if (!/^[a-z0-9.-]+$/.test(domain)) throw new EmailError("invalid_input");
   return `<qletter.${deliveryId}@${domain}>`;
 }
 
-function validateConfig(config: GmailConfig) {
-  if (
-    !isMailbox(config.user) ||
-    typeof config.appPassword !== "string" ||
-    !config.appPassword.replace(/\s/g, "")
-  ) {
-    throw new EmailError("configuration");
-  }
-}
-
-function validateMessage(message: EmailMessage) {
-  if (
-    !isMailbox(message.to) ||
-    !hasText(message.subject) ||
-    /[\r\n]/.test(message.subject) ||
-    !hasText(message.text) ||
-    !hasText(message.html)
-  ) {
-    throw new EmailError("invalid_input");
-  }
-}
-
-function hasText(value: string) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
-function isMailbox(value: string) {
-  if (typeof value !== "string") return false;
-  const addresses = addressparser(value);
-  return (
-    addresses.length === 1 &&
-    addresses[0]?.address === value &&
-    value.includes("@") &&
-    !/[\r\n]/.test(value)
-  );
-}
-
 function createGmailTransport(config?: GmailConfig) {
   return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+    service: "gmail",
     auth: config
       ? { user: config.user, pass: config.appPassword.replace(/\s/g, "") }
       : undefined,

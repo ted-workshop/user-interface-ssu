@@ -33,11 +33,13 @@ chmod 600 apps/api/.artifacts/email/credentials.json
 환경 타입 생성 입력이 아니므로 개인 계정에 따라 추적 중인 환경 타입이 바뀌지 않아요.
 제품 Worker에 연결할 때는 `SMTP_USER`, `SMTP_APP_PASSWORD`를 Worker Secrets에 두고
 `{ user: env.SMTP_USER, appPassword: env.SMTP_APP_PASSWORD }`를 공통 함수에 전달해요.
-제품 연결 시 선언·환경 타입 생성과 배포 환경 Secret 준비를 함께 진행해요.
+두 이름은 Wrangler의 `secrets.required`에 선언하고 생성한 환경 타입에 포함해요.
+키가 없어도 타입 검사와 health를 실행할 수 있어요. 로컬 실행 시 누락 경고가 나올 수 있으며 실제 발송에는 자격증명이 필요해요.
 
-## 운영 자격증명 관리 제안
+## 운영 자격증명 관리
 
-현재 `Deploy API` workflow에는 SMTP Secret 전달을 구현하지 않았어요. 아래는 제품 메일 연결 때 적용할 제안이에요.
+수동 `Deploy API` workflow가 GitHub의 운영 값을 Worker Secrets로 전달해요.
+제품의 인증·리포트 기능에서 공통 발송 함수를 호출하는 연결은 별도 후속 작업이에요.
 
 GitHub 저장소의 `Settings → Environments → production → Environment secrets`에 운영 값을 보관해요.
 
@@ -46,14 +48,19 @@ GitHub 저장소의 `Settings → Environments → production → Environment se
 | `SMTP_USER` | 발신 Gmail 계정 주소 |
 | `SMTP_APP_PASSWORD` | 해당 계정의 Google 앱 비밀번호 |
 
-수동 배포에서 이 두 값만 runner의 임시 파일로 전달하고, Wrangler의 `--secrets-file`로 코드와 함께
-Cloudflare Worker Secrets에 등록하는 구성을 제안해요. Worker는 `env.SMTP_USER`와 `env.SMTP_APP_PASSWORD`를 사용해요.
+수동 배포에서 이 두 값만 runner의 임시 JSON 파일로 만들고, Wrangler의 `--secrets-file`로 코드와 함께
+Cloudflare Worker Secrets에 등록해요. Worker는 `env.SMTP_USER`와 `env.SMTP_APP_PASSWORD`를 사용해요.
 GitHub Secret 변경만으로 실행 중인 Worker에 반영되지는 않으며 수동 배포가 필요해요.
 PR·일반 Quality CI는 지금처럼 Gmail 키 없이 검사하고 실제 메일을 보내지 않아요.
 
+값이 누락되거나 공백뿐이면 원격 D1 migration·Worker 배포 전에 실패하고 누락된 Secret 이름만 알려줘요.
+파일은 `0600` 권한으로 새로 만들며 기존 파일을 덮어쓰지 않아요. 값은 명령 인자·로그·artifact에 넣지 않고,
+workflow의 마지막 `always()` step에서 성공·실패와 관계없이 임시 파일을 정리해요.
+
 로컬 수동 검증은 위의 Git 제외 파일을 계속 사용해요. 개인 `testRecipient`는 운영 Secret에 넣지 않아요.
-앱 비밀번호는 Terraform 입력·state, Wrangler의 공개 `vars`, 로그·artifact에 넣지 않는 방향이에요.
-근거·대안·미구현 범위는 [ADR-0012의 운영 관리 제안](decisions/0012-gmail-smtp-email-foundation.md#운영-자격증명-원본과-배포-전달-제안--2026-10-25)에 있어요.
+앱 비밀번호는 Terraform 입력·state나 Wrangler의 공개 `vars`로 관리하지 않아요.
+근거·대안·실행 검증 범위는 [ADR-0012의 운영 관리](decisions/0012-gmail-smtp-email-foundation.md#운영-자격증명-원본과-배포-전달--2026-10-25)에 있어요.
+GitHub에 두 Secret 이름이 등록된 것은 확인했어요. 이번 변경으로 실제 원격 배포·시크릿 전달·추가 메일 발송은 실행하지 않았어요.
 
 ## 단계별 검증
 

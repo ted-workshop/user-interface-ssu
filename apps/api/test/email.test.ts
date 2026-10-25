@@ -1,3 +1,4 @@
+import { env } from "cloudflare:workers";
 import { EventEmitter } from "node:events";
 import tls from "node:tls";
 import nodemailer from "nodemailer";
@@ -40,6 +41,24 @@ describe("Gmail SMTP delivery", () => {
   });
   afterEach(() => {
     vi.useRealTimers();
+  });
+
+  test("Worker 시크릿 binding을 공통 함수에 전달하고 실제 발송은 하지 않아요", async () => {
+    smtp.verify.mockResolvedValue(true);
+    const result = await verifyGmailConnection({
+      user: env.SMTP_USER,
+      appPassword: env.SMTP_APP_PASSWORD,
+    });
+    expect(result).toEqual({ status: "ready", authenticated: true });
+    expect(nodemailer.createTransport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: {
+          user: "fixture-sender@gmail.com",
+          pass: "fixture-app-password",
+        },
+      }),
+    );
+    expect(smtp.sendMail).not.toHaveBeenCalled();
   });
 
   test("uses authenticated TLS and sends one recipient with both bodies", async () => {

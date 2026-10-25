@@ -6,7 +6,11 @@ export default defineConfig({
     cloudflareTest(async () => ({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
-        bindings: { TEST_MIGRATIONS: await readD1Migrations("./migrations") },
+        bindings: {
+          TEST_MIGRATIONS: await readD1Migrations("./migrations"),
+          SMTP_USER: "fixture-sender@gmail.com",
+          SMTP_APP_PASSWORD: "fixture-app-password",
+        },
       },
     })),
   ],

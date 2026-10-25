@@ -239,30 +239,40 @@ guard clause도 동일한 동작을 간결하게 표현하지만 이번에는 �
 10개·공통 도구 39개와 타입·Worker 빌드 검사를 통과했어요. SMTP 테스트 대역으로 기존 분류·원문 비노출·재발송 방지를 확인했고
 실제 메일은 추가로 보내지 않았어요. 오류 계약이 단일 식별자로 정규화되면 값 자체를 대상으로 하는 `switch`를 다시 검토해요.
 
-### 운영 자격증명 원본과 배포 전달 제안 — 2026-10-25
+### 운영 자격증명 원본과 배포 전달 — 2026-10-25
 
-- 상태: 제안. 사용자가 GitHub Secrets 사용 의견을 주었으며 등록·배포 연결은 아직 구현하지 않았어요.
-- 현재 확인: GitHub에 `production` 환경과 Cloudflare 배포용 Secret이 있어요. 해당 환경의 Secret 이름 목록에는
-  `SMTP_USER`·`SMTP_APP_PASSWORD`가 없고, [배포 workflow](../../.github/workflows/deploy-api.yml)에도 SMTP 전달 코드가 없어요.
+- 상태: 확정. GitHub 원본·수동 배포 전달 제안에 따라 사용자가 운영 값을 등록한 뒤, 승인된 메일 기반 작업에서 연결을 구현해요.
+- 현재 확인: 2026-10-25 GitHub `production` 환경의 Secret 이름 목록에서 `SMTP_USER`·`SMTP_APP_PASSWORD`를 확인했어요.
   이름·설정만 읽었으며 Secret 값이나 Cloudflare의 현재 SMTP Secret 등록 상태는 조회하지 않았어요.
+- 구현 상태: [배포 workflow](../../.github/workflows/deploy-api.yml)의 파일 준비·코드와 동시 전달·정리와 환경 타입을 구현했어요.
+  실제 원격 배포·Cloudflare 전달·추가 메일 발송은 실행하지 않았어요.
 
-로컬 `credentials.json`은 Git 제외·권한 `0600`으로 유지하고, 운영 원본은 기존 GitHub `production` Environment Secrets에 두는 구성을 제안해요.
+로컬 `credentials.json`은 Git 제외·권한 `0600`으로 유지하고, 운영 원본은 기존 GitHub `production` Environment Secrets에 둬요.
 `SMTP_USER`에는 발신 계정 주소, `SMTP_APP_PASSWORD`에는 Google 앱 비밀번호를 넣어요. 개인 테스트 수신 주소는 운영 값으로 올리지 않아요.
 수동 `Deploy API`에서 승인된 main SHA·키 없는 검사를 확인한 뒤 해당 배포 step에만 두 값을 전달해요.
-runner의 임시 Secret 파일을 `0600`으로 만들고 `wrangler deploy --secrets-file`로 Worker 코드와 함께 업로드한 뒤 정리해요.
+runner의 임시 Secret 파일을 `0600`·독점 생성으로 만들고 `wrangler deploy --secrets-file`로 Worker 코드와 함께 업로드해요.
+누락되거나 공백뿐인 값은 파일 생성·원격 D1 migration 전에 거부하며, 값 대신 Secret 이름만 오류에 포함해요.
+마지막 `always()` step에서 성공·실패 때 모두 임시 파일 정리를 실행해요. 값은 명령 인자·로그·artifact로 내보내지 않아요.
 운영 Worker는 Cloudflare의 Secret binding으로 읽으며 GitHub 값을 직접 조회하지 않아요. GitHub 값을 바꾸면 수동 배포로 전달해야 해요.
+
+필수 이름은 `wrangler.jsonc`의 `secrets.required`에 선언하고 `wrangler types`로 생성해요. 개인 자격증명을 읽어 타입을 추론하지 않아요.
+2026-10-25 [공식 선언·타입 생성 계약](https://developers.cloudflare.com/workers/wrangler/configuration/#secrets-configuration-property)과
+설치된 Wrangler 4.152.0 schema·구현을 확인했어요. 키 없는 로컬 실행에서는 누락 경고만 나며 health와 CI는 계속 실행할 수 있어요.
 
 2026-10-25 [GitHub 환경 Secret](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets#creating-secrets-for-an-environment),
 [Cloudflare 코드와 Secret 동시 업로드](https://developers.cloudflare.com/workers/configuration/secrets/#upload-secrets-alongside-code)와
-설치된 Wrangler 4.152.0의 `--secrets-file` 옵션을 확인했어요. 이는 지원 여부를 확인한 결과이며 실제 동기화 검증은 아니에요.
+설치된 Wrangler 4.152.0의 `--secrets-file` 옵션을 확인했어요. 이는 지원 여부와 로컬 경로 검증이며 실제 원격 동기화 증거는 아니에요.
 기존 배포 환경에 운영 입력을 모을 수 있고 [ADR-0009](0009-manual-deployment-ownership.md)의 Wrangler binding 관리 범위에 맞아 추천해요.
 Cloudflare Dashboard에서만 등록하면 보관 지점이 하나라 단순하지만 배포 입력 관리를 GitHub에 모으려는 요구에 맞지 않아 우선안으로 두지 않아요.
 Terraform으로 값을 관리하면 인프라와 함께 적용할 수 있지만 현재 binding 소유권과 맞지 않아 채택하지 않아요.
 [Terraform의 `sensitive` 표시는 state 저장을 막지 않아요](https://developer.hashicorp.com/terraform/language/manage-sensitive-data#hide-sensitive-variables-and-outputs).
-write-only·ephemeral 방식도 있지만 이번 제안에서 provider 지원 검토나 별도 인프라 경로를 추가하지 않아요.
+write-only·ephemeral 방식도 있지만 이번 변경에 provider 지원 검토나 별도 인프라 경로를 추가하지 않아요.
 
-구현 검증은 환경 타입 생성·키 없는 CI 유지·누락 Secret의 배포 전 거부·값의 로그/artifact 비노출부터 확인해요.
-실제 Secret 등록과 원격 전달·제품 메일 발송은 별도 실행 범위예요. GitHub Actions를 배포 경로에서 제거하거나
+실제 CLI 테스트에서 두 값의 비공개 JSON 저장·누락 거부·기존 파일 보존을 확인했어요. workerd에서는 가짜 binding과 SMTP 테스트 대역으로
+공통 함수에 환경 값을 전달하는 경로를 확인했어요. `mise run api:check`의 workerd 33개·Bun 메일 도구 10개·공통 도구 42개를 통과했어요.
+선택한 workflow의 실제 Bash step을 fixture 환경·Wrangler 대역으로 실행해 성공·두 값 각각의 누락·배포 실패에서 전달·정리를 확인했어요.
+Wrangler 자체의 `--secrets-file` dry-run에서도 fixture 값이 로그에 노출되지 않았고 actionlint 1.7.12를 통과했어요.
+실제 Cloudflare Secret 등록과 원격 전달·제품 메일 발송은 별도 실행 범위예요. GitHub Actions를 배포 경로에서 제거하거나
 여러 Worker가 같은 자격증명을 공유하게 되면 Cloudflare 단독 보관 등 관리 원본을 다시 비교해요.
 
 ## 반론과 변경 이력
@@ -283,3 +293,4 @@ write-only·ephemeral 방식도 있지만 이번 제안에서 provider 지원 �
 - 2026-10-25: 수동 검증 도구를 다시 정리해 달라는 요청에 따라 명령 분기와 발송 순서를 명시하고, 중복 발송 방지 검증을 실제 명령 경로로 옮겼어요. 잘못된 수신 주소의 준비 파일 생성도 차단했어요.
 - 2026-10-25: GitHub Secrets 관리 의견에 따라 운영 원본·Worker 런타임·로컬 검증의 경계를 제안으로 기록했어요. 실제 값 등록과 배포 연결은 미구현으로 구분해요.
 - 2026-10-25: switch·enum 제안을 검토해 분류 순서를 유지하는 `switch (true)`와 Nodemailer 제공 오류 상수를 적용해요. 중복 enum은 추가하지 않고 기존 문자열 reason 계약을 유지해요.
+- 2026-10-25: 사용자가 운영 Secret 등록을 알려 이름 목록을 확인하고 GitHub 원본·수동 배포 전달 제안을 확정했어요. 파일 보호·누락 거부·환경 타입·키 없는 검사를 구현했으며, 실제 원격 전달은 미실행으로 구분해요.

@@ -3,7 +3,12 @@ import tls from "node:tls";
 import nodemailer from "nodemailer";
 import type { SMTPTransportOptions } from "nodemailer/lib/smtp-transport";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { EmailError, sendEmail, verifyGmailConnection } from "../src/email";
+import {
+  EmailError,
+  emailMessageId,
+  sendEmail,
+  verifyGmailConnection,
+} from "../src/email";
 
 const smtp = vi.hoisted(() => ({
   sendMail: vi.fn(),
@@ -72,17 +77,16 @@ describe("Gmail SMTP delivery", () => {
   });
 
   test.each([
-    [
-      { responseCode: 535, code: "EAUTH", command: "AUTH PLAIN" },
-      "configuration",
-    ],
-    [{ responseCode: 454, code: "EAUTH", command: "AUTH PLAIN" }, "temporary"],
-    [{ responseCode: 450, code: "EENVELOPE", command: "RCPT TO" }, "temporary"],
-    [{ responseCode: 550, code: "EENVELOPE", command: "RCPT TO" }, "permanent"],
-    [{ responseCode: 552, code: "EMESSAGE", command: "DATA" }, "permanent"],
+    [{ responseCode: 535, permanent: true, code: "EAUTH" }, "configuration"],
+    [{ responseCode: 454, permanent: false, code: "EAUTH" }, "temporary"],
+    [{ responseCode: 450, permanent: false, code: "EENVELOPE" }, "temporary"],
+    [{ responseCode: 503, permanent: false, code: "EENVELOPE" }, "temporary"],
+    [{ responseCode: 550, permanent: true, code: "EENVELOPE" }, "permanent"],
+    [{ responseCode: 552, permanent: true, code: "EMESSAGE" }, "permanent"],
     [
       {
         responseCode: 550,
+        permanent: true,
         response: "550 5.4.5 Daily user sending limit exceeded",
       },
       "quota",
@@ -109,17 +113,27 @@ describe("Gmail SMTP delivery", () => {
     expect(smtp.close).toHaveBeenCalledTimes(1);
   });
 
-  test("missing acknowledgement or inconsistent recipients stays uncertain", async () => {
-    for (const info of [
-      { accepted: [], rejected: [], response: "250 OK" },
-      { accepted: [message.to], rejected: [message.to], response: "250 OK" },
-      { accepted: [message.to], rejected: [], response: "354 continue" },
-    ]) {
-      smtp.sendMail.mockResolvedValueOnce({ ...info, messageId });
-      await expect(sendEmail(config, message)).rejects.toMatchObject({
-        reason: "ambiguous",
-      });
+  test("오류 객체가 아닌 거부 결과도 원문을 숨기고 재발송하지 않아요", async () => {
+    for (const error of [null, undefined, "private provider response"]) {
+      smtp.sendMail.mockRejectedValueOnce(error);
+      const result = await sendEmail(config, message).catch(
+        (caught: unknown) => caught,
+      );
+      expect(result).toBeInstanceOf(EmailError);
+      expect(result).toMatchObject({ reason: "ambiguous" });
+      expect(String(result)).not.toContain("private");
     }
+    expect(smtp.sendMail).toHaveBeenCalledTimes(3);
+    expect(smtp.close).toHaveBeenCalledTimes(3);
+  });
+
+  test.each([
+    ["sender@GMAIL.COM", "gmail.com"],
+    ["first.last+probe@Sub.Example.COM", "sub.example.com"],
+  ])("발신 주소 %s의 도메인으로 같은 발송 ID를 만들어요", (user, domain) => {
+    expect(emailMessageId(user, message.deliveryId)).toBe(
+      `<qletter.${message.deliveryId}@${domain}>`,
+    );
   });
 
   test("invalid settings and multi-recipient input never connect", async () => {

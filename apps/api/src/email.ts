@@ -1,5 +1,5 @@
 import tls from "node:tls";
-import nodemailer from "nodemailer";
+import nodemailer, { type NodemailerError } from "nodemailer";
 import type { SMTPTransportGetSocket } from "nodemailer/lib/smtp-transport";
 import { z } from "zod";
 
@@ -48,7 +48,7 @@ export async function sendEmail(config: GmailConfig, message: EmailMessage) {
   const messageId = emailMessageId(config.user, message.deliveryId);
   const transport = createGmailTransport(config);
   try {
-    const info = await transport.sendMail({
+    await transport.sendMail({
       from: { name: "Qletter", address: config.user },
       to: message.to,
       envelope: { from: config.user, to: [message.to] },
@@ -57,14 +57,6 @@ export async function sendEmail(config: GmailConfig, message: EmailMessage) {
       html: message.html,
       messageId,
     });
-    if (
-      info.messageId !== messageId ||
-      info.accepted.length !== 1 ||
-      info.rejected.length !== 0 ||
-      !/^250[ -]/.test(info.response)
-    ) {
-      throw new EmailError("ambiguous");
-    }
     return { status: "accepted" as const, messageId };
   } catch (error) {
     throw toEmailError(error);
@@ -90,7 +82,7 @@ export async function verifyGmailConnection(config?: GmailConfig) {
 export function emailMessageId(user: string, deliveryId: string) {
   if (!mailboxSchema.validate(user) || !deliveryIdSchema.validate(deliveryId))
     throw new EmailError("invalid_input");
-  const domain = user.slice(user.lastIndexOf("@") + 1).toLowerCase();
+  const [, domain] = user.toLowerCase().split("@");
   return `<qletter.${deliveryId}@${domain}>`;
 }
 
@@ -141,20 +133,27 @@ const gmailSocket: SMTPTransportGetSocket = (_options, callback) => {
 };
 
 function toEmailError(error: unknown) {
-  if (error instanceof EmailError) return error;
-  const detail = error as {
-    responseCode?: number;
-    code?: string;
-    response?: string;
-  } | null;
-  const code = detail?.responseCode;
-  if (code === 550 && /^550[ -]5\.4\.5\b/.test(detail?.response ?? ""))
-    return new EmailError("quota", code);
-  if (typeof code === "number" && code >= 400 && code < 500)
-    return new EmailError("temporary", code);
-  if (detail?.code === "EAUTH") return new EmailError("configuration", code);
-  if (typeof code === "number" && code >= 500 && code < 600)
-    return new EmailError("permanent", code);
+  if (error instanceof EmailError) {
+    return error;
+  }
+  if (!(error instanceof Error)) {
+    return new EmailError("ambiguous");
+  }
+  const smtpError: NodemailerError = error;
+  const smtpCode = smtpError.responseCode;
+  if (smtpCode === 550 && /^550[ -]5\.4\.5\b/.test(smtpError.response ?? "")) {
+    return new EmailError("quota", smtpCode);
+  }
+  // 454 같은 일시적 인증 거부는 설정 오류보다 먼저 분류해요.
+  if (smtpError.permanent === false) {
+    return new EmailError("temporary", smtpCode);
+  }
+  if (smtpError.code === "EAUTH") {
+    return new EmailError("configuration", smtpCode);
+  }
+  if (smtpError.permanent === true) {
+    return new EmailError("permanent", smtpCode);
+  }
   // Nodemailer uses command=CONN for socket failures even after DATA. Never infer non-delivery from it.
   return new EmailError("ambiguous");
 }

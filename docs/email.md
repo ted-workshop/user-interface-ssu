@@ -65,10 +65,10 @@ mise exec -- bun run --cwd apps/api email result <deliveryId>
 | --- | --- | --- |
 | `configuration` | 자격증명 누락·인증 실패 | 앱 비밀번호·계정 보안 상태를 확인해요. |
 | `invalid_input` | 잘못된 주소·deliveryId·본문 | 입력을 고쳐요. SMTP 호출 전 거부해요. |
-| `temporary` | 명시적 SMTP 4xx 거부 또는 SMTP 전 TLS 연결 실패 | 원인을 확인한 뒤 후속 작업 정책으로 재시도해요. |
-| `permanent` | 명시적 SMTP 5xx 거부 | 주소·내용·정책을 수정하기 전 반복하지 않아요. |
+| `temporary` | Nodemailer가 일시적으로 분류한 SMTP 거부(4xx·503 등) 또는 SMTP 전 TLS 연결 실패 | 원인을 확인한 뒤 후속 작업 정책으로 재시도해요. |
+| `permanent` | Nodemailer가 영구적으로 분류한 SMTP 거부(503을 제외한 5xx) | 주소·내용·정책을 수정하기 전 반복하지 않아요. |
 | `quota` | Gmail의 `550 5.4.5` 한도 거부 | 발송을 중단하고 계정 사용량·제한 해제를 확인해요. |
-| `ambiguous` | 접수 결과를 알 수 없는 연결 종료·시간 초과·불완전한 결과 | 자동 재발송을 멈추고 보낸편지함·수신함을 확인해요. |
+| `ambiguous` | 접수 결과를 알 수 없는 연결 종료·시간 초과·알 수 없는 오류 | 자동 재발송을 멈추고 보낸편지함·수신함을 확인해요. |
 
 Gmail은 멱등성 키를 제공하지 않아요. 같은 Message-ID로 다시 보내도 중복이 제거된다고 보장하지 않아요.
 `deliveryId`는 수신 주소·용도별로 만들고 최초 발송 전에 저장해요. Message-ID는 그 ID에서 만들어

@@ -1,18 +1,9 @@
 import tls from "node:tls";
 import nodemailer from "nodemailer";
-import addressparser from "nodemailer/lib/addressparser";
 import type { SMTPTransportGetSocket } from "nodemailer/lib/smtp-transport";
 import { z } from "zod";
 
-const mailboxSchema = z.string().refine((value) => {
-  const addresses = addressparser(value);
-  return (
-    addresses.length === 1 &&
-    addresses[0]?.address === value &&
-    value.includes("@") &&
-    !/[\r\n]/.test(value)
-  );
-});
+const mailboxSchema = z.email();
 const textSchema = z.string().refine((value) => value.trim().length > 0);
 const deliveryIdSchema = z.guid();
 
@@ -100,7 +91,6 @@ export function emailMessageId(user: string, deliveryId: string) {
   if (!mailboxSchema.validate(user) || !deliveryIdSchema.validate(deliveryId))
     throw new EmailError("invalid_input");
   const domain = user.slice(user.lastIndexOf("@") + 1).toLowerCase();
-  if (!/^[a-z0-9.-]+$/.test(domain)) throw new EmailError("invalid_input");
   return `<qletter.${deliveryId}@${domain}>`;
 }
 

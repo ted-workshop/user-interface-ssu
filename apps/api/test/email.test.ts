@@ -244,6 +244,56 @@ describe("Gmail SMTP delivery", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
+  test("일반 주소와 별칭·하위 도메인 주소를 그대로 전달해요", async () => {
+    for (const to of [
+      "person@gmail.com",
+      "person@icloud.com",
+      "first.last+qletter@sub.example.com",
+      "UPPER@EXAMPLE.COM",
+    ]) {
+      smtp.sendMail.mockResolvedValueOnce({
+        messageId,
+        accepted: [to],
+        rejected: [],
+        response: "250 2.0.0 OK fixture",
+      });
+      await expect(sendEmail(config, { ...message, to })).resolves.toEqual({
+        status: "accepted",
+        messageId,
+      });
+      expect(smtp.sendMail).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          to,
+          envelope: { from: config.user, to: [to] },
+        }),
+      );
+    }
+  });
+
+  test("잘못된 주소 형식은 발신·수신 모두 SMTP 연결 전에 거부해요", async () => {
+    for (const address of [
+      "missing-at.example.com",
+      "person@",
+      "person@localhost",
+      ".person@example.com",
+      "first..last@example.com",
+      '"quoted local"@example.com',
+      "Qletter <person@example.com>",
+    ]) {
+      const settings = { ...config, user: address };
+      await expect(sendEmail(settings, message)).rejects.toMatchObject({
+        reason: "configuration",
+      });
+      await expect(verifyGmailConnection(settings)).rejects.toMatchObject({
+        reason: "configuration",
+      });
+      await expect(
+        sendEmail(config, { ...message, to: address }),
+      ).rejects.toMatchObject({ reason: "invalid_input" });
+    }
+    expect(nodemailer.createTransport).not.toHaveBeenCalled();
+  });
+
   test.each([
     "00000000-0000-0000-0000-000000000000",
     "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
@@ -312,7 +362,7 @@ describe("Gmail SMTP delivery", () => {
   });
 
   test("설정값이 있지만 객체가 아니면 미인증 연결 확인으로 넘기지 않아요", async () => {
-    for (const input of ["null", "0", "false", '\"\"']) {
+    for (const input of ["null", "0", "false", '""']) {
       await expect(
         verifyGmailConnection(JSON.parse(input)),
       ).rejects.toMatchObject({ reason: "configuration" });

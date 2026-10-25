@@ -132,13 +132,20 @@ describe("Gmail SMTP delivery", () => {
       await expect(sendEmail(settings, message)).rejects.toMatchObject({
         reason: "configuration",
       });
+      await expect(verifyGmailConnection(settings)).rejects.toMatchObject({
+        reason: "configuration",
+      });
     }
     for (const change of [
       { deliveryId: "not-a-uuid" },
       { to: "a@example.com,b@example.com" },
       { to: "a@example.com\r\nBcc: other@example.com" },
       { subject: "injected\r\nheader" },
+      { subject: " " },
       { text: "" },
+      { text: " " },
+      { html: "" },
+      { html: " " },
     ]) {
       await expect(
         sendEmail(config, { ...message, ...change }),
@@ -189,6 +196,7 @@ describe("Gmail SMTP delivery", () => {
         minVersion: "TLSv1.2",
       }),
     );
+    socket.emit("secureConnect");
     socket.emit("secureConnect");
     expect(callback).toHaveBeenCalledExactlyOnceWith(null, {
       connection: socket,

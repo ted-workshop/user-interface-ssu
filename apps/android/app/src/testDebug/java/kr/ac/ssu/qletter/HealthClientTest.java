@@ -27,7 +27,7 @@ public class HealthClientTest {
   }
 
   @Test
-  public void Qletter의_정상_상태_응답만_허용해요() throws Exception {
+  public void acceptsOnlyTheQletterHealthContract() throws Exception {
     server.enqueue(new MockResponse().setBody("{\"status\":\"ok\",\"service\":\"qletter-api\"}"));
     new HealthClient(server.url("/").toString()).check();
     RecordedRequest request = server.takeRequest(1, TimeUnit.SECONDS);
@@ -36,13 +36,13 @@ public class HealthClientTest {
   }
 
   @Test
-  public void HTTP_실패_응답을_거부해요() {
+  public void rejectsHttpFailure() {
     server.enqueue(new MockResponse().setResponseCode(503).setBody("unavailable"));
     assertThrows(IOException.class, () -> new HealthClient(server.url("/").toString()).check());
   }
 
   @Test
-  public void 다른_서비스와_잘못된_응답을_거부해요() {
+  public void rejectsIncorrectServiceAndMalformedResponses() {
     for (String body :
         new String[] {
           "{\"status\":\"ok\",\"service\":\"other\"}",
@@ -59,7 +59,7 @@ public class HealthClientTest {
   }
 
   @Test
-  public void 응답이_늦으면_시간_초과로_종료해요() {
+  public void timesOutInsteadOfWaitingForever() {
     server.enqueue(
         new MockResponse()
             .setBody("{\"status\":\"ok\",\"service\":\"qletter-api\"}")

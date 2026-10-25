@@ -21,7 +21,6 @@
 | [ADR-0010](0010-commit-title-format.md) | 변경 영역과 PR 번호를 커밋 제목에 표시해요 | 확정 | 2026-10-24 |
 | [ADR-0011](0011-scoped-quality-checks.md) | 변경 파일에 따라 CI와 로컬 검사 범위를 선택해요 | 확정 | 2026-10-24 |
 | [ADR-0012](0012-gmail-smtp-email-foundation.md) | 기존 Gmail SMTP 경로로 공통 메일 발송 기반을 만들어요 | 확정 | 2026-10-25 |
-| [ADR-0013](0013-korean-comments-and-tests.md) | 주석과 테스트 이름은 한국어로 작성해요 | 확정 | 2026-10-25 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

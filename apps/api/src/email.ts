@@ -9,12 +9,12 @@ export interface GmailConfig {
 }
 
 export interface EmailMessage {
-  /** 발송 전에 수신자·발송별 ID를 저장해요. 중복 방지 키는 아니에요. */
+  /** Persist one ID per recipient and delivery before sending. It is not a deduplication key. */
   deliveryId: string;
   to: string;
   subject: string;
   text: string;
-  /** 호출부에서 일반 텍스트와 별도로 안전하게 렌더링한 HTML을 전달해요. */
+  /** The caller must provide safely rendered HTML, separate from the plain text. */
   html: string;
 }
 
@@ -143,7 +143,7 @@ function createGmailTransport(config?: GmailConfig) {
   });
 }
 
-// Nodemailer가 해석한 IP 대신 호스트명을 workerd의 TCP 프록시에 전달해요.
+// Keep the hostname for workerd's TCP proxy instead of Nodemailer's resolved-IP path.
 const gmailSocket: SMTPTransportGetSocket = (_options, callback) => {
   const socket = tls.connect({
     host: "smtp.gmail.com",
@@ -160,7 +160,7 @@ const gmailSocket: SMTPTransportGetSocket = (_options, callback) => {
     clearTimeout(timer);
     socket.removeListener("secureConnect", onSecure);
     socket.destroy();
-    // SMTP에 소켓을 넘기기 전이라 메일이 접수될 수 없어요.
+    // This socket has not been handed to SMTP yet, so no message can have been accepted.
     callback(new EmailError("temporary"));
   };
   const onSecure = () => {
@@ -187,6 +187,6 @@ function toEmailError(error: unknown) {
   if (detail?.code === "EAUTH") return new EmailError("configuration", code);
   if (typeof code === "number" && code >= 500 && code < 600)
     return new EmailError("permanent", code);
-  // DATA 이후 소켓 오류도 CONN으로 표시하므로 미발송으로 추정하지 않아요.
+  // Nodemailer uses command=CONN for socket failures even after DATA. Never infer non-delivery from it.
   return new EmailError("ambiguous");
 }

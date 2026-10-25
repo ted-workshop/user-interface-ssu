@@ -15,12 +15,12 @@ const successfulRun = {
   conclusion: "success",
 };
 
-describe("배포 가능 여부", () => {
-  test("선택한 SHA와 일치하는 최신 main 푸시 검사가 성공하면 허용해요", () => {
+describe("release eligibility", () => {
+  test("accepts the latest successful main push for the exact SHA", () => {
     expect(() => assertSuccessfulRelease(sha, [successfulRun])).not.toThrow();
   });
 
-  test("결과가 없거나 대기·실패·PR·다른 커밋의 결과이면 거부해요", () => {
+  test("rejects missing, pending, failed, PR, and different commit results", () => {
     for (const runs of [
       [],
       [{ ...successfulRun, status: "in_progress", conclusion: null }],
@@ -35,7 +35,7 @@ describe("배포 가능 여부", () => {
   });
 });
 
-describe("배포 설정", () => {
+describe("deployment configuration", () => {
   const local = {
     name: "qletter-api",
     main: "src/server.ts",
@@ -50,7 +50,7 @@ describe("배포 설정", () => {
     ],
   };
 
-  test("로컬 설정을 바꾸지 않고 선택한 커밋과 원격 DB를 사용해요", () => {
+  test("uses the selected revision and remote DB without changing local config", () => {
     const deployed = createDeploymentConfig(local, databaseId, sha);
     expect(deployed.vars.BUILD_REVISION).toBe(sha);
     expect(deployed.d1_databases[0]?.database_id).toBe(databaseId);
@@ -61,7 +61,7 @@ describe("배포 설정", () => {
     );
   });
 
-  test("미설정 DB와 잘못된 커밋 값은 원격 쓰기 전에 거부해요", () => {
+  test("rejects placeholder DBs and malformed revisions before remote writes", () => {
     for (const id of [
       "",
       "not-a-uuid",
@@ -76,7 +76,7 @@ describe("배포 설정", () => {
   });
 });
 
-describe("배포된 API 확인", () => {
+describe("deployed API proof", () => {
   function responses(revision = sha, missingStatus = 404) {
     return async (url: URL) =>
       url.pathname === "/health"
@@ -90,17 +90,17 @@ describe("배포된 API 확인", () => {
           );
   }
 
-  test("선택한 커밋을 확인하고 JSON 404 응답 규약을 검사해요", async () => {
+  test("accepts the selected revision and checks the JSON 404 contract", async () => {
     await verifyDeployment("https://qletter.example", sha, responses());
   });
 
-  test("이전 배포의 정상 응답은 거부해요", async () => {
+  test("rejects a healthy response from the previous deployment", async () => {
     await expect(
       verifyDeployment("https://qletter.example", sha, responses("old")),
     ).rejects.toThrow();
   });
 
-  test("404 응답 규약이 잘못됐거나 안전하지 않은 배포 URL이면 거부해요", async () => {
+  test("rejects a broken 404 contract or an insecure deployment URL", async () => {
     await expect(
       verifyDeployment("https://qletter.example", sha, responses(sha, 200)),
     ).rejects.toThrow();

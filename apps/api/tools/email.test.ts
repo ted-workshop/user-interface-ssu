@@ -64,11 +64,12 @@ async function preparedProbe() {
     JSON.stringify(settings),
   );
   const prepared = await runEmailCommand(["prepare"], directory);
-  if (!("deliveryId" in prepared)) throw new Error("Expected a prepared probe");
+  if (!("deliveryId" in prepared))
+    throw new Error("준비된 테스트 메시지가 필요해요");
   return { ...prepared, directory };
 }
 
-describe("live email probe guard", () => {
+describe("검증 메일의 중복 시도 방지", () => {
   test("같은 발송 명령을 동시에 실행해도 한 번만 보내요", async () => {
     const { directory, deliveryId } = await preparedProbe();
     const outcomes = await Promise.allSettled(
@@ -112,7 +113,7 @@ describe("live email probe guard", () => {
   });
 });
 
-describe("email verification commands", () => {
+describe("메일 검증 명령", () => {
   test("잘못된 수신 주소는 준비 파일을 만들기 전에 거부해요", async () => {
     const directory = await temporaryDirectory();
     for (const testRecipient of [
@@ -153,7 +154,7 @@ describe("email verification commands", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  test("handshake needs no credentials, verify authenticates, and unknown commands fail early", async () => {
+  test("연결 확인은 자격증명 없이 실행하고 인증을 확인하며 잘못된 명령은 먼저 거부해요", async () => {
     const directory = await temporaryDirectory();
     expect(await runEmailCommand(["handshake"], directory)).toEqual({
       status: "ready",
@@ -185,7 +186,7 @@ describe("email verification commands", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  test("prepare stores a private message and result keeps its original recipient", async () => {
+  test("메시지를 비공개 파일로 준비하고 결과 조회는 원래 수신 주소를 유지해요", async () => {
     const prepared = await preparedProbe();
     expect(prepared).toMatchObject({
       sender: "se***er@gmail.com",
@@ -227,7 +228,7 @@ describe("email verification commands", () => {
     expect(send).not.toHaveBeenCalled();
   });
 
-  test("send records acceptance privately and refuses a second SMTP attempt", async () => {
+  test("접수 결과를 비공개 파일에 기록하고 두 번째 SMTP 시도를 거부해요", async () => {
     const { directory, deliveryId } = await preparedProbe();
     const messageId = email.emailMessageId(settings.user, deliveryId);
     const attemptPath = join(directory, `${deliveryId}.attempt.json`);
@@ -258,30 +259,27 @@ describe("email verification commands", () => {
   test.each([
     new email.EmailError("ambiguous"),
     new Error("private provider error"),
-  ])(
-    "uncertain delivery is recorded and never resent automatically: %s",
-    async (error) => {
-      const { directory, deliveryId } = await preparedProbe();
-      const exitCode = process.exitCode;
-      send.mockRejectedValueOnce(error);
-      expect(
-        await runEmailCommand(["send", deliveryId], directory),
-      ).toMatchObject({
-        result: { state: "ambiguous" },
-      });
-      const attemptPath = join(directory, `${deliveryId}.attempt.json`);
-      expect(await Bun.file(attemptPath).json()).toEqual({
-        state: "ambiguous",
-      });
-      expect(process.exitCode).toBe(exitCode);
-      await expect(
-        runEmailCommand(["send", deliveryId], directory),
-      ).rejects.toMatchObject({ code: "EEXIST" });
-      expect(send).toHaveBeenCalledTimes(1);
-    },
-  );
+  ])("결과 불명을 기록하고 자동 재발송하지 않아요: %s", async (error) => {
+    const { directory, deliveryId } = await preparedProbe();
+    const exitCode = process.exitCode;
+    send.mockRejectedValueOnce(error);
+    expect(
+      await runEmailCommand(["send", deliveryId], directory),
+    ).toMatchObject({
+      result: { state: "ambiguous" },
+    });
+    const attemptPath = join(directory, `${deliveryId}.attempt.json`);
+    expect(await Bun.file(attemptPath).json()).toEqual({
+      state: "ambiguous",
+    });
+    expect(process.exitCode).toBe(exitCode);
+    await expect(
+      runEmailCommand(["send", deliveryId], directory),
+    ).rejects.toMatchObject({ code: "EEXIST" });
+    expect(send).toHaveBeenCalledTimes(1);
+  });
 
-  test("missing IDs, path traversal, and mismatched probes cannot reach SMTP", async () => {
+  test("ID 누락·경로 이탈·메시지 불일치는 SMTP 호출 전에 거부해요", async () => {
     const { directory, deliveryId } = await preparedProbe();
     for (const args of [["send"], ["send", "../../credentials"]]) {
       await expect(runEmailCommand(args, directory)).rejects.toMatchObject({

@@ -104,7 +104,7 @@ function createGmailTransport(config?: GmailConfig) {
   });
 }
 
-// Keep the hostname for workerd's TCP proxy instead of Nodemailer's resolved-IP path.
+// Nodemailer가 해석한 IP 대신 호스트명을 workerd의 TCP 프록시에 전달해요.
 const gmailSocket: SMTPTransportGetSocket = (_options, callback) => {
   const socket = tls.connect({
     host: "smtp.gmail.com",
@@ -121,7 +121,7 @@ const gmailSocket: SMTPTransportGetSocket = (_options, callback) => {
     clearTimeout(timer);
     socket.removeListener("secureConnect", onSecure);
     socket.destroy();
-    // This socket has not been handed to SMTP yet, so no message can have been accepted.
+    // SMTP에 소켓을 넘기기 전이라 메일이 접수될 수 없어요.
     callback(new EmailError("temporary"));
   };
   const onSecure = () => {
@@ -153,7 +153,7 @@ function toEmailError(error: unknown) {
     case smtpError.permanent === true:
       return new EmailError("permanent", smtpCode);
     default:
-      // Nodemailer uses command=CONN for socket failures even after DATA. Never infer non-delivery from it.
+      // DATA 이후 소켓 오류도 CONN으로 표시하므로 미발송으로 추정하지 않아요.
       return new EmailError("ambiguous");
   }
 }

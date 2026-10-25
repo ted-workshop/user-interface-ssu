@@ -1,5 +1,6 @@
 import tls from "node:tls";
 import nodemailer, { type NodemailerError } from "nodemailer";
+import { EAUTH } from "nodemailer/lib/errors";
 import type { SMTPTransportGetSocket } from "nodemailer/lib/smtp-transport";
 import { z } from "zod";
 
@@ -141,19 +142,18 @@ function toEmailError(error: unknown) {
   }
   const smtpError: NodemailerError = error;
   const smtpCode = smtpError.responseCode;
-  if (smtpCode === 550 && /^550[ -]5\.4\.5\b/.test(smtpError.response ?? "")) {
-    return new EmailError("quota", smtpCode);
+  switch (true) {
+    case smtpCode === 550 && /^550[ -]5\.4\.5\b/.test(smtpError.response ?? ""):
+      return new EmailError("quota", smtpCode);
+    // 454 같은 일시적 인증 거부는 설정 오류보다 먼저 분류해요.
+    case smtpError.permanent === false:
+      return new EmailError("temporary", smtpCode);
+    case smtpError.code === EAUTH:
+      return new EmailError("configuration", smtpCode);
+    case smtpError.permanent === true:
+      return new EmailError("permanent", smtpCode);
+    default:
+      // Nodemailer uses command=CONN for socket failures even after DATA. Never infer non-delivery from it.
+      return new EmailError("ambiguous");
   }
-  // 454 같은 일시적 인증 거부는 설정 오류보다 먼저 분류해요.
-  if (smtpError.permanent === false) {
-    return new EmailError("temporary", smtpCode);
-  }
-  if (smtpError.code === "EAUTH") {
-    return new EmailError("configuration", smtpCode);
-  }
-  if (smtpError.permanent === true) {
-    return new EmailError("permanent", smtpCode);
-  }
-  // Nodemailer uses command=CONN for socket failures even after DATA. Never infer non-delivery from it.
-  return new EmailError("ambiguous");
 }

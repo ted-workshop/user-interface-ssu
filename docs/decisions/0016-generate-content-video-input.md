@@ -1,9 +1,9 @@
 # ADR-0016: 실제 영상에 성공한 generateContent 경로를 사용해요
 
-- 상태: 확정
+- 상태: 대체
 - 작성·확정일: 2026-10-27
 - 확정 근거: #5의 실제 영상 검증 범위에서 같은 키·모델·영상의 요청 경로를 대조했어요.
-- 관련 기록: [ADR-0014](0014-gemini-video-verification.md)를 대체해요. 운영 설정은 [ADR-0015](0015-gemini-production-settings.md)를 적용해요.
+- 관련 기록: [ADR-0014](0014-gemini-video-verification.md)를 대체했으며 [ADR-0017](0017-report-generation-parity.md)로 대체됐어요. 운영 설정은 [ADR-0015](0015-gemini-production-settings.md)를 적용해요.
 - 구현·검증 상태: 공통 함수와 검증 CLI를 변경하고 workerd의 영상 검사 47개·Bun의 요약 명령 검사 6개를 통과했어요.
   실제 공개 영상의 한국어 리포트 생성을 확인했어요. 원본의 각 시간 링크 대조와 실제 계정 한도 수치 확인은 미완료예요.
   Worker 배포와 제품 HTTP API·Android 연동은 후속 범위예요.
@@ -96,3 +96,4 @@ Android 포맷·lint·로컬 테스트·debug 빌드, Terraform의 backend 없�
 - 2026-10-27: 사용량에 여유가 있다는 지적에 따라 실제 공급자 오류 코드와 API 경로별 결과를 대조했어요.
   확인된 generateContent 성공을 근거로 ADR-0014의 Agentic 경로 선택을 변경했어요.
 - 2026-10-27: 생성한 리포트의 외부 배경 지식을 확인하고 프롬프트의 근거 범위를 좁혔어요. 원본 대조 완료로 표시하지 않아요.
+- 2026-10-27: 기존 리포트의 프롬프트·설정을 동일하게 맞추라는 요청으로 ADR-0017을 채택했어요. 당시 실측은 이력으로 보존해요.

@@ -1,12 +1,12 @@
 # YouTube 영상 요약의 공급자 검증
 
-공식 SDK의 `models.generateContent`에 공개 YouTube URL을 전달해 한국어 리포트를 생성해요.
-선택한 경로와 실제 비교 결과는 [ADR-0016](decisions/0016-generate-content-video-input.md)에 있어요.
+공식 SDK의 `interactions.create`에 공개 YouTube URL을 Agentic 입력으로 전달해 한국어 리포트를 요청해요.
+프롬프트·생성 설정·후처리 복원은 [ADR-0017](decisions/0017-report-generation-parity.md)에 있어요.
 제품의 요약 HTTP API·영속 작업·Android 화면은 아직 없어요.
 
 ## 현재 설정
 
-검증 모델은 `gemini-3.6-flash`, 시간 제한은 180초예요.
+검증 모델은 `gemini-3.6-flash`, 기본 시간 제한은 600초예요.
 로컬 검증 키는 Git에서 제외한 `credentials.json`에 `0600` 권한으로 보관해요.
 
 운영 원본은 GitHub `production` Environment에서 관리해요. API 키는 `GEMINI_API_KEY` Secret,
@@ -17,10 +17,36 @@ Worker에서 공통 함수를 호출할 때는 `env.GEMINI_API_KEY`·`env.GEMINI
 로컬 Wrangler의 모델 값은 개발용이며 운영 배포는 GitHub Variable을 요구해요. 누락되면 배포 전에 실패해요.
 GitHub 설정을 바꾼 뒤의 실제 Worker 반영은 별도 수동 배포가 필요해요. [운영 설정 결정](decisions/0015-gemini-production-settings.md)에 범위와 검증을 구분해요.
 
-2026-10-27 같은 키·모델의 텍스트 요청은 성공했고 Interactions 영상 요청은 HTTP 429였어요.
-같은 영상의 `generateContent` 요청과 전체 리포트 생성은 성공해 현재 코드에 이 경로를 적용했어요.
+2026-10-27 기존 리포트와 동일하게 프롬프트 원문·Interactions Agentic·SDK 기본 설정·후처리를 복원했어요.
+축약 프롬프트·180초 기한·4,096토큰 상한·무재시도 설정은 현재 설정이 아니에요.
+복원 뒤의 실제 영상 요청은 34,220ms 뒤 HTTP 429였고 본문·사용량은 받지 못했어요.
+아래 `generateContent` 성공은 다른 생성 조건에서 확인한 과거 실측이에요.
 AI Studio에서 확인한 사용량이 로컬 키와 같은 프로젝트·모델인지 미확인이라 일일 한도 소진으로 단정하지 않아요.
 아래 교체 키의 403은 이전 실측 기록이에요.
+
+## 현재 설정의 검증 결과
+
+전체 프롬프트·요청 옵션 4쌍, Markdown 4개·시간 표기 7개의 오프라인 대조 결과가 같았어요.
+이 검사는 SDK 응답을 가짜로 제공했으며 실제 생성 성공을 뜻하지 않아요.
+기존 실행 환경의 lockfile은 확인하지 않아 SDK 버전까지 같다고 보고하지 않아요.
+
+2026-10-27 macOS arm64·Bun 1.4.2·SDK 2.31.0·`gemini-3.6-flash`로
+다음 명령을 실행했어요. 제한 시간은 600초, 출력 상한과 재시도 옵션은 명시하지 않았어요.
+
+```sh
+mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=2lv5xHjLx1c' report-parity-1027a
+```
+
+| 기록 ID | UTC 시작 시간 | 전체 시간 | 실제 결과 |
+| --- | --- | --- | --- |
+| `report-parity-1027a` | 2026-10-27 09:06:52.330 | 34,220ms | SDK 기본 재시도 후 HTTP 429, `quota` |
+
+[영상](https://www.youtube.com/watch?v=2lv5xHjLx1c)의 제목은
+`Gemini 4 Argon 퍼블릭 공개! AI Ultra 1년 개같이 물린거 드디어 본전?`, 채널은 `코드팩토리`예요.
+[oEmbed 응답](https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3D2lv5xHjLx1c&format=json)에서 확인했어요.
+이 제목은 영상의 메타데이터이며 제목에 포함된 제품 출시 사실을 검증한 것은 아니에요.
+본문·사용량·구체적인 한도 위반 수치는 반환되지 않았어요. 계정 한도·잔여량·비용은 `null`이에요.
+요청 실패 뒤 다른 모델·API 경로로 전환하지 않았어요.
 
 ## 이전 Interactions 검증 기록
 
@@ -65,7 +91,7 @@ UTC 02:00:11.046 시작, 223ms 뒤 `models/gemini-3.6-flash`를 읽을 수 있�
 메타데이터 조회 성공은 생성 요청의 이용 자격·과금 상태를 검증하지 않는다고도 안내해요.
 계정·결제·모델은 바꾸지 않았어요. 이후 같은 키·모델에서 API 경로를 대조해 아래의 생성 성공을 확인했어요.
 
-## generateContent 비교와 생성 결과
+## 이전 generateContent 비교와 생성 결과
 
 2026-10-27 같은 로컬 키·`gemini-3.6-flash`·공개 영상으로 요청 경로를 대조했어요.
 SDK는 2.31.0, 실행 환경은 macOS arm64·Bun 1.4.2예요. 각 요청은 자동 재시도 없이 실행했어요.
@@ -121,7 +147,7 @@ mkdir -p apps/api/.artifacts/gemini
 {
   "apiKey": "개인 Gemini API 키",
   "model": "gemini-3.6-flash",
-  "timeoutMs": 180000
+  "timeoutMs": 600000
 }
 ```
 
@@ -130,9 +156,11 @@ chmod 600 apps/api/.artifacts/gemini/credentials.json
 mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=jNQXAC9IVRw' zoo-next
 ```
 
-모델은 명시한 값으로 고정해요. 기본 시간 제한은 180초이며 허용 범위는 1~600초예요.
-출력은 4,096토큰으로 제한해요. `generateContent`의 기본 영상 처리를 사용하고,
-다른 모델·API 경로로 전환하거나 SDK의 자동 재시도·후속 생성 요청을 실행하지 않아요.
+모델은 명시한 값으로 고정하고 `gemini-3.5-flash-lite`·`gemini-3.6-flash`·`gemini-3.7-flash`만 받아요.
+기본 시간 제한은 600초이며 허용 범위는 1~600초예요.
+Interactions의 Agentic 영상 처리를 사용하며 출력 상한·temperature·thinking·재시도 옵션은 명시하지 않아요.
+SDK 기본 재시도를 사용하므로 한 번의 명령에서 여러 HTTP 요청이 발생할 수 있어요.
+다른 모델·API 경로로 자동 전환하지 않아요.
 시점이 붙은 입력도 영상 전체를 처리해요.
 
 명령 출력은 기록 ID·상태·결과 파일·전체 시간이에요. 성공 시 종료 코드 0, 실패 시 1이에요.
@@ -141,15 +169,17 @@ mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=jNQ
 
 ## 결과와 원본 대조
 
-- `generated`는 형식을 갖춘 본문을 받은 상태예요. 내용의 정확성·영상 전체 분석·시간 링크 검증 완료를 뜻하지 않아요.
+- `generated`는 완료 상태와 후처리 전 앞뒤 공백을 제외한 200자 이상의 본문을 받은 상태예요. 내용의 정확성·영상 전체 분석·시간 링크 검증 완료를 뜻하지 않아요.
 - `video`의 제목·채널과 `metadataSource`를 먼저 확인해요. 길이·공개 상태·라이브 상태는 oEmbed만으로 판단하지 않아요.
-- `api`·`processing`으로 요청 경로를 구분해요. 현재는 `generateContent`·`static`이에요.
-- `report`에는 실제 응답 모델·`responseId`·생성 시간·Markdown과 공급자 토큰 수를 담아요.
+- `api`·`processing`·`timeoutMs`로 요청 경로와 제한 시간을 구분해요. 현재는 `interactions`·`agentic`이에요.
+- `report`에는 실제 응답 모델·`interactionId`·생성 시간·Markdown과 공급자 토큰 수를 담아요.
   입력·출력·생각·도구·캐시·합계는 독립된 응답 필드예요. 누락을 0으로 바꾸거나 합계를 임의로 다시 계산하지 않아요.
 - `timestampVerification`은 항상 `unverified`예요. 원본 재생과 자막을 열고 주장·수치·각 링크의 시점을 대조해요.
   확인한 URL·구간·주장·결과를 별도 검토 기록에 남겨요. 확인하지 못한 시점은 결과에서 빼고 추측해 보충하지 않아요.
 - 영상에 없는 배경 지식·주장을 섞었는지, 짧은 영상의 내용을 부풀렸는지, 한국어로 읽을 수 있는지 확인해요.
   자동 검사와 사람의 원본 대조 결과를 구분해 남겨요.
+- 프롬프트는 1,500자 이상과 3줄 요약·서론·본론·결론·한번 생각해보기 구조를 지시해요.
+  응답의 생각 블록을 제거하고 단독 시간 표기를 링크로 바꿔요. 링크 변환은 시점의 정확성 검증과 별개예요.
 
 ## 실패와 지원 범위
 
@@ -162,10 +192,11 @@ mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=jNQ
 | `temporary`·`timeout` | 공급자·네트워크·시간 제한을 확인해요. 중단이 공급자 과금 취소를 보장하지는 않아요. |
 | `unknown` | HTTP 상태를 확인할 수 없는 오류예요. SDK·네트워크·호출 경로를 확인하고 일시 장애로 단정하지 않아요. |
 | `provider_rejected` | 모델·입력 지원과 요청 조건을 확인해요. HTTP 400·404를 영상 미지원으로 단정하지 않아요. |
-| `invalid_response` | 응답이 미완료·빈 본문·리포트 형식 누락이에요. 반환된 사용량이 있으면 보존해요. |
+| `invalid_response` | 응답이 미완료·빈 본문·200자 미만이에요. 반환된 사용량이 있으면 보존해요. |
 
 정규화·입력 거부와 가짜 응답의 성공/실패는 CI에서 검사해요. 실제 지원 범위와 달라요.
-짧은 공개 영상 한 편의 한국어 리포트 생성을 확인했어요. Shorts·종료 라이브·긴 영상,
+이전 `generateContent` 설정에서 짧은 공개 영상의 한국어 리포트 생성을 확인했어요. 현재 복원한 설정의 실제 생성,
+Shorts·종료 라이브·긴 영상,
 영상에 근거한 시간 링크와 Workers에서의 실제 공급자 호출은 아직 미검증이에요.
 비공개·삭제·로그인 필요·진행 중인 생방송은 [초기 제품 범위](qletter/02-functional-spec.md)에서 제외해요.
 

@@ -24,7 +24,8 @@
 | [ADR-0013](0013-korean-comments-and-tests.md) | 주석과 테스트 이름은 한국어로 작성해요 | 확정 | 2026-10-25 |
 | [ADR-0014](0014-gemini-video-verification.md) | Agentic Video로 YouTube 영상을 요약하고 실제 공급자 검증을 분리해요 | 대체 | 2026-10-27 |
 | [ADR-0015](0015-gemini-production-settings.md) | Gemini 키는 GitHub Secret, 모델은 Environment Variable로 관리해요 | 확정 | 2026-10-27 |
-| [ADR-0016](0016-generate-content-video-input.md) | 실제 영상에 성공한 generateContent 경로를 사용해요 | 확정 | 2026-10-27 |
+| [ADR-0016](0016-generate-content-video-input.md) | 실제 영상에 성공한 generateContent 경로를 사용해요 | 대체 | 2026-10-27 |
+| [ADR-0017](0017-report-generation-parity.md) | 기존 리포트의 프롬프트와 생성 설정을 복원해요 | 확정 | 2026-10-27 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

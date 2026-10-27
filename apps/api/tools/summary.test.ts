@@ -24,7 +24,7 @@ const video = {
 const generated = {
   markdown: "## 3줄 요약\n테스트 결과예요.",
   model: settings.model,
-  responseId: "fixture-id",
+  interactionId: "fixture-id",
   generationMs: 5,
   usage: {
     inputTokens: 10,
@@ -79,8 +79,9 @@ test("같은 기록 ID의 동시 명령은 한 번만 분석하고 비밀값 없
     state: "generated",
     sdkVersion: "2.31.0",
     requestedModel: settings.model,
-    api: "generateContent",
-    processing: "static",
+    timeoutMs: 600_000,
+    api: "interactions",
+    processing: "agentic",
     video,
     report: generated,
     quota: null,

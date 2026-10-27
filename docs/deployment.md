@@ -2,8 +2,8 @@
 
 CI는 PR·main push에서 자동 실행해요. API 배포와 인프라 적용은 각각 GitHub Actions에서 수동 실행해요.
 두 workflow는 기본 브랜치에 반영돼야 Run workflow 버튼이 나타나요.
-아래는 최초 설정과 반복 배포 절차예요. Gmail 시크릿 전달은 구현·로컬 검사까지 확인했으며,
-이번 메일 기반 변경으로 실제 원격 배포·시크릿 전달·추가 메일 발송을 실행하지 않았어요.
+아래는 최초 설정과 반복 배포 절차예요. 메일·Gemini Secret과 모델 Variable의 배포 전달을 구현했어요.
+로컬 검사와 GitHub 설정 등록은 실제 원격 Worker 배포·공급자 동작 검증과 구분해요.
 
 ## 관리 범위
 
@@ -63,14 +63,18 @@ mise exec -- terraform -chdir=infra/state state list
 | Variable | `TF_STATE_BUCKET` | 위에서 만든 R2 버킷 이름 |
 | Variable | `CLOUDFLARE_D1_DATABASE_ID` | 최초 인프라 적용 후 output의 `database_id` |
 | Variable | `QLETTER_API_URL` | 경로·query가 없는 HTTPS API origin |
+| Variable | `GEMINI_MODEL` | 사용할 Gemini 모델 이름, 현재 `gemini-3.6-flash` |
 | Secret | `CLOUDFLARE_API_TOKEN` | Worker·D1 관리용 Cloudflare API token |
 | Secret | `SMTP_USER` | 발신 Gmail 계정 주소 |
 | Secret | `SMTP_APP_PASSWORD` | 해당 Gmail 계정의 Google 앱 비밀번호 |
+| Secret | `GEMINI_API_KEY` | 서버에서 Gemini를 호출할 API 키 |
 | Secret | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | state 버킷 전용 S3 자격증명 |
 
 API 배포 job에는 R2 자격증명을 전달하지 않아요. 인프라 job만 공유 state를 읽고 써요.
 초기 D1 ID는 아래 인프라 적용에서 확인할 수 있어요. 최초 API 배포 전에 등록해요.
 SMTP 자격증명은 [메일 가이드](email.md#운영-자격증명-관리)를 따라요. 일반 Google 로그인 비밀번호를 사용하지 않아요.
+Gemini 운영 설정은 [ADR-0015](decisions/0015-gemini-production-settings.md)를 따라요.
+키는 `secrets.GEMINI_API_KEY`, 모델은 `vars.GEMINI_MODEL`로 읽어요. 모델은 비밀값이 아니므로 Variable로 관리해요.
 
 ## 인프라를 바꿀 때
 
@@ -89,15 +93,16 @@ R2 state에는 S3 lockfile을 사용하고 API 배포와 인프라 적용은 같
 1. Actions → Deploy API → Run workflow에서 main을 선택해요.
 2. `sha`에 main에 포함된 40자리 SHA를 넣어요. 비우면 실행 시점의 최신 main을 선택해요.
 3. 해당 SHA의 최신 main push Quality 실행이 성공했는지 확인하고 같은 SHA를 checkout해요.
-4. API 검사 후 두 SMTP Secret을 검사하고 권한 `0600`의 임시 JSON으로 저장해요. 누락되거나 공백뿐이면 원격 변경 전에 중단해요.
-5. 실제 D1 ID·SHA를 넣은 배포 설정의 dry-run을 확인하고 원격 D1 migration을 적용해요.
-6. Wrangler의 `--secrets-file`로 코드·SMTP 자격증명을 함께 배포하고 tag·message에 해당 SHA를 기록해요.
+4. API 검사 후 SMTP 두 값과 Gemini 키를 검사하고 권한 `0600`의 임시 JSON으로 저장해요. 누락되거나 공백뿐이면 원격 변경 전에 중단해요.
+5. 실제 D1 ID·SHA·`GEMINI_MODEL`을 넣은 배포 설정의 dry-run을 확인하고 원격 D1 migration을 적용해요. 모델이 비어 있으면 로컬 기본값으로 배포하지 않아요.
+6. Wrangler의 `--secrets-file`로 코드·SMTP 자격증명·Gemini 키를 함께 배포하고 tag·message에 해당 SHA를 기록해요.
 7. health 200·동일한 revision 헤더·JSON 404를 확인한 뒤 summary에 SHA와 URL을 남겨요. 마지막 정리 step은 배포 실패 때도 임시 파일을 삭제해요.
 
 `apps/api/wrangler.deploy.json`은 이 실행에서만 생성해요. 로컬 DB ID와 `BUILD_REVISION=local` 설정은 변경하지 않아요.
 상태 확인이 실패하면 배포 job은 실패해요. 응답이 200이어도 이전 SHA가 응답하면 성공으로 처리하지 않아요.
 현재 검증은 health·404까지이며 인증·요약·사용자별 저장의 전체 경로 검증은 기능 구현 후 추가해요.
-GitHub Secret 값을 바꾸면 다음 수동 배포부터 Worker에 전달돼요. health 성공은 실제 Gmail 인증·메일 수신의 증거가 아니에요.
+GitHub Secret·Variable을 바꾸면 다음 수동 배포부터 Worker에 전달돼요. GitHub 값 등록만으로 실행 중인 Worker가 바뀌지는 않아요.
+health 성공은 실제 Gmail 인증·메일 수신·Gemini 영상 요약의 증거가 아니에요.
 
 DB 변경은 이전 Worker도 사용할 수 있도록 작성해요. migration 성공 뒤 배포가 실패해도 DB를 자동으로 되돌리지 않아요.
 이전 SHA 재배포 역시 DB를 되돌리지 않으므로 해당 스키마와 코드의 호환성을 확인해요.

@@ -46,8 +46,11 @@ export function createDeploymentConfig(
   local: WorkerConfig,
   databaseId: string,
   sha: string,
+  model: string,
 ) {
   assertSha(sha);
+  if (!model.trim())
+    throw new Error("GEMINI_MODEL을 production 환경 Variable에 설정해 주세요.");
   if (
     !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId) ||
     databaseId === "00000000-0000-0000-0000-000000000000"
@@ -62,7 +65,7 @@ export function createDeploymentConfig(
     ...local,
     workers_dev: true,
     preview_urls: false,
-    vars: { ...local.vars, BUILD_REVISION: sha },
+    vars: { ...local.vars, BUILD_REVISION: sha, GEMINI_MODEL: model.trim() },
     d1_databases: [{ ...db, database_id: databaseId }],
   };
 }
@@ -127,6 +130,7 @@ if (import.meta.main) {
     const secrets = {
       SMTP_USER: process.env.SMTP_USER,
       SMTP_APP_PASSWORD: process.env.SMTP_APP_PASSWORD,
+      GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     };
     for (const [name, value] of Object.entries(secrets)) {
       if (!value?.trim())
@@ -145,6 +149,7 @@ if (import.meta.main) {
       local,
       process.env.CLOUDFLARE_D1_DATABASE_ID ?? "",
       sha,
+      process.env.GEMINI_MODEL ?? "",
     );
     await Bun.write(
       resolve(root, "apps/api/wrangler.deploy.json"),

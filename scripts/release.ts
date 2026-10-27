@@ -23,6 +23,7 @@ type WorkerConfig = {
 };
 
 function assertSha(sha: string) {
+  // 배포 대상은 소문자 16진수로 된 전체 40자리 커밋 SHA만 허용해요.
   if (!/^[a-f0-9]{40}$/.test(sha))
     throw new Error("배포 대상은 전체 40자리 커밋 SHA여야 해요.");
 }
@@ -52,6 +53,7 @@ export function createDeploymentConfig(
   if (!model.trim())
     throw new Error("GEMINI_MODEL을 production 환경 Variable에 설정해 주세요.");
   if (
+    // D1 ID는 대소문자 16진수의 8-4-4-4-12 UUID 형식인지 확인해요.
     !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(databaseId) ||
     databaseId === "00000000-0000-0000-0000-000000000000"
   ) {

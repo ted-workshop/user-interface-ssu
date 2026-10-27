@@ -5,6 +5,7 @@ export function checksForFiles(files: string[]): string[] {
   let android = false;
   let infra = false;
   for (const file of files) {
+    // .md 확장자는 대소문자와 관계없이 문서로 처리해 앱 검사를 생략해요.
     if (file.startsWith("docs/") || /\.md$/i.test(file)) continue;
     if (file.startsWith("apps/api/")) {
       api = true;
@@ -25,6 +26,7 @@ export function checksForFiles(files: string[]): string[] {
         "tsconfig.json",
         ".github/workflows/deploy-api.yml",
       ].includes(file) ||
+      // release.ts와 release.test.ts는 API 검사로 분류해요.
       /^scripts\/release(?:\.test)?\.ts$/.test(file)
     )
       api = true;

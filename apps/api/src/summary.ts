@@ -41,10 +41,12 @@ export class SummaryError extends Error {
 export function parseYouTubeUrl(raw: string) {
   const value = raw.trim();
   const input = URL.parse(value);
+  // URL 파서가 중간 개행을 지우고 받아들이지 않도록 공백이 섞인 입력을 거부해요.
   if (!input || /\s/.test(value) || !youtubeUrlSchema.validate(input))
     throw new SummaryError("invalid_url");
 
   const videoId = extractVideoId(input);
+  // 영상 ID는 영문·숫자·밑줄·하이픈으로 된 11자리만 허용해요.
   if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId))
     throw new SummaryError("invalid_url");
   return { videoId, url: `https://www.youtube.com/watch?v=${videoId}` };
@@ -125,6 +127,7 @@ export async function generateReport(
 /** 모델이 출력한 think·thinking 블록을 본문에서 제거해요. */
 function stripThinkingBlock(text: string) {
   return text
+    // 줄바꿈이 들어간 소문자 think·thinking 블록을 본문에서 제거해요.
     .replace(/<(?:think|thinking)>[\s\S]*?<\/(?:think|thinking)>/g, "")
     .trim();
 }
@@ -206,6 +209,7 @@ async function runWithTimeout<T>(
 function extractVideoId(input: URL) {
   if (input.hostname === "youtu.be") return input.pathname.slice(1);
   if (input.pathname === "/watch") return input.searchParams.get("v") ?? "";
+  // shorts·live 경로의 영상 ID를 추출하고 끝의 /도 허용해요.
   return input.pathname.match(/^\/(?:shorts|live)\/([^/]+)\/?$/)?.[1] ?? "";
 }
 

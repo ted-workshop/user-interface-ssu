@@ -10,12 +10,14 @@ const deliveryIdSchema = z.guid();
 
 const gmailConfigSchema = z.object({
   user: mailboxSchema,
+  // 공백이 아닌 문자가 하나 이상 있어야 비어 있지 않은 앱 비밀번호로 받아요.
   appPassword: z.string().regex(/\S/),
 });
 const emailMessageSchema = z.object({
   /** 발송 전에 수신자·발송별 ID를 저장해요. 중복 방지 키는 아니에요. */
   deliveryId: deliveryIdSchema,
   to: mailboxSchema,
+  // 메일 제목이 다른 헤더로 이어지지 않도록 CR·LF 개행을 거부해요.
   subject: textSchema.refine((value) => !/[\r\n]/.test(value)),
   text: textSchema,
   /** 호출부에서 일반 텍스트와 별도로 안전하게 렌더링한 HTML을 전달해요. */
@@ -91,7 +93,11 @@ function createGmailTransport(config?: GmailConfig) {
   return nodemailer.createTransport({
     service: "gmail",
     auth: config
-      ? { user: config.user, pass: config.appPassword.replace(/\s/g, "") }
+      ? {
+          user: config.user,
+          // Google 앱 비밀번호의 표시용 공백을 모두 제거한 뒤 인증에 사용해요.
+          pass: config.appPassword.replace(/\s/g, ""),
+        }
       : undefined,
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
@@ -143,6 +149,7 @@ function toEmailError(error: unknown) {
   const smtpError: NodemailerError = error;
   const smtpCode = smtpError.responseCode;
   switch (true) {
+    // 550 5.4.5로 시작하는 SMTP 응답을 발송 한도 초과로 분류해요.
     case smtpCode === 550 && /^550[ -]5\.4\.5\b/.test(smtpError.response ?? ""):
       return new EmailError("quota", smtpCode);
     // 454 같은 일시적 인증 거부는 설정 오류보다 먼저 분류해요.

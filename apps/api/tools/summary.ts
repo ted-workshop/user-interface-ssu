@@ -16,6 +16,7 @@ export async function runSummaryCommand(args: string[], directory: string) {
     args.length !== 2 ||
     !rawUrl ||
     !runId ||
+    // 경로 이탈을 막도록 영문·숫자로 시작하는 1~64자의 영문·숫자·_·-만 허용해요.
     !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(runId)
   ) {
     throw new SummaryError("invalid_url");

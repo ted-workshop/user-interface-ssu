@@ -6,7 +6,7 @@
 - 확정 근거: #7·#8 진행 요청 범위 안에서 기존 제품 명세를 구체화한 판단이에요.
 - 관련 기록: [ADR-0001](0001-workers-d1-free-tier.md), [ADR-0003](0003-shared-modules-sync-async.md),
   [ADR-0012](0012-gmail-smtp-email-foundation.md), [ADR-0017](0017-report-generation-parity.md),
-  [저장 모델 작업 #8](https://github.com/ted-workshop/user-interface-ssu/issues/8)
+  [저장 모델 ADR-0019](0019-d1-product-schema.md)
 - 구현·검증 상태: [API 계약](../api-contract.md)을 작성했어요. 제품 HTTP·인증·Android 구현은
   후속 이슈예요. #5의 현재 설정 실제 생성·지원 범위·할당량, 앱/API 담당자의 예제 검토는 미완료예요.
   이 기록의 확정은 #7 전체 완료·공급자 성공·배포를 뜻하지 않아요.
@@ -77,7 +77,7 @@ Android와 API 작업자가 인증·요약 상태·중복·재시도를 각자 �
 
 API 계약의 시나리오를 명세 AC-01~AC-09·AC-11과 대조해요. Android/API 담당자는
 로그인 실패·동일 영상·조회 재시도·시도 번호 기반 분석 재시도의 예제를 구현 전 검토해요.
-원격 담당자 검토는 실행하지 않았어요. DB 수준 구현·검증은 #8에서 이어가요.
+원격 담당자 검토는 실행하지 않았어요. DB 수준 검증 결과는 ADR-0019에 남겨요.
 실제 지원 범위·할당량, 인증 CPU, 정상 사용자 차단, 긴 보관함 조회 비용이 확인되면 정책을 재검토해요.
 계약 변경은 소비자·저장 모델·관련 ADR을 함께 갱신해요.
 

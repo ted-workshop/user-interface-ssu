@@ -54,12 +54,10 @@ describe("Worker API 응답 규약", () => {
     });
     const response = await app.request("/database", undefined, env);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual([{ name: "0001_initialize.sql" }]);
-
-    const tables = await env.DB.prepare(
-      "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations'",
-    ).all();
-    expect(tables.results).toEqual([]);
+    expect(await response.json()).toEqual([
+      { name: "0001_initialize.sql" },
+      { name: "0002_product_schema.sql" },
+    ]);
   });
 
   test("D1 조회가 실패해도 공통 오류 응답 규약을 유지해요", async () => {

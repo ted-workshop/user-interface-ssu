@@ -1,7 +1,7 @@
 # Android 연동 API 계약
 
 관련 작업은 [#7](https://github.com/ted-workshop/user-interface-ssu/issues/7), 근거는
-[ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델 구현은 [#8](https://github.com/ted-workshop/user-interface-ssu/issues/8)에서 이어가요.
+[ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델은 [D1 가이드](database.md)예요.
 F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포인트는 아직 구현하지 않았어요.
 현재 실행되는 경로는 `GET /health`뿐이에요. 계약 확정과 기능 제공을 구분해요.
 

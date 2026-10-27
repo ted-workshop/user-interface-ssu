@@ -103,8 +103,9 @@ mise exec -- bun run --cwd apps/api wrangler d1 execute DB --local --command "SE
 mise run api:types
 ```
 
-첫 명령은 새 로컬 DB에 `0001_initialize.sql`을 적용해요. 다시 실행하면 이미 적용한 파일은 건너뛰어요.
-이 초기 파일은 마이그레이션 이력만 만들고 제품 테이블·데이터는 추가하지 않아요. 실제 스키마는 #8에서 이어가요.
+첫 명령은 새 로컬 DB에 `0001_initialize.sql`과 `0002_product_schema.sql`을 적용해요. 다시 실행하면 이미 적용한 파일은 건너뛰어요.
+이전 초기 파일의 이력을 유지하고 제품 테이블·소유권·중복·상태 제약을 추가해요.
+저장 모델과 실패 복구·계측은 [D1 가이드](database.md), 구현할 HTTP 형식은 [API 계약](api-contract.md)을 따라요.
 `DB` 접근과 SQL 실패 처리는 workerd 테스트에서 검증하고, 제품 API에 진단용 DB 경로를 추가하지 않아요.
 
 binding을 바꾸면 `api:types`로 추적 중인 `worker-configuration.d.ts`를 다시 생성해요.
@@ -148,7 +149,7 @@ stack의 중간 브랜치를 대상으로 하는 PR에도 실행하며, 최종 `
 공식 @google/genai SDK의 공통 요약 함수와 수동 검증 도구를 제공해요. 실행 방법과 실제 공급자 검증의 미완료 항목은 [Gemini 가이드](gemini.md)에 있어요. 모델과 키는 서버에서만 관리하고 Android BuildConfig·리소스·PR 본문에 넣지 않아요. health와 CI는 외부 AI를 호출하지 않고 키 없이 실행해요.
 
 제품 인증은 이메일·비밀번호예요. 현재는 로컬 D1 실행·마이그레이션 기반과 Gmail SMTP 공통 함수·수동 검증 도구까지예요.
-인증·제품 데이터 저장·제품 메일·Gemini 요약 API는 아직 없어요.
+제품 데이터 스키마와 로컬 제약 검사는 있지만 인증·제품 저장 HTTP·제품 메일·Gemini 요약 API는 아직 없어요.
 메일 설정과 검증 범위는 [메일 가이드](email.md), 기능 구현 기준은 [기능 명세](qletter/02-functional-spec.md)를 따라요.
 
 ## 검증 범위

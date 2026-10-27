@@ -1,6 +1,7 @@
 # ADR-0014: Agentic Video로 YouTube 영상을 요약하고 실제 공급자 검증을 분리해요
 
-- 상태: 확정
+- 상태: 대체
+- 대체 기록: [ADR-0016](0016-generate-content-video-input.md). 2026-10-27 실제 영상 처리 결과에 따라 요청 경로를 변경했어요.
 - 작성·확정일: 2026-10-27
 - 확정 근거: #5의 공개 영상 처리·한국어 리포트·사용량 검증 요구와 승인된 범위 안의 구현 판단이에요.
 - 관련 기록: [ADR-0001](0001-workers-d1-free-tier.md), [ADR-0003](0003-shared-modules-sync-async.md), [이슈 #5](https://github.com/ted-workshop/user-interface-ssu/issues/5)

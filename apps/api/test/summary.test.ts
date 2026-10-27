@@ -29,18 +29,20 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-function interaction(overrides = {}) {
+function completion(overrides = {}) {
   return Response.json({
-    id: "fixture-interaction",
-    model: settings.model,
-    status: "completed",
-    steps: [
-      { type: "model_output", content: [{ type: "text", text: markdown }] },
+    responseId: "fixture-response",
+    modelVersion: settings.model,
+    candidates: [
+      {
+        content: { role: "model", parts: [{ text: markdown }] },
+        finishReason: "STOP",
+      },
     ],
-    usage: {
-      total_input_tokens: 120,
-      total_output_tokens: 90,
-      total_tokens: 230,
+    usageMetadata: {
+      promptTokenCount: 120,
+      candidatesTokenCount: 90,
+      totalTokenCount: 230,
     },
     ...overrides,
   });
@@ -123,7 +125,7 @@ describe("YouTube 영상 입력과 출처", () => {
 
 describe("공식 SDK의 영상 리포트 생성", () => {
   test("Worker의 키 Secret과 모델 Variable을 SDK 요청에 전달해요", async () => {
-    network.mockResolvedValue(interaction({ model: env.GEMINI_MODEL }));
+    network.mockResolvedValue(completion({ modelVersion: env.GEMINI_MODEL }));
     await generateReport(
       { apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL },
       video,
@@ -132,14 +134,22 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     if (!call) throw new Error("SDK 요청을 확인하지 못했어요.");
     const request = new Request(...call);
     expect(request.headers.get("x-goog-api-key")).toBe("fixture-binding-key");
-    expect(await request.json()).toMatchObject({
-      model: "gemini-3.5-flash-lite",
-    });
+    expect(new URL(request.url).pathname).toBe(
+      "/v1beta/models/gemini-3.5-flash-lite:generateContent",
+    );
     expect(network).toHaveBeenCalledTimes(1);
   });
 
-  test("Agentic Video와 지정 모델로 한 번 요청하고 SDK 응답의 사용량을 남겨요", async () => {
-    network.mockResolvedValue(interaction());
+  test("실제 영상에 성공한 generateContent 경로로 한 번 요청하고 사용량을 남겨요", async () => {
+    network.mockImplementation(async (input, init) => {
+      const request = new Request(input, init);
+      if (new URL(request.url).pathname.endsWith("/interactions"))
+        return Response.json(
+          { error: { code: "too_many_requests", message: "fixture limit" } },
+          { status: 429, headers: { "retry-after": "30" } },
+        );
+      return completion();
+    });
     const result = await generateReport(settings, video);
     expect(network).toHaveBeenCalledTimes(1);
     const call = network.mock.calls[0];
@@ -149,16 +159,25 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     expect(new URL(request.url).origin).toBe(
       "https://generativelanguage.googleapis.com",
     );
+    expect(new URL(request.url).pathname).toBe(
+      `/v1beta/models/${settings.model}:generateContent`,
+    );
     expect(body).toMatchObject({
-      model: settings.model,
       store: false,
-      input: [
-        { type: "video", uri: url, processing: "agentic" },
-        { type: "text" },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { fileData: { fileUri: url, mimeType: "video/mp4" } },
+            { text: expect.any(String) },
+          ],
+        },
       ],
+      generationConfig: { maxOutputTokens: 4_096 },
     });
     expect(result).toMatchObject({
       model: settings.model,
+      responseId: "fixture-response",
       markdown,
       timestampVerification: "unverified",
       usage: {
@@ -177,10 +196,15 @@ describe("공식 SDK의 영상 리포트 생성", () => {
 
   test("공급자가 사용량을 주지 않으면 0으로 만들지 않아요", async () => {
     network.mockResolvedValue(
-      interaction({ usage: undefined, model: undefined }),
+      completion({
+        usageMetadata: undefined,
+        modelVersion: undefined,
+        responseId: undefined,
+      }),
     );
     const result = await generateReport(settings, video);
     expect(result.model).toBeNull();
+    expect(result.responseId).toBeNull();
     expect(Object.values(result.usage)).toEqual(Array(6).fill(null));
   });
 
@@ -317,24 +341,37 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     },
   );
 
-  test.each(["failed", "incomplete", "requires_action"])(
-    "상태 %s는 완성된 리포트로 반환하지 않고 알려진 사용량은 보존해요",
-    async (status) => {
-      network.mockResolvedValue(interaction({ status }));
+  test.each(["MAX_TOKENS", "SAFETY", "CONTINUATION", undefined])(
+    "종료 사유 %s는 완성된 리포트로 반환하지 않고 추가 요청 없이 사용량을 보존해요",
+    async (finishReason) => {
+      network.mockResolvedValue(
+        completion({
+          candidates: [
+            {
+              content: { role: "model", parts: [{ text: markdown }] },
+              finishReason,
+            },
+          ],
+        }),
+      );
       await expect(generateReport(settings, video)).rejects.toMatchObject({
         reason: "invalid_response",
         usage: { inputTokens: 120 },
       });
+      expect(network).toHaveBeenCalledTimes(1);
     },
   );
 
   test("빈 본문과 생각 블록만 있는 응답을 거부해요", async () => {
     network.mockResolvedValue(
-      interaction({
-        steps: [
+      completion({
+        candidates: [
           {
-            type: "model_output",
-            content: [{ type: "text", text: "<think>private</think>" }],
+            content: {
+              role: "model",
+              parts: [{ text: "<think>private</think>" }],
+            },
+            finishReason: "STOP",
           },
         ],
       }),
@@ -342,6 +379,28 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     await expect(generateReport(settings, video)).rejects.toMatchObject({
       reason: "invalid_response",
     });
+  });
+
+  test("SDK가 구분한 생각 내용은 본문에 포함하지 않아요", async () => {
+    network.mockResolvedValue(
+      completion({
+        candidates: [
+          {
+            content: {
+              role: "model",
+              parts: [
+                { text: "private thought", thought: true },
+                { text: markdown },
+              ],
+            },
+            finishReason: "STOP",
+          },
+        ],
+      }),
+    );
+    const result = await generateReport(settings, video);
+    expect(result.markdown).toBe(markdown);
+    expect(result.markdown).not.toContain("private");
   });
 
   test("키가 없으면 SDK와 네트워크를 호출하지 않아요", async () => {

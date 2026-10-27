@@ -126,10 +126,12 @@ export async function generateReport(
 
 /** 모델이 출력한 think·thinking 블록을 본문에서 제거해요. */
 function stripThinkingBlock(text: string) {
-  return text
-    // 줄바꿈이 들어간 소문자 think·thinking 블록을 본문에서 제거해요.
-    .replace(/<(?:think|thinking)>[\s\S]*?<\/(?:think|thinking)>/g, "")
-    .trim();
+  return (
+    text
+      // 줄바꿈이 들어간 소문자 think·thinking 블록을 본문에서 제거해요.
+      .replace(/<(?:think|thinking)>[\s\S]*?<\/(?:think|thinking)>/g, "")
+      .trim()
+  );
 }
 // 분·초가 0~59인 MM:SS와 H:MM:SS 표기를 찾아요.
 const TIMESTAMP_SRC = String.raw`(?:\d{1,2}:)?[0-5]?\d:[0-5]\d`;

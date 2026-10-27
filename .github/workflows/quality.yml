@@ -34,8 +34,11 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
+          # 비교 시작점은 소문자 16진수로 된 전체 40자리 커밋 SHA인지 확인해요.
           [[ "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          # 검사 대상도 같은 형식의 전체 커밋 SHA인지 확인해요.
           [[ "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]
+          # 시작 SHA가 모두 0이면 첫 푸시이므로 대상 커밋의 전체 파일을 검사해요.
           if [[ "$BASE_SHA" =~ ^0+$ ]]; then
             git ls-tree -r --name-only -z "$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
           elif [[ "$GITHUB_EVENT_NAME" = pull_request ]]; then

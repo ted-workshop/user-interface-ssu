@@ -101,6 +101,7 @@ if (operation === "deploy" && !call.dryRun && process.env.QLETTER_TEST_DEPLOY_FA
       Object.entries({ ...job.env, ...step.env }).map(([name, value]) => [
         name,
         value.replace(
+          // ${{ ... }} 안의 점 표기 경로를 꺼내 fixture context 값으로 바꿔요.
           /\$\{\{\s*([\w.]+)\s*\}\}/g,
           (_, key) => context[key] ?? "",
         ),

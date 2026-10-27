@@ -46,7 +46,9 @@ jobs:
           export RELEASE_SHA
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?branch=main&event=push&head_sha=$RELEASE_SHA&per_page=1" > "$RUNNER_TEMP/quality-runs.json"
           mise exec -- bun scripts/release.ts check "$RUNNER_TEMP/quality-runs.json"
+          # Cloudflare 계정 ID는 32자리 소문자 16진수인지 확인해요.
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[a-f0-9]{32}$ ]]
+          # 버킷 이름은 3~63자의 영문 소문자·숫자·하이픈이며 양끝은 영문·숫자만 허용해요.
           [[ "$TF_STATE_BUCKET" =~ ^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$ ]]
       - run: mise run infra:check
       - name: Plan infrastructure against shared R2 state

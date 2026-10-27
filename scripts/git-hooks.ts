@@ -41,6 +41,7 @@ export function checkStaged(repo: string): void {
     .split("\0")
     .filter(Boolean);
   for (const file of files) {
+    // 포맷 검사를 지원하는 TypeScript·JavaScript·JSON 계열 확장자만 골라요.
     if (!/\.(?:[cm]?tsx?|jsx?|jsonc?)$/.test(file)) continue;
     const content = git(repo, ["show", `:${file}`]);
     const result = Bun.spawnSync(
@@ -74,6 +75,7 @@ export function changedFilesForPush(
 ): string[] {
   const files = new Set<string>();
   for (const line of input.trim().split("\n").filter(Boolean)) {
+    // pre-push가 공백으로 구분해 전달한 로컬·원격 ref와 SHA를 읽어요.
     const parts = line.trim().split(/\s+/);
     const local = parts[1];
     const previous = parts[3];
@@ -81,13 +83,17 @@ export function changedFilesForPush(
       parts.length !== 4 ||
       !local ||
       !previous ||
+      // 로컬 ref의 해시는 40~64자리 소문자 16진수인지 확인해요.
       !/^[a-f0-9]{40,64}$/.test(local) ||
+      // 직전 원격 ref의 해시에도 같은 길이·문자 조건을 적용해요.
       !/^[a-f0-9]{40,64}$/.test(previous)
     ) {
       throw new Error("pre-push 입력을 해석하지 못했어요.");
     }
+    // 로컬 SHA가 모두 0이면 브랜치 삭제이므로 커밋 검사를 생략해요.
     if (/^0+$/.test(local)) continue;
     let base = previous;
+    // 직전 SHA가 모두 0이면 원격 브랜치의 첫 푸시이므로 비교 기준을 찾아요.
     if (/^0+$/.test(previous)) {
       const candidate = Bun.spawnSync([
         "git",

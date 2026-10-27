@@ -53,6 +53,7 @@ describe("YouTube 영상 입력과 출처", () => {
     "https://m.youtube.com/watch?v=jNQXAC9IVRw&list=playlist&t=3",
     "https://www.youtube.com/shorts/jNQXAC9IVRw",
     "https://www.youtube.com/live/jNQXAC9IVRw",
+    ` \n${url}\t `,
   ])("주소 %s를 영상 전체의 같은 주소로 정규화해요", (input) => {
     expect(parseYouTubeUrl(input)).toEqual({ videoId: video.videoId, url });
   });
@@ -65,6 +66,12 @@ describe("YouTube 영상 입력과 출처", () => {
     "https://www.youtube.com/@channel",
     "https://www.youtube.com/playlist?list=playlist",
     "https://www.youtube.com/watch?v=short",
+    "https:\n//youtu.be/jNQXAC9IVRw",
+    "https://youtu.be/jNQXAC9IVRw/extra",
+    "https://www.youtu.be/jNQXAC9IVRw",
+    "https://www.youtube.com/embed/jNQXAC9IVRw",
+    "https://www.youtube.com/other?v=jNQXAC9IVRw",
+    "not-a-url",
     `${url}\n${url}`,
     "file:///etc/passwd",
   ])("잘못된 입력 %s는 네트워크 요청 전에 거부해요", async (input) => {

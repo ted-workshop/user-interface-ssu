@@ -34,32 +34,12 @@ export class SummaryError extends Error {
 
 export function parseYouTubeUrl(raw: string) {
   const value = raw.trim();
-  if (/\s/.test(value)) throw new SummaryError("invalid_url");
-  let input: URL;
-  try {
-    input = new URL(value);
-  } catch {
-    throw new SummaryError("invalid_url");
-  }
-  if (
-    !["https:", "http:"].includes(input.protocol) ||
-    input.username ||
-    input.password ||
-    input.port
-  )
+  const input = URL.parse(value);
+  if (!input || /\s/.test(value) || !youtubeUrlSchema.validate(input))
     throw new SummaryError("invalid_url");
 
-  let videoId: string | null = null;
-  if (input.hostname === "youtu.be") videoId = input.pathname.slice(1);
-  else if (
-    ["youtube.com", "www.youtube.com", "m.youtube.com"].includes(input.hostname)
-  ) {
-    if (input.pathname === "/watch") videoId = input.searchParams.get("v");
-    else
-      videoId =
-        input.pathname.match(/^\/(?:shorts|live)\/([^/]+)\/?$/)?.[1] ?? null;
-  }
-  if (!videoId || !/^[a-zA-Z0-9_-]{11}$/.test(videoId))
+  const videoId = extractVideoId(input);
+  if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId))
     throw new SummaryError("invalid_url");
   return { videoId, url: `https://www.youtube.com/watch?v=${videoId}` };
 }
@@ -144,6 +124,12 @@ export async function generateReport(
   };
 }
 
+function extractVideoId(input: URL) {
+  if (input.hostname === "youtu.be") return input.pathname.slice(1);
+  if (input.pathname === "/watch") return input.searchParams.get("v") ?? "";
+  return input.pathname.match(/^\/(?:shorts|live)\/([^/]+)\/?$/)?.[1] ?? "";
+}
+
 function toSummaryError(error: unknown) {
   if (
     !error ||
@@ -184,6 +170,19 @@ function tokenUsage(usage: Interactions.Interaction["usage"]) {
     totalTokens: usage?.total_tokens ?? null,
   };
 }
+
+const youtubeUrlSchema = z.object({
+  protocol: z.enum(["https:", "http:"]),
+  hostname: z.enum([
+    "youtu.be",
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+  ]),
+  username: z.literal(""),
+  password: z.literal(""),
+  port: z.literal(""),
+});
 
 const metadataSchema = z.object({
   title: z.string().trim().min(1),

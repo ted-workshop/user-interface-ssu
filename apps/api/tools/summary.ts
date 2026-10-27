@@ -5,20 +5,10 @@ import {
   generateReport,
   getVideoMetadata,
   parseYouTubeUrl,
+  type SummaryConfig,
   SummaryError,
   summaryConfigSchema,
 } from "../src/summary";
-
-const sdkVersion = dependencies["@google/genai"];
-type ProbeResult =
-  | { state: "generated"; report: Awaited<ReturnType<typeof generateReport>> }
-  | {
-      state: "failed";
-      failure: Pick<
-        SummaryError,
-        "reason" | "httpStatus" | "usage" | "quotaViolations"
-      >;
-    };
 
 export async function runSummaryCommand(args: string[], directory: string) {
   const [rawUrl, runId] = args;
@@ -41,7 +31,7 @@ export async function runSummaryCommand(args: string[], directory: string) {
   const base = {
     runId,
     startedAt,
-    sdkVersion,
+    sdkVersion: dependencies["@google/genai"],
     requestedModel: settings.data.model,
     processing: "agentic",
     video,
@@ -51,29 +41,9 @@ export async function runSummaryCommand(args: string[], directory: string) {
   await mkdir(directory, { recursive: true, mode: 0o700 });
   // 중단·동시 실행 때 같은 기록 ID로 재분석하지 않도록 외부 요청 전에 확보해요.
   await writePrivateJson(path, { ...base, state: "started" });
-  let metadata: Awaited<ReturnType<typeof getVideoMetadata>> | undefined;
-  let outcome: ProbeResult;
-  try {
-    metadata = await getVideoMetadata(video.url);
-    const report = await generateReport(settings.data, metadata);
-    outcome = { state: "generated", report };
-  } catch (error) {
-    const failure =
-      error instanceof SummaryError ? error : new SummaryError("unknown");
-    outcome = {
-      state: "failed",
-      failure: {
-        reason: failure.reason,
-        httpStatus: failure.httpStatus,
-        usage: failure.usage,
-        quotaViolations: failure.quotaViolations,
-      },
-    };
-  }
   const result = {
     ...base,
-    video: metadata ?? video,
-    ...outcome,
+    ...(await analyzeVideo(settings.data, video)),
     elapsedMs: Math.round(performance.now() - start),
   };
   const temporary = `${path}.tmp`;
@@ -85,6 +55,31 @@ export async function runSummaryCommand(args: string[], directory: string) {
     output: path,
     elapsedMs: result.elapsedMs,
   };
+}
+
+async function analyzeVideo(
+  config: SummaryConfig,
+  video: ReturnType<typeof parseYouTubeUrl>,
+) {
+  let metadata: Awaited<ReturnType<typeof getVideoMetadata>> | undefined;
+  try {
+    metadata = await getVideoMetadata(video.url);
+    const report = await generateReport(config, metadata);
+    return { state: "generated" as const, video: metadata, report };
+  } catch (error) {
+    const failure =
+      error instanceof SummaryError ? error : new SummaryError("unknown");
+    return {
+      state: "failed" as const,
+      video: metadata ?? video,
+      failure: {
+        reason: failure.reason,
+        httpStatus: failure.httpStatus,
+        usage: failure.usage,
+        quotaViolations: failure.quotaViolations,
+      },
+    };
+  }
 }
 
 function writePrivateJson(path: string, value: object) {

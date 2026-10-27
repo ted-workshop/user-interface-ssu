@@ -110,6 +110,7 @@ test("공급자 실패는 원문과 키를 숨기고 실패 이유를 기록해�
     JSON.parse(await readFile(join(directory, "quota.json"), "utf8")),
   ).toMatchObject({
     state: "failed",
+    video,
     failure: { reason: "quota", httpStatus: 429, usage: null },
   });
   expect(generate).toHaveBeenCalledTimes(1);

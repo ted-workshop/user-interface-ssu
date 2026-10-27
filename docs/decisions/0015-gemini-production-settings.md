@@ -59,7 +59,7 @@ GitHub에 값을 등록하는 작업과 Worker 런타임 전달은 별개예요.
 - GitHub 등록은 Secret 이름·갱신 시각과 모델 Variable 값을 다시 조회해 확인해요. Secret 값을 읽었다고 주장하지 않아요.
 
 2026-10-27 `ANDROID_HOME=/Users/ted/Library/Android/sdk mise run check`를 통과했어요.
-workerd 68개·Bun 명령 16개·공통 도구 49개와 Android·Terraform 검사를 포함해요.
+workerd 71개·Bun 명령 16개·공통 도구 49개와 Android·Terraform 검사를 포함해요.
 배포 workflow의 actionlint와 fixture Secret을 사용한 실제 Wrangler `deploy --secrets-file --dry-run`도 통과했어요.
 dry-run 출력에서 키 값은 숨겨지고 선택한 모델 Variable이 binding으로 표시됐어요. 원격 리소스를 변경한 결과는 아니에요.
 
@@ -70,3 +70,7 @@ dry-run 출력에서 키 값은 숨겨지고 선택한 모델 Variable이 bindin
 
 - 2026-10-27: 운영 키를 GitHub Secret으로, 모델을 Environment Variable로 관리하라는 요청을 반영했어요.
   기존 SMTP 전달을 확장하고 로컬 수동 검증과 운영 배포의 경계를 유지해요.
+- 2026-10-27: 배포 검사 도구의 성공 단계·실패 뒤 정리를 하나의 루프로 합치고 workflow에 적힌 순서를 따라요.
+  fixture의 GitHub context 값도 하나의 표에서 해석해 중첩 분기를 줄여요. 실제 Bash·배포 CLI와 Wrangler 대역을
+  연결한 성공·설정 누락·배포 실패 검사는 유지해요. 일반 GitHub Actions 실행기를 구현하지 않아요.
+  임시 사본에서 D1 단계를 설정 검사 앞으로 옮겼을 때 누락 차단 검사가 실패함을 확인했어요. 원격 변경은 없어요.

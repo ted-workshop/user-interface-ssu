@@ -199,6 +199,10 @@ describe("공식 SDK의 영상 리포트 생성", () => {
                       model: settings.model,
                     },
                   },
+                  {
+                    quotaMetric: "generativelanguage.googleapis.com/tokens",
+                    quotaId: "TokensPerMinute",
+                  },
                 ],
               },
             ],
@@ -217,11 +221,46 @@ describe("공식 SDK의 영상 리포트 생성", () => {
           quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
           quotaValue: "0",
         },
+        { quotaId: "TokensPerMinute", quotaValue: null },
       ],
     });
     expect(JSON.stringify(error)).not.toContain("private");
     expect(network).toHaveBeenCalledTimes(1);
   });
+
+  test.each([
+    null,
+    [
+      {
+        violations: [
+          { quotaMetric: "tokens", quotaId: "limit", quotaValue: 3 },
+        ],
+      },
+    ],
+    [{ violations: [{ quotaId: "limit", quotaValue: "3" }] }],
+  ])(
+    "할당량 정보 %j가 잘못돼도 429 분류는 보존하고 원문은 숨겨요",
+    async (details) => {
+      network.mockResolvedValue(
+        Response.json(
+          {
+            error: { message: "fixture-private-key private account", details },
+          },
+          { status: 429 },
+        ),
+      );
+      const error = await generateReport(settings, video).catch(
+        (error: unknown) => error,
+      );
+      expect(error).toMatchObject({
+        reason: "quota",
+        httpStatus: 429,
+        quotaViolations: null,
+      });
+      expect(JSON.stringify(error)).not.toContain("private");
+      expect(network).toHaveBeenCalledTimes(1);
+    },
+  );
 
   test("응답 기한을 넘은 요청을 중단하고 다시 보내지 않아요", async () => {
     network.mockImplementation(async (input, init) => {

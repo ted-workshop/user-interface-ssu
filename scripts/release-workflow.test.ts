@@ -25,6 +25,15 @@ const workflow = Bun.YAML.parse(
   jobs: { deploy: { env: Record<string, string>; steps: Step[] } };
 };
 const job = workflow.jobs.deploy;
+const stepNames = [
+  "Prepare Worker secrets",
+  "Prepare and validate deployment configuration",
+  "Apply D1 migrations and deploy Worker",
+  "Remove temporary Worker secrets",
+];
+const steps = job.steps.filter((step) => stepNames.includes(step.name ?? ""));
+if (steps.length !== stepNames.length)
+  throw new Error("필수 배포 step이 없어요.");
 const credentials = {
   SMTP_USER: "fixture@gmail.com",
   SMTP_APP_PASSWORD: "fixture-smtp-password",
@@ -45,14 +54,8 @@ function runWorkflow(
   directories.push(directory);
   for (const name of ["scripts", "apps/api", "bin"])
     mkdirSync(join(directory, name), { recursive: true });
-  copyFileSync(
-    join(import.meta.dir, "release.ts"),
-    join(directory, "scripts/release.ts"),
-  );
-  copyFileSync(
-    join(import.meta.dir, "../apps/api/wrangler.jsonc"),
-    join(directory, "apps/api/wrangler.jsonc"),
-  );
+  for (const file of ["scripts/release.ts", "apps/api/wrangler.jsonc"])
+    copyFileSync(join(import.meta.dir, "..", file), join(directory, file));
   const trace = join(directory, "calls.jsonl");
   writeFileSync(trace, "");
   writeFileSync(
@@ -77,69 +80,51 @@ if (operation === "deploy" && !call.dryRun && process.env.QLETTER_TEST_DEPLOY_FA
 `,
     { mode: 0o755 },
   );
-  const context: Record<string, Record<string, string>> = {
-    secrets: {
-      ...credentials,
-      CLOUDFLARE_API_TOKEN: "fixture-cloudflare-token",
-      ...overrides,
-    },
-    vars: {
-      GEMINI_MODEL: model,
-      CLOUDFLARE_ACCOUNT_ID: "a".repeat(32),
-      CLOUDFLARE_D1_DATABASE_ID: "12345678-1234-4234-8234-123456789abc",
-      QLETTER_API_URL: "https://qletter.example",
-      ...overrides,
-    },
+  const context: Record<string, string> = {
+    "secrets.SMTP_USER": credentials.SMTP_USER,
+    "secrets.SMTP_APP_PASSWORD": credentials.SMTP_APP_PASSWORD,
+    "secrets.GEMINI_API_KEY": credentials.GEMINI_API_KEY,
+    "secrets.CLOUDFLARE_API_TOKEN": "fixture-cloudflare-token",
+    "vars.GEMINI_MODEL": model,
+    "vars.CLOUDFLARE_ACCOUNT_ID": "a".repeat(32),
+    "vars.CLOUDFLARE_D1_DATABASE_ID": "12345678-1234-4234-8234-123456789abc",
+    "vars.QLETTER_API_URL": "https://qletter.example",
+    "steps.release.outputs.sha": "a".repeat(40),
   };
-  const sha = "a".repeat(40);
+  for (const [name, value] of Object.entries(overrides)) {
+    context[`secrets.${name}`] = value;
+    context[`vars.${name}`] = value;
+  }
   const execute = (step: Step) => {
-    const env: Record<string, string> = {};
-    for (const [name, value] of Object.entries({ ...job.env, ...step.env })) {
-      const match = value.match(
-        /^\$\{\{\s*(secrets|vars)\.([A-Z0-9_]+)\s*\}\}$/,
-      );
-      env[name] = match
-        ? (context[match[1] ?? ""]?.[match[2] ?? ""] ?? "")
-        : value.replace(/\$\{\{\s*steps\.release\.outputs\.sha\s*\}\}/, sha);
-    }
-    return Bun.spawnSync(
-      ["bash", "-e", "-o", "pipefail", "-c", step.run ?? ""],
-      {
-        cwd: directory,
-        env: {
-          ...process.env,
-          ...env,
-          RUNNER_TEMP: directory,
-          PATH: `${join(directory, "bin")}${delimiter}${process.env.PATH ?? ""}`,
-          QLETTER_TEST_TRACE: trace,
-          QLETTER_TEST_DEPLOY_FAIL: failDeploy ? "1" : "0",
-        },
-      },
+    if (!step.run) throw new Error(`실행 명령이 없어요: ${step.name}`);
+    const env = Object.fromEntries(
+      Object.entries({ ...job.env, ...step.env }).map(([name, value]) => [
+        name,
+        value.replace(
+          /\$\{\{\s*([\w.]+)\s*\}\}/g,
+          (_, key) => context[key] ?? "",
+        ),
+      ]),
     );
+    return Bun.spawnSync(["bash", "-e", "-o", "pipefail", "-c", step.run], {
+      cwd: directory,
+      env: {
+        ...process.env,
+        ...env,
+        RUNNER_TEMP: directory,
+        PATH: `${join(directory, "bin")}${delimiter}${process.env.PATH ?? ""}`,
+        QLETTER_TEST_TRACE: trace,
+        QLETTER_TEST_DEPLOY_FAIL: failDeploy ? "1" : "0",
+      },
+    });
   };
-  const stages = [
-    "Prepare Worker secrets",
-    "Prepare and validate deployment configuration",
-    "Apply D1 migrations and deploy Worker",
-  ];
   let status = 0;
   let output = "";
-  for (const name of stages) {
-    const step = job.steps.find((step) => step.name === name);
-    if (!step?.run) throw new Error(`배포 step이 없어요: ${name}`);
+  for (const step of steps) {
+    if (status !== 0 && step.if !== "always()") continue;
     const result = execute(step);
     output += result.stdout.toString() + result.stderr.toString();
-    status = result.exitCode;
-    if (status !== 0) break;
-  }
-  const cleanup = job.steps.find(
-    (step) => step.name === "Remove temporary Worker secrets",
-  );
-  if (!cleanup?.run) throw new Error("시크릿 정리 step이 없어요.");
-  if (status === 0 || cleanup.if === "always()") {
-    const result = execute(cleanup);
-    output += result.stdout.toString() + result.stderr.toString();
-    expect(result.exitCode).toBe(0);
+    status ||= result.exitCode;
   }
   const calls = readFileSync(trace, "utf8")
     .trim()

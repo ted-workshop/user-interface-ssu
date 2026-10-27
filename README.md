@@ -40,4 +40,5 @@ mise run check
 - [API 수동 배포와 인프라 적용](docs/deployment.md)
 - [Gmail 메일 기반과 수동 검증](docs/email.md)
 - [Gemini 영상 요약과 공급자 검증](docs/gemini.md)
+- [Android 연동 API 계약과 정책](docs/api-contract.md)
 - [공통 AI 작업 규칙](AGENTS.md)

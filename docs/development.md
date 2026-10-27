@@ -145,7 +145,7 @@ CI는 공급자 키 없이 새 로컬 D1 마이그레이션과 API·Android·Ter
 stack의 중간 브랜치를 대상으로 하는 PR에도 실행하며, 최종 `quality` check는 세 job이 모두 성공해야 통과해요.
 
 ## Gemini와 인증
-Gemini 연동은 다음 기능 단계에서 공식 @google/genai SDK로 구현해요. 모델과 키는 서버 환경변수로 관리하고 Android BuildConfig·리소스·PR 본문에 넣지 않아요. 현재 health 검사는 외부 AI를 호출하지 않고 키 없이 실행해요.
+공식 @google/genai SDK의 공통 요약 함수와 수동 검증 도구를 제공해요. 실행 방법과 실제 공급자 검증의 미완료 항목은 [Gemini 가이드](gemini.md)에 있어요. 모델과 키는 서버에서만 관리하고 Android BuildConfig·리소스·PR 본문에 넣지 않아요. health와 CI는 외부 AI를 호출하지 않고 키 없이 실행해요.
 
 제품 인증은 이메일·비밀번호예요. 현재는 로컬 D1 실행·마이그레이션 기반과 Gmail SMTP 공통 함수·수동 검증 도구까지예요.
 인증·제품 데이터 저장·제품 메일·Gemini 요약 API는 아직 없어요.

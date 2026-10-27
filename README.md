@@ -39,4 +39,5 @@ mise run check
 - [팀 기여·PR·squash 규칙](CONTRIBUTING.md)
 - [API 수동 배포와 인프라 적용](docs/deployment.md)
 - [Gmail 메일 기반과 수동 검증](docs/email.md)
+- [Gemini 영상 요약과 공급자 검증](docs/gemini.md)
 - [공통 AI 작업 규칙](AGENTS.md)

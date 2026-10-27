@@ -1,4 +1,4 @@
-# ADR-0012: 기존 Gmail SMTP 경로로 공통 메일 발송 기반을 만들어요
+# ADR-0012: Gmail SMTP로 공통 메일 발송 기반을 만들어요
 
 - 상태: 확정
 - 작성·확정일: 2026-10-25
@@ -11,20 +11,13 @@
 
 ## 문제와 현재 상태
 
-계정 확인·복구와 채널 리포트에 사용할 메일 경로가 필요해요. 제품의 메일 정책·스키마·발송 작업은
-아직 구현하지 않았어요. 사용자는 그램 랩의 기존 YouTube 요약 시스템 로직 재사용을 제안했고,
-이번 작업 대상은 본인에게 배정된 #6 메일 기반으로 명시했어요.
-
-2026-10-25 SSH로 기존 `youtube-report` 컨테이너의 실행 코드와 설정 구조를 읽었어요.
-기존 구현은 Nodemailer 7.0.13, Gmail SMTP 465/TLS와 text·정제된 HTML 본문을 사용해요.
-확인한 `/app/dist/email.js`의 SHA-256은
-`39956ba0250d71c388914ec3f91f985777293a17090bb741d505a8682fc3da36`예요.
-서버 설정과 구독자 목록을 바꾸지 않았고 비밀번호·개인 주소를 기록하지 않았어요.
+계정 확인·복구와 채널 리포트에 사용할 메일 경로가 필요해요. #6에서는 Gmail SMTP를 사용하는
+공통 발송 함수와 수동 검증 도구를 구현해요. 제품의 메일 정책·스키마·영속 발송 작업은 후속 범위예요.
 
 ## 결정
 
 - 도메인 구매·DNS 변경 없이 Gmail SMTP와 앱 비밀번호를 사용해요. 발신 주소와 SMTP envelope는 인증 계정으로 고정해요.
-- 기존 발송의 text/HTML 분리와 Nodemailer 사용 방식을 적용해요. 리포트 템플릿·Markdown 처리·요약 로직은 이번 기반 작업에 복사하지 않아요.
+- Nodemailer로 text·HTML 본문을 함께 발송해요. 리포트 템플릿·Markdown 처리·요약 로직은 후속 범위예요.
 - Nodemailer 10.2.1을 고정하고 내장 타입을 사용해요. Node 24 타입은 24.19.2로 고정해 Bun lockfile에 함께 남겨요.
 - Zod 4.6.5 스키마에서 런타임 입력 검증과 TypeScript 타입을 함께 정의해요. 발신·수신 주소는 `z.email()`의 기본 형식으로 검사하고, Gmail 연결 설정은 Nodemailer의 서비스 프리셋을 사용해요.
 - 공통 `sendEmail`·`verifyGmailConnection`을 제공해요. 수신 주소는 한 번에 한 개이며 API·작업 코드가 같은 함수를 사용할 수 있어요.
@@ -41,14 +34,14 @@
 아래 공식 자료와 설치 패키지 타입·소스를 2026-10-25에 확인했어요.
 
 - [Nodemailer Gmail 지침](https://nodemailer.com/guides/using-gmail)은 2단계 인증과 앱 비밀번호, 발신 계정과 일일 제한·접속 위치 차단을 설명해요.
-  기존 계정/서비스의 발송 방식을 재사용할 수 있고 도메인이 없는 현재 조건에 맞아요.
+  도메인이 없는 현재 조건에서 허가된 Gmail 계정으로 발송할 수 있어요.
 - [Google의 개인 Gmail 한도](https://support.google.com/mail/answer/22839?hl=en)는 하루 500통 초과 등 제한과 1~24시간 복구 안내예요.
-  이는 Qletter의 실제 잔여 할당량 측정이 아니며 기존 서비스와 계정을 공유하면 사용량도 공유해요.
+  이는 Qletter의 실제 잔여 할당량 측정이 아니며 계정의 모든 발송 용도에 같은 한도가 적용돼요.
 - [Cloudflare Email Service 요금](https://developers.cloudflare.com/email-service/platform/pricing/)은 임의 수신자 발송에 Workers Paid를 요구해요.
   binding 관리가 간단하지만 현재 무료 플랜·도메인 없음 조건에서 선택하지 않아요.
 - [Resend](https://resend.com/docs/dashboard/emails/idempotency-keys)는 조회와 24시간 중복 키를 제공하고 무료 요금제가 있어 운영상 장점이 있어요.
   일반 수신자 발송에 [검증한 도메인](https://resend.com/docs/dashboard/domains/introduction)이 필요하며 사용자가 Gmail을 지정해 채택하지 않아요.
-- OAuth 2.0은 공식 권장 인증이며 갱신 토큰 관리에 장점이 있어요. 기존 앱 비밀번호 경로를 쓰는 이번 소규모 기반 검증에는 별도 OAuth 앱을 추가하지 않아요.
+- OAuth 2.0은 공식 권장 인증이며 갱신 토큰 관리에 장점이 있어요. 앱 비밀번호를 쓰는 이번 소규모 기반 검증에는 별도 OAuth 앱을 추가하지 않아요.
 - [Workers의 net](https://developers.cloudflare.com/workers/runtime-apis/nodejs/net/)·[tls](https://developers.cloudflare.com/workers/runtime-apis/nodejs/tls/) 지원을 확인했어요.
   로컬 workerd에서 Nodemailer 기본 DNS/IP 연결은 `ESOCKET: proxy request failed, cannot connect to the specified address`로 실패했어요.
   같은 Gmail의 호스트명 직접 연결과 `getSocket` TLS 전달 방식은 greeting/EHLO까지 성공했어요. 프로토콜을 직접 구현하는 대신 SDK 연결 확장점을 사용해요.
@@ -63,7 +56,7 @@ Gmail SMTP에는 공급자 멱등성 키나 SMTP 발송 상태 조회 API가 없
 검색 결과 없음은 미발송 증거가 아니에요. 자동 결과 복구와 정확히 한 번 발송 보장은 미해결이에요.
 향후 #10·#15는 영구 발송 기록과 동시 실행 제어를 구현하고 결과 불명을 사람이 확인할 수 있어야 해요.
 
-기존 Gmail 계정 재사용과 그 계정 자신에게 테스트 메일 1통 발송을 사용자가 승인했어요.
+허가된 Gmail 계정으로 그 계정 자신에게 테스트 메일 1통을 발송했어요.
 실제 계정 인증·수신을 확인했지만 SMTP에서 계정의 잔여 할당량을 조회한 결과는 없어요.
 로컬 workerd의 실제 SMTP 발송도 배포된 Worker의 접속 위치와 동작까지 입증하지는 않아요.
 Gmail의 지역/IP 보안 정책과 향후 실제 제품 사용량은 아직 검증하지 않았어요.

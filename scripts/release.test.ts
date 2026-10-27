@@ -10,6 +10,7 @@ import {
 
 const sha = "a".repeat(40);
 const databaseId = "12345678-1234-4234-8234-123456789abc";
+const model = "gemini-3.6-flash";
 const successfulRun = {
   head_sha: sha,
   head_branch: "main",
@@ -18,11 +19,12 @@ const successfulRun = {
   conclusion: "success",
 };
 
-describe("운영 메일 시크릿 파일", () => {
+describe("운영 시크릿 파일", () => {
   const directories: string[] = [];
   const credentials = {
     SMTP_USER: "fixture-sender@gmail.com",
     SMTP_APP_PASSWORD: 'fixture "password"\\value\n두 번째 줄',
+    GEMINI_API_KEY: "fixture-gemini-key",
   };
 
   afterEach(() => {
@@ -33,7 +35,7 @@ describe("운영 메일 시크릿 파일", () => {
   function temporaryFile() {
     const directory = mkdtempSync(join(tmpdir(), "qletter-release-secrets-"));
     directories.push(directory);
-    return join(directory, "smtp.json");
+    return join(directory, "worker-secrets.json");
   }
 
   function prepare(path: string, values = credentials) {
@@ -50,7 +52,7 @@ describe("운영 메일 시크릿 파일", () => {
     });
   }
 
-  test("환경의 두 값만 0600 JSON으로 저장하고 출력하지 않아요", async () => {
+  test("필수 Secret만 0600 JSON으로 저장하고 출력하지 않아요", async () => {
     const path = temporaryFile();
     const result = prepare(path);
     expect(result.exitCode).toBe(0);
@@ -61,7 +63,9 @@ describe("운영 메일 시크릿 파일", () => {
   });
 
   test("필수 값이 비어 있으면 파일을 만들지 않고 값 대신 이름만 알려줘요", async () => {
-    for (const key of ["SMTP_USER", "SMTP_APP_PASSWORD"] as const) {
+    for (const key of Object.keys(
+      credentials,
+    ) as (keyof typeof credentials)[]) {
       for (const value of ["", " \n\t "]) {
         const path = temporaryFile();
         const result = prepare(path, { ...credentials, [key]: value });
@@ -113,7 +117,7 @@ describe("배포 설정", () => {
   const local = {
     name: "qletter-api",
     main: "src/server.ts",
-    vars: { BUILD_REVISION: "local" },
+    vars: { BUILD_REVISION: "local", GEMINI_MODEL: "fixture-local-model" },
     d1_databases: [
       {
         binding: "DB",
@@ -125,11 +129,13 @@ describe("배포 설정", () => {
   };
 
   test("로컬 설정을 바꾸지 않고 선택한 커밋과 원격 DB를 사용해요", () => {
-    const deployed = createDeploymentConfig(local, databaseId, sha);
+    const deployed = createDeploymentConfig(local, databaseId, sha, model);
     expect(deployed.vars.BUILD_REVISION).toBe(sha);
+    expect(deployed.vars.GEMINI_MODEL).toBe(model);
     expect(deployed.d1_databases[0]?.database_id).toBe(databaseId);
     expect(deployed.d1_databases[0]?.migrations_dir).toBe("migrations");
     expect(local.vars.BUILD_REVISION).toBe("local");
+    expect(local.vars.GEMINI_MODEL).toBe("fixture-local-model");
     expect(local.d1_databases[0]?.database_id).toBe(
       "00000000-0000-0000-0000-000000000000",
     );
@@ -141,12 +147,27 @@ describe("배포 설정", () => {
       "not-a-uuid",
       local.d1_databases[0]?.database_id ?? "",
     ]) {
-      expect(() => createDeploymentConfig(local, id, sha)).toThrow();
+      expect(() => createDeploymentConfig(local, id, sha, model)).toThrow();
     }
-    expect(() => createDeploymentConfig(local, databaseId, "main")).toThrow();
     expect(() =>
-      createDeploymentConfig({ ...local, d1_databases: [] }, databaseId, sha),
+      createDeploymentConfig(local, databaseId, "main", model),
     ).toThrow();
+    expect(() =>
+      createDeploymentConfig(
+        { ...local, d1_databases: [] },
+        databaseId,
+        sha,
+        model,
+      ),
+    ).toThrow();
+  });
+
+  test("GitHub 모델 Variable이 비어 있으면 로컬 기본값으로 배포하지 않아요", () => {
+    for (const value of ["", " \n\t "]) {
+      expect(() =>
+        createDeploymentConfig(local, databaseId, sha, value),
+      ).toThrow("GEMINI_MODEL");
+    }
   });
 });
 

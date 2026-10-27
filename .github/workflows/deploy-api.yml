@@ -59,15 +59,17 @@ jobs:
           install_args: bun node
       - run: bun install --frozen-lockfile
       - run: mise run api:check
-      - name: Prepare Gmail secrets
+      - name: Prepare Worker secrets
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
-        run: mise exec -- bun scripts/release.ts secrets "$RUNNER_TEMP/qletter-smtp-secrets.json"
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: mise exec -- bun scripts/release.ts secrets "$RUNNER_TEMP/qletter-worker-secrets.json"
       - name: Prepare and validate deployment configuration
         env:
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
         run: |
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[a-f0-9]{32}$ ]]
           mise exec -- bun scripts/release.ts config
@@ -78,7 +80,7 @@ jobs:
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
         run: |
           mise exec -- bun run --cwd apps/api wrangler d1 migrations apply DB --remote --config wrangler.deploy.json
-          mise exec -- bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --secrets-file "$RUNNER_TEMP/qletter-smtp-secrets.json" --tag "$RELEASE_SHA" --message "$RELEASE_SHA" --no-autoconfig
+          mise exec -- bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --secrets-file "$RUNNER_TEMP/qletter-worker-secrets.json" --tag "$RELEASE_SHA" --message "$RELEASE_SHA" --no-autoconfig
       - name: Verify the deployed revision and HTTP contracts
         env:
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
@@ -91,6 +93,6 @@ jobs:
             sleep 2
           done
           exit 1
-      - name: Remove temporary Gmail secrets
+      - name: Remove temporary Worker secrets
         if: always()
-        run: rm -f "$RUNNER_TEMP/qletter-smtp-secrets.json"
+        run: rm -f "$RUNNER_TEMP/qletter-worker-secrets.json"

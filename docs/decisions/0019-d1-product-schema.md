@@ -1,7 +1,8 @@
 # ADR-0019: D1 제약과 불변 시도로 계정별 제품 이력을 보존해요
 
-- 상태: 확정
+- 상태: 대체
 - 작성·확정일: 2026-10-27
+- 대체일: 2026-10-28, [ADR-0020](0020-shared-analysis-and-report-permissions.md)의 공통 보고서 모델과 0003이 대체해요. 아래 구현·검증은 당시 0002의 이력으로 보존해요.
 - 확정 근거: #7·#8 진행 요청 범위 안에서 API 계약과 기존 제품 명세를 구현한 판단이에요.
 - 관련 기록: [ADR-0001](0001-workers-d1-free-tier.md), [ADR-0003](0003-shared-modules-sync-async.md),
   [ADR-0009](0009-manual-deployment-ownership.md), [ADR-0018](0018-api-contract-and-policies.md)

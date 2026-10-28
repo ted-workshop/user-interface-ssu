@@ -57,6 +57,7 @@ describe("Worker API 응답 규약", () => {
     expect(await response.json()).toEqual([
       { name: "0001_initialize.sql" },
       { name: "0002_product_schema.sql" },
+      { name: "0003_shared_reports.sql" },
     ]);
   });
 

@@ -1,7 +1,8 @@
 # ADR-0018: 계정별 API 계약과 인증·요약·자동화 정책을 맞춰요
 
-- 상태: 확정
+- 상태: 대체
 - 작성·확정일: 2026-10-27
+- 대체일: 2026-10-28, [ADR-0020](0020-shared-analysis-and-report-permissions.md). 인증·공급자 gate는 유지하고 보고서·권한·댓글 계약을 대체해요.
 - 확정 근거: #7·#8 진행 요청 범위 안에서 기존 제품 명세를 구체화한 판단이에요.
 - 관련 기록: [ADR-0001](0001-workers-d1-free-tier.md), [ADR-0003](0003-shared-modules-sync-async.md),
   [ADR-0012](0012-gmail-smtp-email-foundation.md), [ADR-0017](0017-report-generation-parity.md),

@@ -1,7 +1,7 @@
 # Android 연동 API 계약
 
 관련 작업은 [#7](https://github.com/ted-workshop/user-interface-ssu/issues/7), 근거는
-[ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델 구현은 [#8](https://github.com/ted-workshop/user-interface-ssu/issues/8)에서 이어가요.
+[ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델 구현은 [#8](https://github.com/ted-workshop/user-interface-ssu/issues/8)에서 이어가요.
 F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포인트는 아직 구현하지 않았어요.
 현재 실행되는 경로는 `GET /health`뿐이에요. 계약 확정과 기능 제공을 구분해요.
 
@@ -13,7 +13,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
   DB의 정수 Unix 초를 HTTP에서 변환해요. 내부 row ID·공급자 오류 원문은 노출하지 않아요.
 - 인증은 `Authorization: Bearer <sessionToken>`이에요. URL·로그에 토큰을 넣지 않아요.
   모든 개인 조회·변경은 세션의 `userId`로 제한해요. 본문의 `userId`는 허용하지 않아요.
-  다른 계정의 ID와 존재하지 않는 ID는 같은 `404 NOT_FOUND`예요.
+  개인 요청·구독·주소는 타인 ID와 없는 ID 모두 `404 NOT_FOUND`예요. 공통 보고서는 본인의 조회 권한 또는 로그인 사용자 전체 공개 규칙을 확인한 뒤 읽어요. 권한이 없으면 같은 404예요.
 - 개인 응답과 인증 응답은 `Cache-Control: no-store`예요. Android는 로그아웃·계정 전환 시
   토큰·개인 캐시·화면 back stack을 비워요. 재로그인 후 서버 상태를 다시 읽어요.
 - JSON 키·열거값은 이 문서의 표기를 사용해요. 알 수 없는 입력 필드, 잘못된 cursor·필터·타입은
@@ -105,7 +105,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
 | `GET /v1/summary-requests/{id}` | 본인 요청 ID | 요청 객체 `200` |
 | `POST /v1/summary-requests/{id}/retry` | `{"attempt":1}`: 마지막으로 확인한 시도 번호 | 접수 `202`, 이미 접수한 같은 재시도 `200` |
 | `GET /v1/reports` | `q`, `channelUrl`, `origin`, `deliveryStatus`, `limit`, `cursor` | 리포트 목록 `200` |
-| `GET /v1/reports/{id}` | 본인 리포트 ID | 리포트 상세 `200` |
+| `GET /v1/reports/{id}` | 접근 가능한 공통 보고서 ID | 보고서 상세 `200` |
 
 ```json
 {"id":"<request UUID>","videoId":"jNQXAC9IVRw","url":"https://www.youtube.com/watch?v=jNQXAC9IVRw","origin":"direct","status":"queued","attempt":0,"reportId":null,"failureCode":null,"retryable":false,"createdAt":"2026-10-27T10:00:00Z","updatedAt":"2026-10-27T10:00:00Z"}
@@ -113,19 +113,21 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
 
 - 서버는 현재 `parseYouTubeUrl`로 URL을 검증하고 같은 `videoId`로 정규화해요.
   시간 query도 전체 영상 요청이에요. 채널·재생목록만 있는 주소와 여러 URL은 거부해요.
-- `(userId, videoId)`당 요청 하나와 완성 리포트 하나예요. 반복 POST·주소 모양·Android 재진입과
-  무관하게 같은 자원으로 연결해요. 계정 간 공유·비공개 결과 재사용은 하지 않아요.
-  기존 요청이 실패했어도 생성 POST는 새 분석을 시작하지 않아요. 명시적 retry만 사용해요.
+- 같은 공개 영상·불변 생성 설정은 공통 분석 작업 하나와 보고서 하나를 사용해요. 생성 설정은
+  모델·API/영상 처리·프롬프트 버전·언어·옵션을 식별하며 현재 ADR-0017을 따라요.
+  `(userId, analysisJobId)`당 개인 요청 하나예요. A·B는 서로 다른 요청 ID와 같은 `reportId`를 받아요.
+  진행 중 공통 작업에는 합류하고 완성 보고서는 재사용해 본인 보관·조회 권한을 추가해요.
+  타인의 요청·주소·활동은 공유하지 않아요. 기존 실패 작업을 새 ID로 우회하지 않고 명시적 retry만 사용해요.
 - 생성 경로 `direct`·`channel`과 최초 채널 연결은 생성 후 바꾸지 않아요.
   직접 요청이 먼저면 이후 채널 발견은 재사용만 하고 발송하지 않아요. 채널 요청이 먼저인 결과를
   앱에서 읽어도 새 직접 결과·추가 발송을 만들지 않아요.
 - 상태는 `queued → running → completed | failed`예요. `completed`는 리포트 저장까지 끝난 상태예요.
   실행 시도는 별도 이력으로 남기며 새 재시도가 과거 이력을 덮어쓰지 않아요.
-  계정당 공급자 실행은 한 번에 하나예요. 화면 종료·HTTP timeout은 작업 취소가 아니에요.
+  개인 running 요청은 계정당 하나이고 공통 작업의 running 시도도 하나예요. 여러 계정의 요청이 같은 실행을 기다릴 수 있어요. 화면 종료·HTTP timeout은 작업 취소가 아니에요.
 - 조회를 다시 하는 것은 항상 GET이에요. 정상 진행 중에는 5초 간격으로 확인하고 앱이 background면
   polling을 멈춰요. 조회 네트워크 오류는 5·10·20·30초 상한으로 늦추고 작은 jitter를 더해요.
   `Retry-After`가 있으면 그보다 먼저 요청하지 않아요. 진행률·완료 예상 시각은 만들지 않아요.
-- 분석 재시도는 최대 3시도, 본인의 `failed` 요청 중 `retryable=true`일 때만 허용해요.
+- 분석 재시도는 공통 작업당 최대 3시도예요. 본인의 `failed` 요청과 해당 공통 작업이 재시도 가능한 실패일 때만 허용해요. 다른 사용자가 이미 재시도했으면 현재 공통 시도를 재사용해요.
   `attempt`는 compare-and-set 기준이에요. 시도 1의 재시도 요청이 유실돼 다시 오면 2를 재사용하고,
   2도 이미 실패했더라도 오래된 `attempt=1`로 시도 3을 시작하지 않아요. 다시 조회한 뒤 눌러야 해요.
   다른 번호는 `409 RETRY_NOT_ALLOWED`예요. 이미 완료된 요청은 기존 결과를 반환해요.
@@ -133,10 +135,13 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
   실행 여부를 확인할 수 없으면 `failureCode=provider_outcome_unknown`, `retryable=false`예요.
   현재 SDK 내부 재시도는 ADR-0017 그대로예요. 제품 작업 재시도와 물리적 HTTP 호출 수는 달라요.
   #10은 결과 유실·lease 만료를 재호출 근거로 삼지 않고 확인 후 복구해야 해요.
-- 상세 리포트는 `id`, `requestId`, `videoId`, `url`, `title`, `channelName`, `channelUrl`, `origin`,
-  `bodyMarkdown`, `model`, `timestampVerification`, `createdAt`, `deliveryStatus`를 반환해요.
-  목록은 `bodyMarkdown`을 제외한 같은 필드예요. 시간 링크는 실제 원본 대조 전 `unverified`예요.
-  앱은 Markdown의 raw HTML·임의 스크립트를 실행하지 않고 외부 링크를 검증해 열어요.
+- 공통 보고서는 `id`, `videoId`, `url`, `title`, `channelName`, `channelUrl`, `bodyMarkdown`,
+  `model`, `timestampVerification`, `createdAt`를 반환해요. `requestId`·`origin`·`deliveryStatus`는
+  현재 사용자의 `viewerContext` 안에만 둬요. 보관 관계의 시각은 `viewerContext.savedAt`이에요.
+  자신의 요청·보관 관계가 없는 공개 열람은 `viewerContext=null`이며 다른 사용자의 정보를 넣지 않아요.
+  목록은 `bodyMarkdown`을 제외해요. 내 보관함은 본인 개인 권한 행만 조회하고 공개 열람만으로 보관하지 않아요.
+  보관함 정렬·cursor 시간은 `savedAt`, 동률 ID는 공통 보고서 ID예요.
+  시간 링크는 실제 원본 대조 전 `unverified`예요. 앱은 raw HTML·임의 스크립트를 실행하지 않아요.
 - `channelUrl`은 출처를 확보하지 못하면 `null`이에요. 현재 `getVideoMetadata`는 채널명만 반환하므로
   #11에서 oEmbed `author_url` 등 실제 출처를 검증해 보완해요. 채널명을 URL로 추측해 바꾸지 않아요.
 - `q`는 trim 후 1~100자의 제목 부분 검색, `channelUrl`은 저장된 채널 출처 URL의 정확한 일치예요.
@@ -250,10 +255,26 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
 | 같은 영상의 `youtu.be`·`watch`·시간 query | 같은 본인 request UUID, 생성 1회, 직접 결과의 발송 없음 | #10·#11 |
 | 상태 조회 응답 유실·앱 재실행 | GET만 다시 호출해요. attempt와 리포트 수는 그대로예요. | #11·#28 |
 | 시도 1 retry의 응답 유실 후 같은 body 전송 | 시도 2를 재사용하고 3을 시작하지 않아요. | #10·#11 |
-| A의 report ID를 B의 토큰으로 조회 | 일반 404와 같고 A의 본문·존재 여부를 노출하지 않아요. | #9·#12 |
+| 권한 없는 B가 비공개 report ID 조회 | 일반 404이며 본문·존재 여부를 노출하지 않아요. B가 같은 요약을 요청해 권한을 얻으면 같은 ID를 읽어요. | #9·#12 |
 | 첫 확인이 실패하거나 빈 채널이 성공 | 실패는 기준 null, 빈 성공은 기준 존재, 과거 분석 0개 | #14 |
 | 직접 결과가 있는 영상을 채널에서 발견 | 기존 리포트 재사용, 발송 행 0개 | #14·#15 |
 | 수신 주소 중 하나만 실패·채널 삭제 | 성공 이력 보존, 대기 발송 취소, 리포트 조회 가능 | #13·#15 |
 
 구현 순서는 계약 → 스키마 #8 → 인증 #9·실행 기반 #10 → 사용자 흐름 #11~#17이에요.
-공개·댓글 #23과 모음 #24의 API·테이블은 해당 이슈에서 별도로 추가해요.
+공통 보고서·조회 권한·댓글 저장 기반은 #8에 포함해요. 공개·댓글 HTTP는 #23, 모음은 #24예요.
+
+## 공통 보고서 권한·댓글: #23
+
+- `report_permissions`의 `user` 규칙은 개인 보관·조회 관계예요. `authenticated` 규칙은 로그인 사용자
+  전체에 적용하며 공개 권한 행을 사용자 수만큼 복제하지 않아요. 새 보고서는 공개 규칙 없이 시작해요.
+- `GET /v1/reports/{id}/comments`, `POST /v1/reports/{id}/comments`,
+  `DELETE /v1/reports/{id}/comments/{commentId}`는 동일한 공통 report ID를 사용해요.
+  목록은 공통 pagination, 작성은 `{ "body": "댓글" }`와 `201`, 본인 삭제는 `204`예요.
+  댓글은 `id`, `reportId`, `body`, `author: { "nickname": "…" }`, `createdAt`를 반환해요.
+  본문은 trim 후 1~2,000 code point이고 빈 댓글은 거부해요. 이메일을 응답하지 않아요.
+- 댓글 조회·작성은 로그인과 댓글을 허용한 공개 규칙이 필요해요. 개인 read 권한만으로 비공개 댓글을
+  읽거나 쓰지 못해요. 본인 댓글만 삭제하며 댓글 수정·답글·좋아요는 제외해요.
+- A의 보관 관계 제거가 공통 보고서·B의 권한·댓글을 삭제하지 않아요. 공개 철회는 댓글 접근을 차단해요.
+- 공통 보고서는 시스템 생성물이므로 최초 요청자에게 전역 공개 변경 권한을 주지 않아요.
+  공개 관리 주체와 철회 시 댓글 보존/삭제 정책은 #23의 미확정 gate예요. 공개 변경 API는 아직 확정하지 않아요.
+  권한 FK·로컬 댓글 검사는 실제 로그인·공개·댓글 HTTP 구현을 증명하지 않아요.

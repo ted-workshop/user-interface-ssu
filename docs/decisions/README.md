@@ -26,6 +26,8 @@
 | [ADR-0015](0015-gemini-production-settings.md) | Gemini 키는 GitHub Secret, 모델은 Environment Variable로 관리해요 | 확정 | 2026-10-27 |
 | [ADR-0016](0016-generate-content-video-input.md) | 실제 영상에 성공한 generateContent 경로를 사용해요 | 대체 | 2026-10-27 |
 | [ADR-0017](0017-report-generation-parity.md) | 기존 리포트의 프롬프트와 생성 설정을 복원해요 | 확정 | 2026-10-27 |
+| [ADR-0018](0018-api-contract-and-policies.md) | 계정별 API 계약과 인증·요약·자동화 정책을 맞춰요 | 대체 | 2026-10-27 |
+| [ADR-0020](0020-shared-analysis-and-report-permissions.md) | 보고서 하나를 사용자별 권한으로 공유해요 | 확정 | 2026-10-28 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

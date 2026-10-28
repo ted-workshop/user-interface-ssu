@@ -1,0 +1,179 @@
+%% 공통 보고서 모델 · 전체 17개 테이블 · 확정 설계 · DB 검증은 #8 · 제품 HTTP 별도
+erDiagram
+    users ||..o{ sessions : "세션"
+    users ||--o| user_settings : "개인 설정"
+    users ||..o{ account_tokens : "계정 확인·복구"
+    recipients |o..o{ account_tokens : "주소 확인에만 연결"
+    users ||..o{ recipients : "개인 주소"
+    users ||..o{ channel_subscriptions : "개인 구독"
+    channels ||..o{ channel_subscriptions : "공통 채널 구독"
+    channels |o..o{ videos : "실제 출처 확인 후 연결"
+    channel_subscriptions ||--o{ subscription_videos : "개인 시작 기준·발견"
+    videos ||--o{ subscription_videos : "관찰 영상"
+    videos ||..o{ analysis_jobs : "생성 설정별 작업"
+    analysis_jobs ||..o{ analysis_attempts : "분석 시도"
+    users ||..o{ summary_requests : "개인 요청"
+    analysis_jobs ||..o{ summary_requests : "여러 요청이 합류"
+    channel_subscriptions |o..o{ summary_requests : "자동 요청에만 연결"
+    analysis_jobs ||..o| reports : "공통 완성 보고서"
+    analysis_attempts ||..o| reports : "동일 작업의 성공 시도"
+    users |o..o{ report_permissions : "개인 규칙에만 사용자 연결"
+    reports ||..o{ report_permissions : "보관·공개 규칙"
+    reports ||..o{ comments : "하나의 댓글 목록"
+    users ||..o{ comments : "댓글 작성자"
+    users ||..o{ deliveries : "개인 발송"
+    summary_requests ||..o{ deliveries : "원래 개인 자동 요청"
+    reports ||..o{ deliveries : "공통 보고서 발송"
+    channel_subscriptions ||..o{ deliveries : "원래 구독"
+    recipients ||..o{ deliveries : "확인된 수신 주소"
+    deliveries ||..o{ delivery_attempts : "메일 시도"
+    users {
+        text id PK "계정 ID"
+        text email UK "정규화한 이메일, 공개 응답 제외"
+        text nickname "댓글 작성자 표시"
+        text password_hash "비밀번호 hash"
+        integer email_verified_at "확인 전 NULL"
+        integer created_at "가입 시각"
+    }
+    sessions {
+        text id PK "세션 ID"
+        text user_id FK "users.id"
+        text token_hash UK "원문 토큰 대신 hash"
+        integer created_at "생성 시각"
+        integer expires_at "절대 만료 시각"
+    }
+    user_settings {
+        text user_id PK, FK "users.id"
+        integer check_interval_minutes "60 / 360 / 1440"
+    }
+    account_tokens {
+        text id PK "일회용 토큰 ID"
+        text user_id FK "users.id"
+        text purpose "verify_email / reset_password / verify_recipient"
+        text recipient_id FK "recipients.id, 수신 주소 확인일 때만 연결"
+        text token_hash UK "원문 토큰 대신 hash"
+        integer created_at "생성 시각"
+        integer expires_at "만료 시각"
+        integer consumed_at "소비 전 NULL"
+    }
+    channels {
+        text id PK "공통 채널 ID"
+        text youtube_channel_id UK "원본 채널 ID"
+        text title "실제 출처의 채널명"
+        text url "확인한 채널 URL"
+        integer created_at "최초 기록 시각"
+    }
+    videos {
+        text id PK "정규화한 YouTube video ID"
+        text channel_id FK "channels.id, 출처 확인 전 NULL"
+        text title "출처 확인 전 NULL"
+        integer published_at "게시 시각, 미확인 시 NULL"
+        integer created_at "최초 기록 시각"
+    }
+    channel_subscriptions {
+        text id PK "개인 구독 ID"
+        text user_id FK "users.id"
+        text channel_id FK "channels.id"
+        text status "active / paused / deleted"
+        integer baseline_initialized_at "첫 성공한 기준 확인 전 NULL"
+        integer last_checked_at "개인 구독의 마지막 확인"
+        integer next_check_at "다음 확인 시각"
+        integer created_at "등록 시각"
+    }
+    subscription_videos {
+        text subscription_id PK, FK "channel_subscriptions.id"
+        text video_id PK, FK "videos.id"
+        integer is_baseline "0 / 1, 첫 성공 관찰의 영상 여부"
+        integer discovered_at "해당 구독의 발견 시각"
+    }
+    analysis_jobs {
+        text id PK "공통 작업 ID"
+        text video_id FK "videos.id"
+        text generation_key "불변 생성 설정 식별자"
+        text generation_config_json "모델·API·프롬프트 버전·언어·생성 옵션"
+        text status "공통 작업 상태"
+        text failure_code "실패·결과 불명 사유"
+        integer created_at "생성 시각"
+        integer updated_at "마지막 상태 변경"
+    }
+    analysis_attempts {
+        text id PK "분석 시도 ID"
+        text analysis_job_id FK "analysis_jobs.id"
+        integer attempt_number "시도 번호 1~3"
+        text status "running / succeeded / failed / ambiguous"
+        text provider_interaction_id "실제로 받은 공급자 ID"
+        text usage_json "미제공 사용량은 NULL로 보존"
+        text failure_code "실패 사유"
+        integer started_at "시작 시각"
+        integer finished_at "종료 전 NULL"
+    }
+    summary_requests {
+        text id PK "앱이 추적하는 개인 요청 ID"
+        text user_id FK "users.id"
+        text analysis_job_id FK "analysis_jobs.id"
+        text subscription_id FK "자동 요청의 원래 구독, 직접 요청은 NULL"
+        text origin "direct / channel, 최초 경로 유지"
+        text status "개인 요청 상태"
+        text failure_code "개인 요청의 실패 사유"
+        integer created_at "요청 시각"
+        integer updated_at "상태 변경 시각"
+    }
+    reports {
+        text id PK "모든 이용자가 함께 보는 보고서 ID"
+        text analysis_job_id FK, UK "analysis_jobs.id, 작업당 보고서 최대 하나"
+        text successful_attempt_id FK, UK "analysis_attempts.id, 동일 작업의 성공 시도"
+        text title "생성 당시 제목"
+        text channel_name "생성 당시 채널명"
+        text channel_url "출처 미확인 시 NULL"
+        text body_markdown "공통 불변 본문"
+        text model "생성 모델 기록"
+        text timestamp_verification "unverified / verified"
+        integer created_at "완성 시각"
+    }
+    report_permissions {
+        text id PK "접근 규칙 ID"
+        text report_id FK "reports.id"
+        text audience "user / authenticated"
+        text user_id FK "user 규칙에서 필수, authenticated면 NULL"
+        integer can_read "0 / 1, 본문 조회"
+        integer can_comment "0 / 1, 댓글 조회·작성"
+        integer created_at "개인 보관·규칙 생성 시각"
+    }
+    comments {
+        text id PK "댓글 ID"
+        text report_id FK "reports.id"
+        text user_id FK "users.id, 댓글 작성자"
+        text body "댓글 본문"
+        integer created_at "작성 시각"
+    }
+    recipients {
+        text id PK "수신 주소 ID"
+        text user_id FK "users.id"
+        text email "정규화한 주소"
+        integer verified_at "확인 전 NULL"
+        integer deleted_at "삭제 tombstone"
+        integer created_at "추가 시각"
+    }
+    deliveries {
+        text id PK "발송 ID"
+        text user_id FK "users.id"
+        text request_id FK "summary_requests.id, 원래 개인 자동 요청"
+        text report_id FK "reports.id, 공통 보고서"
+        text subscription_id FK "channel_subscriptions.id"
+        text recipient_id FK "recipients.id"
+        text recipient_email "당시 주소 스냅샷"
+        text status "queued / sending / sent / failed / ambiguous / cancelled"
+        text failure_code "실패 사유"
+        integer available_at "다음 발송 가능 시각"
+        text resolution_evidence "결과 불명 수동 정정의 비밀값 없는 근거"
+        integer created_at "발송 생성 시각"
+    }
+    delivery_attempts {
+        text id PK "메일 시도 ID"
+        text delivery_id FK "deliveries.id"
+        integer attempt_number "시도 번호 1~3"
+        text status "started / accepted / rejected / ambiguous"
+        text failure_code "실패 사유"
+        integer started_at "시작 시각"
+        integer finished_at "종료 전 NULL"
+    }

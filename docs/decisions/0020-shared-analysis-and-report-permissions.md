@@ -6,8 +6,8 @@
 - 관련 기록: [ADR-0018](0018-api-contract-and-policies.md), [저장 기반 #8](https://github.com/ted-workshop/user-interface-ssu/issues/8),
   [공개·댓글 #23](https://github.com/ted-workshop/user-interface-ssu/issues/23),
   [모음 #24](https://github.com/ted-workshop/user-interface-ssu/issues/24)
-- 구현·검증 상태: 현재 migration·API 계약과 #23을 대조하고 설계를 수정했어요.
-  이 기록은 ADR-0018의 보고서·권한 계약을 대체해요. 인증·재시도·공급자 gate는 기존 정책을 유지해요. DB 구현·검증은 #8에서 별도로 기록해요.
+- 구현·검증 상태: 계약과 0003_shared_reports.sql에 공통 모델을 구현했어요. 제품 HTTP·공급자·원격 검증은 별도예요.
+  이 기록은 ADR-0018의 보고서·권한 계약을 대체해요. 인증·재시도·공급자 gate는 기존 정책을 유지해요. ADR-0019의 저장 모델도 대체해요. 0001·0002 파일은 보존해요.
 - 구체화한 설계: [공통 보고서·접근 권한 ERD](../database-erd-proposal.md)예요.
 - 전체 원본: [17개 테이블의 전체 ERD](../diagrams/qletter-full-erd-proposal.mmd)예요.
 
@@ -71,7 +71,21 @@
 ## 검증과 재검토 조건
 
 문서에서는 사용자별 reports.id와 report_contents 이중 구조를 제거했어요.
-아래는 저장 기반의 검증 조건이며 실제 API·공급자 검증 결과가 아니에요.
+아래는 로컬 D1 저장 검사 항목이며 실제 인증·제품 HTTP·공급자 성공의 증거는 아니에요.
+
+2026-10-28 현재 #33 작업 트리에서 다음을 통과했어요.
+
+- `mise run api:check`와 `mise run check`: workerd 120개 중 현재 DB 30개,
+  Bun 도구 16개·공통 도구 49개, Android 포맷·Lint·단위 테스트·debug 빌드와
+  두 Terraform root의 backend 없는 init·validate를 포함해요.
+- 별도 Wrangler 로컬 persist에 0001·0002·0003을 적용하고 재실행의 `No migrations to apply`를 확인했어요.
+  실제 SQL과 ERD의 17개 테이블·116개 열이 일치하고 FK 위반은 0개예요.
+- 기존 본문이 있는 fixture에서 0003 실패·이력 rollback·본문 보존을, 빈 제품 스키마에서는
+  기존 계정·세션·수신 주소·토큰 보존과 반복 적용을 검사했어요.
+- 보관함 계획은 `permissions_library`와 보고서 PK 검색이에요. 빈 로컬 DB 보조 할당은
+  385,024바이트예요. CLI의 meta는 duration만 제공해 미제공 읽기·쓰기 수치를 추정하지 않았어요.
+- Bun 1.4.4·Node.js 24.22.1·Temurin 25.0.5+8을 mise 환경 변수로 선택했어요.
+  다른 작업의 runtime 고정 파일을 복사하지 않았어요. 실제 공급자·원격 DB·기기 UI는 실행하지 않았어요.
 
 전체 원본의 17개 테이블·116개 열·27개 논리 FK 관계를 대조했어요.
 HTML 도식은 728px·390px에서 표시하고 전체·영역별 전환, 키보드 선택·열과 제약 조회를 확인했어요.

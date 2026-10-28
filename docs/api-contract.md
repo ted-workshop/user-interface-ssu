@@ -1,7 +1,7 @@
 # Android 연동 API 계약
 
 관련 작업은 [#7](https://github.com/ted-workshop/user-interface-ssu/issues/7), 근거는
-[ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델 구현은 [#8](https://github.com/ted-workshop/user-interface-ssu/issues/8)에서 이어가요.
+[ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델은 [D1 가이드](database.md)예요.
 F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포인트는 아직 구현하지 않았어요.
 현재 실행되는 경로는 `GET /health`뿐이에요. 계약 확정과 기능 제공을 구분해요.
 
@@ -121,7 +121,8 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
 - 생성 경로 `direct`·`channel`과 최초 채널 연결은 생성 후 바꾸지 않아요.
   직접 요청이 먼저면 이후 채널 발견은 재사용만 하고 발송하지 않아요. 채널 요청이 먼저인 결과를
   앱에서 읽어도 새 직접 결과·추가 발송을 만들지 않아요.
-- 상태는 `queued → running → completed | failed`예요. `completed`는 리포트 저장까지 끝난 상태예요.
+- 상태는 `queued → running → completed | failed`예요. 저장된 공통 보고서의 재사용은 개인 권한 저장 후
+  queued/failed에서 completed로 바로 갈 수 있어요. `completed`는 리포트 저장까지 끝난 상태예요.
   실행 시도는 별도 이력으로 남기며 새 재시도가 과거 이력을 덮어쓰지 않아요.
   개인 running 요청은 계정당 하나이고 공통 작업의 running 시도도 하나예요. 여러 계정의 요청이 같은 실행을 기다릴 수 있어요. 화면 종료·HTTP timeout은 작업 취소가 아니에요.
 - 조회를 다시 하는 것은 항상 GET이에요. 정상 진행 중에는 5초 간격으로 확인하고 앱이 background면
@@ -166,7 +167,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
 | `provider_outcome_unknown` | 분석 timeout·연결 종료·알 수 없는 공급자 실패로 실행 여부가 불명확해요. retryable=false예요. |
 | `invalid_input`, `permanent` | 메일 입력·영구 거부. 주소·정책을 확인하고 자동 재발송하지 않아요. |
 | `ambiguous` | SMTP 접수 여부 불명. 증거 확인 전 retryable=false예요. |
-| `channel_inactive`, `recipient_inactive` | 현재 자동화·수신 설정 때문에 발송을 취소했어요. retryable=false예요. |
+| `channel_inactive`, `recipient_inactive`, `access_revoked` | 현재 자동화·수신 설정 때문에 발송을 취소했어요. retryable=false예요. |
 
 ## 채널·수신 설정·발송: F-05~F-09
 
@@ -270,7 +271,8 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
 - `GET /v1/reports/{id}/comments`, `POST /v1/reports/{id}/comments`,
   `DELETE /v1/reports/{id}/comments/{commentId}`는 동일한 공통 report ID를 사용해요.
   목록은 공통 pagination, 작성은 `{ "body": "댓글" }`와 `201`, 본인 삭제는 `204`예요.
-  댓글은 `id`, `reportId`, `body`, `author: { "nickname": "…" }`, `createdAt`를 반환해요.
+  댓글은 `id`, `reportId`, `body`, `author: { "nickname": "…" }`, `createdAt`, `canDelete`를 반환해요.
+  `canDelete`는 세션 사용자와 댓글 작성자 ID를 서버에서 비교해 정하고 중복 가능한 닉네임으로 판단하지 않아요.
   본문은 trim 후 1~2,000 code point이고 빈 댓글은 거부해요. 이메일을 응답하지 않아요.
 - 댓글 조회·작성은 로그인과 댓글을 허용한 공개 규칙이 필요해요. 개인 read 권한만으로 비공개 댓글을
   읽거나 쓰지 못해요. 본인 댓글만 삭제하며 댓글 수정·답글·좋아요는 제외해요.

@@ -1,8 +1,8 @@
 [tools]
-bun = "1.4.2"
-node = "24.15.0"
+bun = "1.4.4"
+node = "24.22.1"
 terraform = "1.17.0"
-java = "openjdk-25.0.2"
+java = "temurin-25.0.5+8.0.LTS"
 
 [tasks.setup]
 description = "의존성과 저장소 Git hooks 설정"

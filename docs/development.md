@@ -3,12 +3,12 @@
 새로 만든 Java Android 프로젝트를 `apps/android`에 배치했어요. Java·XML Views와 버전 카탈로그 구조를 유지하고, 개발용 API 연결은 debug 전용 `ConnectionActivity`에서 확인해요. 이후 작업은 모노레포 안의 프로젝트에서 해요.
 
 ## 고정 도구
-- Bun 1.4.2: 패키지 설치·공통 스크립트와 도구 테스트
-- Node.js 24.15.0: Wrangler·Vitest 실행
+- Bun 1.4.4: 패키지 설치·공통 스크립트와 도구 테스트
+- Node.js 24.22.1: Wrangler·Vitest 실행
 - Wrangler 4.152.0: 로컬 Worker·D1 실행, 환경 타입·번들 생성과 API 배포
 - Vitest 5.0.5·Cloudflare Vitest plugin 1.4.7: 실제 workerd 안에서 API·D1 테스트
 - Terraform 1.17.0·Cloudflare provider 5.28.1: D1·Worker 생성·R2 state 정의와 설정 검사
-- OpenJDK 25.0.2: Gradle 실행과 Java toolchain
+- Eclipse Temurin 25.0.5+8 LTS: Gradle 실행과 Java toolchain
 - Gradle 9.6.0: apps/android의 Wrapper로 실행
 - AGP 9.4.1, SDK 37·Build Tools 36.0.0: Android 빌드
 - Java 컴파일 대상 11, 최소 Android API 24

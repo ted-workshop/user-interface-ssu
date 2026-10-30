@@ -1,7 +1,8 @@
 # ADR-0002: 백그라운드 처리에 Workflows 사용을 제안해요
 
-- 상태: 제안
+- 상태: 기각
 - 작성일: 2026-10-20
+- 기각일·근거: 2026-10-30, [ADR-0022](0022-d1-scheduled-jobs.md)에서 D1 대기열과 예약 실행을 선택했어요. 아래는 당시 제안과 근거를 보존한 기록이에요.
 - 확정일과 근거: Workflows 제품의 채택은 미확정이에요. 실행 방식을 나누는 구조는
   [ADR-0003](0003-shared-modules-sync-async.md)에서 사용자 승인으로 확정했어요.
 - 관련 기록: [ADR-0001](0001-workers-d1-free-tier.md), [ADR-0003](0003-shared-modules-sync-async.md)

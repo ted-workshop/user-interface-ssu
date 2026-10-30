@@ -95,6 +95,8 @@ erDiagram
         text failure_code "실패·결과 불명 사유"
         integer created_at "생성 시각"
         integer updated_at "마지막 상태 변경"
+        text lease_token "현재 실행자의 임의 token, 미점유 시 NULL"
+        integer lease_expires_at "실행권 만료 시각"
     }
     analysis_attempts {
         text id PK "분석 시도 ID"
@@ -106,6 +108,7 @@ erDiagram
         text failure_code "실패 사유"
         integer started_at "시작 시각"
         integer finished_at "종료 전 NULL"
+        integer dispatched_at "외부 호출 직전 저장한 의도, 미호출 시 NULL"
     }
     summary_requests {
         text id PK "앱이 추적하는 개인 요청 ID"
@@ -167,6 +170,8 @@ erDiagram
         integer available_at "다음 발송 가능 시각"
         text resolution_evidence "결과 불명 수동 정정의 비밀값 없는 근거"
         integer created_at "발송 생성 시각"
+        text lease_token "현재 실행자의 임의 token, 미점유 시 NULL"
+        integer lease_expires_at "실행권 만료 시각"
     }
     delivery_attempts {
         text id PK "메일 시도 ID"
@@ -176,4 +181,5 @@ erDiagram
         text failure_code "실패 사유"
         integer started_at "시작 시각"
         integer finished_at "종료 전 NULL"
+        integer dispatched_at "외부 호출 직전 저장한 의도, 미호출 시 NULL"
     }

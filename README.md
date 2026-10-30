@@ -42,4 +42,5 @@ mise run check
 - [Gemini 영상 요약과 공급자 검증](docs/gemini.md)
 - [Android 연동 API 계약과 정책](docs/api-contract.md)
 - [D1 제품 스키마와 마이그레이션](docs/database.md)
+- [영속 분석·메일 실행 기반](docs/jobs.md)
 - [공통 AI 작업 규칙](AGENTS.md)

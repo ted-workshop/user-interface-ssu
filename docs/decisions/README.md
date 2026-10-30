@@ -11,7 +11,7 @@
 | 번호 | 결정 또는 제안 | 상태 | 날짜 |
 | --- | --- | --- | --- |
 | [ADR-0001](0001-workers-d1-free-tier.md) | Cloudflare Workers와 D1을 무료 플랜으로 시작해요 | 확정 | 2026-10-20 |
-| [ADR-0002](0002-workflows-for-background-jobs.md) | 백그라운드 처리에 Workflows 사용을 제안해요 | 제안 | 2026-10-20 |
+| [ADR-0002](0002-workflows-for-background-jobs.md) | 백그라운드 처리에 Workflows 사용을 제안해요 | 기각 | 2026-10-20 |
 | [ADR-0003](0003-shared-modules-sync-async.md) | 모듈 규칙을 통일하고 실행 방식은 요구에 맞춰요 | 확정 | 2026-10-20 |
 | [ADR-0004](0004-github-issue-backlog.md) | GitHub 이슈로 팀 작업과 선행 관계를 관리해요 | 확정 | 2026-10-20 |
 | [ADR-0005](0005-outcome-milestones.md) | 확인할 결과를 기준으로 마일스톤을 나눠요 | 확정 | 2026-10-20 |
@@ -30,6 +30,8 @@
 | [ADR-0019](0019-d1-product-schema.md) | D1 제약과 불변 시도로 계정별 제품 이력을 보존해요 | 대체 | 2026-10-27 |
 | [ADR-0020](0020-shared-analysis-and-report-permissions.md) | 보고서 하나를 사용자별 권한으로 공유해요 | 확정 | 2026-10-28 |
 | [ADR-0021](0021-patched-development-runtimes.md) | 개발 런타임의 보안 패치 버전을 고정해요 | 확정 | 2026-10-27 |
+| [ADR-0022](0022-d1-scheduled-jobs.md) | D1 대기열과 예약 실행으로 분석·메일을 복구해요 | 대체 | 2026-10-30 |
+| [ADR-0023](0023-background-runner-readability.md) | 실행 플래그를 없애고 작업 조회·검증을 분리해요 | 확정 | 2026-10-30 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

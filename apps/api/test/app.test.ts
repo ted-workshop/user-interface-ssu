@@ -58,6 +58,7 @@ describe("Worker API 응답 규약", () => {
       { name: "0001_initialize.sql" },
       { name: "0002_product_schema.sql" },
       { name: "0003_shared_reports.sql" },
+      { name: "0004_job_leases.sql" },
     ]);
   });
 

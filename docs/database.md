@@ -3,13 +3,14 @@
 [API 계약](api-contract.md)·[ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)과
 [전체 ERD](diagrams/qletter-full-erd-proposal.mmd)를 구현하는 저장 기반이에요.
 `0001`·`0002`의 이력을 보존하고 `0003_shared_reports.sql`이 공통 보고서 모델로 전환해요.
-제품 테이블은 17개·116개 열이에요. 인증·HTTP·실행기·원격 적용은 아직 구현·실행하지 않았어요.
+`0004_job_leases.sql`은 실행권·호출 의도 열을 추가해요. 제품 테이블은 17개·122개 열이에요.
+[실행기](jobs.md)는 로컬 D1에서 검증했고 인증·제품 HTTP·원격 적용은 아직 하지 않았어요.
 
 ## 공통 데이터와 개인 관계
 
 채널·영상·분석 작업·분석 시도·보고서는 공통이에요. `(video_id, generation_key)`는 작업 하나이고
 작업당 완성 보고서도 하나예요. 생성 설정은 서버가 고정한 모델·API·영상 처리·프롬프트 버전·언어·
-옵션을 식별하며 현재 ADR-0017을 따라요. 키와 정규화 설정의 대응 검증은 실행기 #10의 책임이에요.
+옵션을 식별하며 현재 ADR-0017을 따라요. 실행기는 접수 시 정규화 JSON의 SHA-256을 만들고 호출 직전 설정과 키를 다시 대조해요.
 같은 입력의 두 개인 요청이 서로 다른 공통 작업을 만드는 우회 경로를 허용하면 안 돼요.
 
 사용자별 요청·생성 경로·구독·최초 관찰·설정·수신 주소·발송은 개인 관계예요.
@@ -49,7 +50,7 @@ FK·CHECK·trigger는 로그인·SELECT 권한이나 RLS가 아니에요. 개인
    running 개인 요청과 실행 가능한 직접 요청 또는 활성 구독·확인 주소가 있어야 분석 시도를 넣어요.
    개인 running 요청은 계정당 하나, running 분석 시도는 공통 작업당 하나예요.
 3. UPDATE 0건은 SQL 오류가 아니에요. batch의 다음 INSERT도 claim 성공 조건을 검사하고,
-   시도 행의 존재만 보고 타인의 실행권을 인수했다고 판단하지 않아요. 실제 소유권·lease 실행은 #10이에요.
+   시도 행의 존재만 보고 타인의 실행권을 인수했다고 판단하지 않아요. [실행기](jobs.md)가 호출 전에는 token·만료를, 결과 저장에는 아직 회수되지 않은 token을 검사해요.
 4. 성공 시 `시도 succeeded → 보고서 INSERT → 공통 작업 completed`를 한 batch로 저장해요.
    본문·출처·성공 시도는 불변이고 잘못된 작업의 시도나 보고서 없는 완료는 거부해요.
 5. 개인 조회 규칙을 저장한 뒤 개인 요청을 completed로 바꿔요. 보고서·개인 권한 없이 완료할 수 없어요.
@@ -73,7 +74,7 @@ FK·CHECK·trigger는 로그인·SELECT 권한이나 RLS가 아니에요. 개인
 공통 작업을 다른 사용자가 기다릴 수 있으므로 한 구독 중지로 공통 작업·보고서를 취소하지 않아요.
 
 인증 토큰·세션의 비교 열에는 hash만 저장해요. #9의 메일 outbox가 필요한 토큰 원문은 서버 키로
-암호화하고 발송·만료 뒤 제거해야 해요. outbox·분산 rate limit·실행기 lease 저장은 후속 이슈예요.
+암호화하고 발송·만료 뒤 제거해야 해요. outbox·분산 rate limit은 후속 이슈예요. 실행기 lease 저장은 0004에 있어요.
 
 ## 로컬 적용과 기존 데이터 보호
 
@@ -84,7 +85,9 @@ mise exec -- bun run --cwd apps/api wrangler d1 execute DB --local --command "SE
 mise run api:check
 ```
 
-적용한 migration 파일과 적용 이력을 수정하지 않아요. 새 DB는 0001·0002·0003을 순서대로 적용해요.
+적용한 migration 파일과 적용 이력을 수정하지 않아요. 새 DB는 0001·0002·0003·0004를 순서대로 적용해요.
+0004는 기존 행을 삭제하지 않고 실행권·호출 의도를 추가해요. 이전 running/started 시도는
+미호출을 확인할 수 없어 다음 실행에서 결과 불명으로 처리해요. 종료 시도·보고서는 보존해요.
 0003은 기존 channels·channel_videos·summary_requests·summary_attempts·reports·deliveries·
 delivery_attempts 중 하나라도 행이 있으면 CHECK 실패로 파일 전체를 중단해요.
 **기존 제품 데이터가 있는 DB의 자동 이관은 지원하지 않아요.** 생성 설정을 알 수 없는 본문을
@@ -133,7 +136,7 @@ D1 SQL의 PRAGMA page_count는 사용하지 않아요. Wrangler가 종료된 뒤
 
 원격 DB·Worker는 이번 작업에서 변경하지 않아요. [배포 절차](deployment.md)와 별도 승인을 따라요.
 승인된 원격 작업에서도 정확한 환경·ID·SHA·pending migration·제품 행 수·백업을 먼저 확인해요.
-기존 제품 행이 있으면 이 migration은 적용하지 않아요. D1 Time Travel의 복구 범위·보존 기간은
+0003 전환 대상에 기존 개인 제품 행이 있으면 0003은 적용하지 않아요. D1 Time Travel의 복구 범위·보존 기간은
 실행 직전 확인하고, 무조건적인 전체 복원·DROP·이력 삭제를 실행하지 않아요.
 
 실패하면 해당 파일의 rollback과 이전 파일의 성공을 구분해요. 수정은 다음 migration으로 하며
@@ -143,4 +146,4 @@ DB rollback이 아니에요. 기존 health Worker는 제품 테이블에 의존�
 2026-10-28 확인한 공식 근거는 [외래키](https://developers.cloudflare.com/d1/sql-api/foreign-keys/),
 [migration](https://developers.cloudflare.com/d1/reference/migrations/),
 [batch](https://developers.cloudflare.com/d1/worker-api/d1-database/#batch)예요.
-실제 로컬 실행 결과와 환경은 ADR-0020에 남겨요.
+공통 스키마 검증은 ADR-0020, 실행기 검증은 [ADR-0022](decisions/0022-d1-scheduled-jobs.md)에 남겨요.

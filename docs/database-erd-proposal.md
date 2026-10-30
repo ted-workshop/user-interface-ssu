@@ -1,12 +1,12 @@
 # 공통 보고서와 사용자별 접근 권한 ERD 수정안
 
 상태는 **확정한 저장 설계**예요. [ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)의
-관계를 구체화했어요. [D1 가이드](database.md)의 0003_shared_reports.sql에 적용했어요. 제품 HTTP 구현과 원격 적용은 별도예요.
+관계를 구체화했어요. [D1 가이드](database.md)의 0003_shared_reports.sql에 적용하고 0004_job_leases.sql에서 실행권·호출 의도 열을 추가했어요. 제품 HTTP 구현과 원격 적용은 별도예요.
 
 같은 공개 영상·생성 설정에는 보고서 하나를 만들어요. A와 B의 보관함·댓글 조회는 동일한
 `reports.id`를 사용해요. 사용자마다 보고서 행을 만드는 앞선 수정안은 철회해요.
 
-17개 테이블·116개 열·27개 논리 관계를 포함한
+17개 테이블·122개 열·27개 논리 관계를 포함한
 [전체 ERD 원본](diagrams/qletter-full-erd-proposal.mmd)을 함께 관리해요.
 아래 도식은 영역별 관계이고, 전체 원본에는 인증·설정·모든 핵심 열도 포함돼요.
 PK는 기본키, FK는 외래키, UK는 단일 unique예요. 복합·부분 unique는 아래 설명을 따라요.

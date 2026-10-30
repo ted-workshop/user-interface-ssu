@@ -200,7 +200,7 @@ beforeEach(async () => {
 });
 
 describe("공통 보고서 D1 저장 규칙", () => {
-  test("세 마이그레이션을 반복 적용하고 17개 제품 테이블과 FK를 재현해요", async () => {
+  test("네 마이그레이션을 반복 적용하고 17개 제품 테이블과 FK를 재현해요", async () => {
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     expect(
       (
@@ -212,6 +212,7 @@ describe("공통 보고서 D1 저장 규칙", () => {
       "0001_initialize.sql",
       "0002_product_schema.sql",
       "0003_shared_reports.sql",
+      "0004_job_leases.sql",
     ]);
     expect((await sql("PRAGMA foreign_key_check").all()).results).toEqual([]);
     const names = await sql(

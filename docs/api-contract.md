@@ -135,7 +135,8 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이며, 아래 제품 엔드포
 - 공급자 quota·configuration·접근 거부·응답 불명은 자동 재분석하지 않아요. timeout·연결 유실은
   실행 여부를 확인할 수 없으면 `failureCode=provider_outcome_unknown`, `retryable=false`예요.
   현재 SDK 내부 재시도는 ADR-0017 그대로예요. 제품 작업 재시도와 물리적 HTTP 호출 수는 달라요.
-  #10은 결과 유실·lease 만료를 재호출 근거로 삼지 않고 확인 후 복구해야 해요.
+  #10은 결과 유실·lease 만료를 재호출 근거로 삼지 않아요. [ADR-0022](decisions/0022-d1-scheduled-jobs.md)의
+  실행기는 SDK 내부 시도의 미실행을 확인할 수 없는 최종 5xx도 `provider_outcome_unknown`으로 보존해요.
 - 공통 보고서는 `id`, `videoId`, `url`, `title`, `channelName`, `channelUrl`, `bodyMarkdown`,
   `model`, `timestampVerification`, `createdAt`를 반환해요. `requestId`·`origin`·`deliveryStatus`는
   현재 사용자의 `viewerContext` 안에만 둬요. 보관 관계의 시각은 `viewerContext.savedAt`이에요.

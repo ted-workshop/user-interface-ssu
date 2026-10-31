@@ -4,7 +4,8 @@
 [ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델은 [D1 가이드](database.md)예요.
 F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아래 `summary-requests`의
 접수·목록·상세·재시도 경로를 구현했어요. [ADR-0024](decisions/0024-direct-summary-http.md)에 구현 경계를 남겨요.
-기존 D1 세션의 hash·만료·이메일 확인을 검사하며, 세션 발급 #9·리포트 조회 #12·Android 연결은 후속 작업이에요.
+`GET /v1/reports`의 `limit`·`cursor`와 `GET /v1/reports/{id}`도 구현했고 경계는 [ADR-0026](decisions/0026-report-read-http.md)에 남겨요.
+기존 D1 세션의 hash·만료·이메일 확인을 검사하며, 세션 발급 #9·리포트 검색·필터 #12·Android 연결은 후속 작업이에요.
 로컬 세션·공급자 fixture 검증을 실제 로그인·Gemini 생성 성공으로 보지 않아요.
 
 ## 공통 규칙

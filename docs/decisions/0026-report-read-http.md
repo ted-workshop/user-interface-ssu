@@ -52,8 +52,8 @@ main `2b84d23`에는 보고서 저장과 `reportId` 응답이 있지만 본문�
 - `mise run api:check`는 실패로 끝났어요. `apps/api/tools` 3개와 `scripts` 4개가 실패했고, 이번 변경의 파일을 사용하지 않아요.
   확인한 원인은 POSIX 파일 권한 `0600` 검사가 Windows에서 `0666`으로 보이는 것이고, `scripts`의 나머지는 원인을 따로 확인하지 않았어요.
   이 실행에는 Git의 `sh`를 임시로 PATH에 추가했어요.
-  WSL Ubuntu에서 이번 변경이 없는 main을 검사하면 workerd 226개, `tools` 16개, `scripts` 49개가 모두 통과해요.
-  이번 변경을 포함한 Linux 검사와 원격 CI는 아직 확인하지 않았어요.
+  WSL Ubuntu에서 이번 변경을 포함한 커밋 `4661e02`를 `mise run api:check`로 검사하면 workerd 256개, `tools` 16개, `scripts` 49개가 모두 통과해요.
+  원격 CI는 아직 확인하지 않았어요.
 - 보고서 150개, 권한 200개인 로컬 D1의 임시 측정이에요. 원격 과금·성능의 증거가 아니에요.
 
 | 조회 | 인덱스 | 반환 | rows_read |

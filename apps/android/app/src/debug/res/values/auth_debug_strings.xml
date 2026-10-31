@@ -1,0 +1,6 @@
+<resources>
+    <string name="auth_debug_open">인증 화면 점검</string>
+    <string name="auth_debug_success_title">로그인 응답 확인</string>
+    <string name="auth_debug_success_message">%1$s 계정의 인증 응답을 받았어요. 이 개발 화면은 세션을 저장하지 않아요. 앱의 로그인 유지와 화면 이동은 공통 기반 연결 뒤 확인해요.</string>
+    <string name="auth_debug_close">닫기</string>
+</resources>

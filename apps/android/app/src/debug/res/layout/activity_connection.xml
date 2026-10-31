@@ -46,5 +46,11 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="@string/connection_check" />
+        <Button
+            android:id="@+id/auth_debug_open"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/auth_debug_open" />
     </LinearLayout>
 </ScrollView>

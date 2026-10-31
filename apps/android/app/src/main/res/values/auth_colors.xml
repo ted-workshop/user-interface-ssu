@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="auth_surface">#FFFFFF</color>
+    <color name="auth_text">#101010</color>
+    <color name="auth_secondary">#616161</color>
+    <color name="auth_outline">#D6D6D6</color>
+    <color name="auth_error">#B42318</color>
+    <color name="auth_notice_surface">#F6F6F7</color>
+</resources>

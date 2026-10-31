@@ -7,6 +7,10 @@ YouTube 영상을 읽기 쉬운 한국어 리포트로 만드는 Android 팀프�
 서버에는 [직접 요약 접수·조회·재시도 API](docs/decisions/0024-direct-summary-http.md)와 영속 실행기를 연결했어요.
 로컬 D1·세션 fixture로 검증하며, 실제 로그인·Gemini 성공·Android 제품 화면의 연결은 남아 있어요.
 
+Android에는 [로그인·회원가입 화면과 인증 요청 컴포넌트](docs/decisions/0025-android-auth-screens.md)를 추가했어요.
+debug 연결 화면의 `인증 화면 점검`으로 열 수 있어요. 인증 서버 #9와 세션 저장·앱 탐색 #28의 연결,
+실제 기기 검증은 남아 있어요.
+
 | 경로 | 역할 |
 | --- | --- |
 | apps/api | Workers·TypeScript·Hono API와 로컬 D1 |

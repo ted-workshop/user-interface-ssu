@@ -1,5 +1,6 @@
 package kr.ac.ssu.qletter;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
@@ -44,6 +45,8 @@ public final class ConnectionActivity extends AppCompatActivity {
     Button button = findViewById(R.id.connection_button);
     View progress = findViewById(R.id.connection_progress);
     button.setOnClickListener(view -> model.check());
+    findViewById(R.id.auth_debug_open)
+        .setOnClickListener(view -> startActivity(new Intent(this, AuthDebugActivity.class)));
     model
         .getState()
         .observe(

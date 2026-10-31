@@ -71,6 +71,7 @@ export async function getVideoMetadata(raw: string) {
       ...video,
       title: metadata.title,
       channel: metadata.author_name,
+      channelUrl: parseChannelUrl(metadata.author_url),
       metadataSource: source.toString(),
     };
   } catch {
@@ -272,7 +273,26 @@ const youtubeUrlSchema = z.object({
 const metadataSchema = z.object({
   title: z.string().trim().min(1),
   author_name: z.string().trim().min(1),
+  author_url: z.unknown().optional(),
 });
+
+function parseChannelUrl(value: unknown) {
+  const url = typeof value === "string" ? URL.parse(value) : null;
+  if (
+    url?.protocol !== "https:" ||
+    !["www.youtube.com", "youtube.com"].includes(url.hostname) ||
+    url.username ||
+    url.password ||
+    url.port ||
+    url.search ||
+    url.hash
+  )
+    return null;
+  // oEmbed가 준 채널·핸들·기존 사용자 주소만 출처로 보관해요.
+  if (!/^\/(?:@[^/\s]+|(?:channel|user|c)\/[^/\s]+)\/?$/.test(url.pathname))
+    return null;
+  return url.href;
+}
 
 const quotaViolationSchema = z.object({
   quotaMetric: z.string(),

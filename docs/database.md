@@ -3,8 +3,9 @@
 [API 계약](api-contract.md)·[ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)과
 [전체 ERD](diagrams/qletter-full-erd-proposal.mmd)를 구현하는 저장 기반이에요.
 `0001`·`0002`의 이력을 보존하고 `0003_shared_reports.sql`이 공통 보고서 모델로 전환해요.
-`0004_job_leases.sql`은 실행권·호출 의도 열을 추가해요. 제품 테이블은 17개·122개 열이에요.
-[실행기](jobs.md)는 로컬 D1에서 검증했고 인증·제품 HTTP·원격 적용은 아직 하지 않았어요.
+`0004_job_leases.sql`은 실행권·호출 의도 열을, `0005_summary_admissions.sql`은 직접 요약의 접수 차감 기록을 추가해요.
+제품 테이블은 18개·126개 열이에요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
+실제 로그인·공급자 생성·원격 적용은 별도예요.
 
 ## 공통 데이터와 개인 관계
 
@@ -19,7 +20,7 @@ A·B는 서로 다른 요청으로 같은 report_id를 받고 각자의 `report_
 B의 별도 자동 요청은 같은 보고서를 재사용해 B의 확인된 주소에 발송할 수 있어요.
 
 SQLite STRICT, UTC Unix 초 INTEGER, UUID를 사용해요. 영상 ID만 YouTube 원본 ID예요.
-현재 메타데이터에서 확인하지 못한 채널 ID·URL·게시 시각은 NULL로 두고 추측하지 않아요.
+oEmbed에서 확인한 채널 URL은 reports.channel_url에 저장해요. 채널 ID·게시 시각과 미확인 URL은 NULL로 두고 추측하지 않아요.
 시도 usage_json도 공급자가 주지 않은 사용량은 NULL이며 비용·할당량을 계산해 채우지 않아요.
 
 ## 조회·보관·댓글 권한
@@ -43,6 +44,12 @@ FK·CHECK·trigger는 로그인·SELECT 권한이나 RLS가 아니에요. 개인
 로컬 SQL의 읽기·삭제 권한 예제는 실제 인증 HTTP를 구현한 증거가 아니에요.
 
 ## 저장·실행 경계
+
+직접 요약 HTTP는 새 공통 분석 또는 명시적 재시도를 시작하는 사용자만 `summary_admissions`에 기록해요.
+`(analysis_job_id, attempt_number)` PK가 같은 실행 접수의 중복 차감을 막아요. 사용자·accepted_at 인덱스로
+UTC 당일 차감 수를 조회하고, 상한 검사·실행 접수·차감을 같은 batch에 넣어 동시 요청도 상한을 넘지 않아요.
+과거 작업을 추정해서 소급 차감하지 않으며, 실패·결과 불명도 이미 접수한 차감은 남겨요.
+다른 사용자와의 합류·완성 결과 재사용은 차감하지 않아요. 채널 자동화의 운영 상한은 #7·#14에 남아요.
 
 1. 정규화 영상과 서버 생성 설정 키의 공통 작업을 INSERT 또는 재사용해요. 개인 요청은
    `(user_id, analysis_job_id)` unique예요. 생성 경로·구독·소유자는 바꾸지 않아요.
@@ -85,7 +92,8 @@ mise exec -- bun run --cwd apps/api wrangler d1 execute DB --local --command "SE
 mise run api:check
 ```
 
-적용한 migration 파일과 적용 이력을 수정하지 않아요. 새 DB는 0001·0002·0003·0004를 순서대로 적용해요.
+적용한 migration 파일과 적용 이력을 수정하지 않아요. 새 DB는 0001·0002·0003·0004·0005를 순서대로 적용해요.
+0005는 빈 접수 차감 테이블만 추가하고 기존 계정·요청·시도·보고서를 수정하지 않아요.
 0004는 기존 행을 삭제하지 않고 실행권·호출 의도를 추가해요. 이전 running/started 시도는
 미호출을 확인할 수 없어 다음 실행에서 결과 불명으로 처리해요. 종료 시도·보고서는 보존해요.
 0003은 기존 channels·channel_videos·summary_requests·summary_attempts·reports·deliveries·

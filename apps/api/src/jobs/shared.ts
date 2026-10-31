@@ -11,7 +11,14 @@ export type JobClaim = {
 };
 
 export class JobError extends Error {
-  constructor(readonly code: "NOT_FOUND" | "RETRY_NOT_ALLOWED" | "INELIGIBLE") {
+  constructor(
+    readonly code:
+      | "NOT_FOUND"
+      | "RETRY_NOT_ALLOWED"
+      | "INELIGIBLE"
+      | "SUMMARY_UNAVAILABLE"
+      | "USAGE_LIMIT_REACHED",
+  ) {
     super(code);
     this.name = "JobError";
   }

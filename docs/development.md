@@ -103,7 +103,7 @@ mise exec -- bun run --cwd apps/api wrangler d1 execute DB --local --command "SE
 mise run api:types
 ```
 
-첫 명령은 새 로컬 DB에 `0001_initialize.sql`·`0002_product_schema.sql`·`0003_shared_reports.sql`·`0004_job_leases.sql`을 적용해요. 다시 실행하면 이미 적용한 파일은 건너뛰어요.
+첫 명령은 새 로컬 DB에 `0001_initialize.sql`부터 `0005_summary_admissions.sql`까지 적용해요. 다시 실행하면 이미 적용한 파일은 건너뛰어요.
 0003은 기존 개인 제품 행이 있으면 전체 전환을 중단해 보존해요. 계정·세션·수신 주소는 유지하고, 빈 제품 스키마에 공통 보고서·개인 권한·댓글·발송 제약을 적용해요.
 실행과 중단 복구는 [영속 작업 가이드](jobs.md), 저장 모델·계측은 [D1 가이드](database.md), 구현할 HTTP 형식은 [API 계약](api-contract.md)을 따라요.
 `DB` 접근과 SQL 실패 처리는 workerd 테스트에서 검증하고, 제품 API에 진단용 DB 경로를 추가하지 않아요.
@@ -114,6 +114,10 @@ binding을 바꾸면 `api:types`로 추적 중인 `worker-configuration.d.ts`를
 
 비밀값이 필요해지는 단계에서는 Git에서 제외한 `apps/api/.dev.vars`를 사용해요.
 현재 로컬 검사에는 비밀값이 필요하지 않고, `.dev.vars`·`.env`·개인 SDK 경로를 커밋하지 않아요.
+
+직접 요약 HTTP는 [계약](api-contract.md)의 Bearer 세션을 검사해요. 세션 발급은 #9에서 구현해요.
+새 분석·재시도는 계정별 UTC 하루 합계 3회예요. 키·모델이 준비되지 않으면 새 분석은 503이며 기존 요청 조회와 결과 재사용은 가능해요.
+workerd 검사는 격리된 D1 세션과 공급자 fixture로 동작해요. 실제 로그인·공급자 검증을 대신하지 않아요.
 
 ## Terraform
 

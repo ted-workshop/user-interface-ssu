@@ -4,6 +4,9 @@ YouTube 영상을 읽기 쉬운 한국어 리포트로 만드는 Android 팀프�
 
 현재는 **팀 개발 환경과 Android debug 앱 ↔ 로컬 API 연결**을 제공해요. 회원가입·로그인·Gemini 요약·보관함은 다음 기능 단계예요. 제품 로그인은 이메일·비밀번호 방식이에요.
 
+서버에는 [직접 요약 접수·조회·재시도 API](docs/decisions/0024-direct-summary-http.md)와 영속 실행기를 연결했어요.
+로컬 D1·세션 fixture로 검증하며, 실제 로그인·Gemini 성공·Android 제품 화면의 연결은 남아 있어요.
+
 | 경로 | 역할 |
 | --- | --- |
 | apps/api | Workers·TypeScript·Hono API와 로컬 D1 |

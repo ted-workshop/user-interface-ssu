@@ -20,6 +20,7 @@ const video = {
   url,
   title: "테스트 영상",
   channel: "테스트 채널",
+  channelUrl: null,
   metadataSource: "https://www.youtube.com/oembed",
 };
 const markdown = `## 3줄 요약
@@ -80,6 +81,47 @@ async function failedReport() {
 }
 
 describe("YouTube 영상 입력과 출처", () => {
+  test.each([
+    "https://www.youtube.com/@fixture",
+    "https://www.youtube.com/channel/UCfixture",
+    "https://youtube.com/user/fixture",
+  ])("oEmbed의 채널 출처 %s를 그대로 전달해요", async (channelUrl) => {
+    network.mockResolvedValue(
+      Response.json({
+        title: video.title,
+        author_name: video.channel,
+        author_url: channelUrl,
+      }),
+    );
+    expect(await getVideoMetadata(url)).toMatchObject({ channelUrl });
+  });
+
+  test.each([
+    undefined,
+    null,
+    42,
+    "javascript:alert(1)",
+    "https://youtube.com.evil.test/@fixture",
+    "https://name:secret@www.youtube.com/@fixture",
+    "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    "https://www.youtube.com/@fixture?next=evil",
+    "http://www.youtube.com/@fixture",
+  ])(
+    "확인할 수 없는 채널 주소 %s는 추측하지 않고 null로 남겨요",
+    async (channelUrl) => {
+      network.mockResolvedValue(
+        Response.json({
+          title: video.title,
+          author_name: video.channel,
+          author_url: channelUrl,
+        }),
+      );
+      expect(await getVideoMetadata(url)).toMatchObject({
+        channel: video.channel,
+        channelUrl: null,
+      });
+    },
+  );
   test.each([
     url,
     "https://youtu.be/jNQXAC9IVRw?t=3",

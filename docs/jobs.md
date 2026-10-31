@@ -3,13 +3,17 @@
 [ADR-0022](decisions/0022-d1-scheduled-jobs.md)의 D1 대기열·예약 실행과
 [ADR-0023](decisions/0023-background-runner-readability.md)의 실행·모듈 규칙을 구현했어요.
 공급자를 호출하는 함수는 기존 `summary.ts`·`email.ts`를 그대로 사용해요.
-인증·제품 HTTP·Android 화면 연결은 아직 없어요.
+직접 요약 HTTP와 기존 세션 검사는 [ADR-0024](decisions/0024-direct-summary-http.md)에 따라 연결해요.
+가입·로그인 발급과 Android 화면 연결은 후속 작업이에요.
 
 ## 후속 기능에서 사용하는 경계
 
-- `enqueueAnalysis(DB, {userId, url, model, subscriptionId?})`: 요청과 공통 작업을 함께 저장해요.
+- `enqueueAnalysis(DB, {userId, url, model, subscriptionId?, admissionLimit?})`: 요청과 공통 작업을 함께 저장해요.
   서버에서 인증한 userId와 설정한 model만 전달해요. subscriptionId가 없으면 직접 요청이에요.
   같은 사용자·영상·생성 설정은 같은 요청 ID를 반환하고 기존 보고서도 재사용해요.
+  직접 요약 HTTP는 확정한 하루 3회 상한을 admissionLimit으로 전달해 접수·차감을 한 batch로 저장해요.
+  생략은 내부 자동화 호출용이에요. HTTP의 공급자 설정 미비는 0으로 전달해 새 실행 접수만 거부해요.
+  `accepted`는 새 접수인지 구분하는 내부 값이고 HTTP는 202·200으로 변환해요.
 - `getAnalysisRequest(DB, userId, requestId)` / `retryAnalysis(DB, userId, requestId, attempt)`:
   본인 상태·실패 이유·재시도 가능 여부를 조회하고 관찰한 시도 번호로 재시도해요.
 - `enqueueDelivery(DB, userId, requestId, recipientId)`: 완료된 자동 요청과 현재 확인된 주소를 대조해

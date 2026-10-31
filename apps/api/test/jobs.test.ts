@@ -40,6 +40,7 @@ const model = "gemini-3.6-flash";
 const result = {
   title: "원본 영상",
   channel: "원본 채널",
+  channelUrl: "https://www.youtube.com/@fixture",
   markdown:
     "<script>이 문자열은 메일에서 실행되면 안 돼요.</script>\n공통 보고서 본문",
   model,
@@ -114,6 +115,7 @@ beforeEach(async () => {
     "comments",
     "report_permissions",
     "reports",
+    "summary_admissions",
     "analysis_attempts",
     "summary_requests",
     "analysis_jobs",
@@ -144,6 +146,7 @@ beforeEach(async () => {
       url: input,
       title: result.title,
       channel: result.channel,
+      channelUrl: result.channelUrl,
       metadataSource: "https://www.youtube.com/oembed",
     })),
     generate: vi.fn(async () => result),

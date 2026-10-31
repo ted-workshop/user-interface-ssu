@@ -67,29 +67,55 @@ export async function enqueueAnalysis(
     url: string;
     model: string;
     subscriptionId?: string;
+    admissionLimit?: number;
   },
   now = unixNow(),
 ) {
   const { videoId } = parseYouTubeUrl(input.url);
   const config = JSON.stringify(generationProfile(input.model));
   const key = await generationKey(config);
+  const jobId = crypto.randomUUID();
+  const limit = input.admissionLimit ?? null;
+  const day = Math.floor(now / 86_400) * 86_400;
   const sql = (query: string, ...values: (string | number | null)[]) =>
     statement(db, query, ...values);
   // 접수와 기존 결과 재사용까지 한 번에 저장해 응답 유실에도 중간 상태를 남기지 않아요.
-  await db.batch([
+  const rows = await db.batch([
     sql(
-      "INSERT INTO videos (id) VALUES (?) ON CONFLICT(id) DO NOTHING",
+      `INSERT INTO videos (id) SELECT ? WHERE ? IS NULL OR (
+        SELECT count(*) FROM summary_admissions WHERE user_id = ? AND accepted_at >= ? AND accepted_at < ?) < ?
+      ON CONFLICT(id) DO NOTHING`,
       videoId,
+      limit,
+      input.userId,
+      day,
+      day + 86_400,
+      limit,
     ),
     sql(
       `INSERT INTO analysis_jobs (id, video_id, generation_key, generation_config_json, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(video_id, generation_key) DO NOTHING`,
-      crypto.randomUUID(),
+      SELECT ?, ?, ?, ?, ?, ? WHERE ? IS NULL OR (
+        SELECT count(*) FROM summary_admissions WHERE user_id = ? AND accepted_at >= ? AND accepted_at < ?) < ?
+      ON CONFLICT(video_id, generation_key) DO NOTHING`,
+      jobId,
       videoId,
       key,
       config,
       now,
       now,
+      limit,
+      input.userId,
+      day,
+      day + 86_400,
+      limit,
+    ),
+    sql(
+      `INSERT INTO summary_admissions (analysis_job_id, attempt_number, user_id, accepted_at)
+      SELECT id, 1, ?, ? FROM analysis_jobs WHERE id = ? AND ? IS NOT NULL`,
+      input.userId,
+      now,
+      jobId,
+      limit,
     ),
     sql(
       `INSERT INTO summary_requests (id, user_id, analysis_job_id, origin, subscription_id, created_at, updated_at)
@@ -140,8 +166,22 @@ export async function enqueueAnalysis(
     videoId,
     key,
   ).first<{ id: string }>();
-  if (!request) throw new JobError("INELIGIBLE");
-  return getAnalysisRequest(db, input.userId, request.id);
+  if (!request)
+    throw new JobError(
+      limit === null
+        ? "INELIGIBLE"
+        : limit === 0
+          ? "SUMMARY_UNAVAILABLE"
+          : "USAGE_LIMIT_REACHED",
+    );
+  const current = await getAnalysisRequest(db, input.userId, request.id);
+  return {
+    ...current,
+    accepted:
+      rows[3]?.meta.changes === 1 &&
+      current.status !== "completed" &&
+      current.status !== "failed",
+  };
 }
 
 const eligibleRequest = `(q.origin = 'direct' OR (
@@ -244,6 +284,7 @@ export async function markAnalysisDispatched(
 export type AnalysisResult = {
   title: string;
   channel: string;
+  channelUrl: string | null;
   markdown: string;
   model: string;
   interactionId: string;
@@ -271,13 +312,14 @@ export async function completeAnalysis(
       claim.token,
     ),
     sql(
-      `INSERT INTO reports (id, analysis_job_id, successful_attempt_id, title, channel_name, body_markdown, model, created_at)
-      SELECT ?, j.id, a.id, ?, ?, ?, ?, ? FROM analysis_jobs j JOIN analysis_attempts a ON a.analysis_job_id = j.id
+      `INSERT INTO reports (id, analysis_job_id, successful_attempt_id, title, channel_name, channel_url, body_markdown, model, created_at)
+      SELECT ?, j.id, a.id, ?, ?, ?, ?, ?, ? FROM analysis_jobs j JOIN analysis_attempts a ON a.analysis_job_id = j.id
       WHERE j.id = ? AND j.status = 'running' AND j.lease_token = ? AND a.id = ? AND a.status = 'succeeded'
       ON CONFLICT(analysis_job_id) DO NOTHING`,
       crypto.randomUUID(),
       result.title,
       result.channel,
+      result.channelUrl,
       result.markdown,
       result.model,
       now,
@@ -422,6 +464,11 @@ export async function recoverAnalysis(db: D1Database, now = unixNow()) {
 
 type RequestRow = {
   id: string;
+  videoId: string;
+  origin: "direct" | "channel";
+  createdAt: number;
+  updatedAt: number;
+  eligible: number;
   analysisJobId: string;
   status: "queued" | "running" | "completed" | "failed";
   jobStatus: string;
@@ -431,6 +478,70 @@ type RequestRow = {
   reportId: string | null;
 };
 
+const requestQuery = `SELECT q.id, j.video_id AS videoId, q.origin, q.created_at AS createdAt, q.updated_at AS updatedAt,
+  CASE WHEN ${eligibleRequest} THEN 1 ELSE 0 END AS eligible,
+  j.id AS analysisJobId, q.status, j.status AS jobStatus,
+  q.failure_code AS failureCode, j.failure_code AS jobFailure,
+  (SELECT coalesce(max(attempt_number), 0) FROM analysis_attempts WHERE analysis_job_id = j.id) AS attempt,
+  (SELECT r.id FROM reports r JOIN report_permissions p ON p.report_id = r.id AND p.audience = 'user' AND p.user_id = q.user_id
+    WHERE r.analysis_job_id = j.id) AS reportId
+  FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id`;
+
+export async function canAdmitAnalysis(
+  db: D1Database,
+  userId: string,
+  limit: number,
+  now = unixNow(),
+) {
+  if (limit <= 0) return false;
+  const day = Math.floor(now / 86_400) * 86_400;
+  const used = await statement(
+    db,
+    "SELECT count(*) AS used FROM summary_admissions WHERE user_id = ? AND accepted_at >= ? AND accepted_at < ?",
+    userId,
+    day,
+    day + 86_400,
+  ).first<number>("used");
+  return used !== null && used < limit;
+}
+
+export async function listAnalysisRequests(
+  db: D1Database,
+  userId: string,
+  input: {
+    limit: number;
+    status?: RequestRow["status"];
+    cursor?: { createdAt: number; id: string };
+  },
+) {
+  const conditions = ["q.user_id = ?"];
+  const values: (string | number)[] = [userId];
+  if (input.status) {
+    conditions.push("q.status = ?");
+    values.push(input.status);
+  }
+  if (input.cursor) {
+    conditions.push("(q.created_at, q.id) < (?, ?)");
+    values.push(input.cursor.createdAt, input.cursor.id);
+  }
+  const rows = await statement(
+    db,
+    `${requestQuery} WHERE ${conditions.join(" AND ")}
+    ORDER BY q.created_at DESC, q.id DESC LIMIT ?`,
+    ...values,
+    input.limit + 1,
+  ).all<RequestRow>();
+  const items = rows.results.slice(0, input.limit).map(requestState);
+  const last = items.at(-1);
+  return {
+    items,
+    cursor:
+      rows.results.length > input.limit && last
+        ? { createdAt: last.createdAt, id: last.id }
+        : null,
+  };
+}
+
 export async function getAnalysisRequest(
   db: D1Database,
   userId: string,
@@ -438,19 +549,19 @@ export async function getAnalysisRequest(
 ) {
   const row = await statement(
     db,
-    `SELECT q.id, j.id AS analysisJobId, q.status, j.status AS jobStatus,
-    q.failure_code AS failureCode, j.failure_code AS jobFailure,
-    (SELECT coalesce(max(attempt_number), 0) FROM analysis_attempts WHERE analysis_job_id = j.id) AS attempt,
-    (SELECT r.id FROM reports r JOIN report_permissions p ON p.report_id = r.id AND p.audience = 'user' AND p.user_id = q.user_id
-      WHERE r.analysis_job_id = j.id) AS reportId
-    FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id WHERE q.id = ? AND q.user_id = ?`,
+    `${requestQuery} WHERE q.id = ? AND q.user_id = ?`,
     id,
     userId,
   ).first<RequestRow>();
   if (!row) throw new JobError("NOT_FOUND");
+  return requestState(row);
+}
+
+function requestState(row: RequestRow) {
   return {
     ...row,
     retryable:
+      row.eligible === 1 &&
       row.status === "failed" &&
       row.jobStatus === "failed" &&
       row.attempt < MAX_ATTEMPTS &&
@@ -466,6 +577,7 @@ export async function retryAnalysis(
   id: string,
   attempt: number,
   now = unixNow(),
+  admissionLimit?: number,
 ) {
   const request = await getAnalysisRequest(db, userId, id);
   if (!Number.isInteger(attempt) || attempt < 1 || attempt > MAX_ATTEMPTS)
@@ -476,21 +588,42 @@ export async function retryAnalysis(
     (request.attempt === attempt &&
       ["queued", "running"].includes(request.jobStatus))
   )
-    return request;
+    return { ...request, accepted: false };
   if (request.attempt !== attempt || !request.retryable)
     throw new JobError("RETRY_NOT_ALLOWED");
-  await db.batch([
+  const limit = admissionLimit ?? null;
+  const day = Math.floor(now / 86_400) * 86_400;
+  const rows = await db.batch([
     statement(
       db,
       `UPDATE analysis_jobs SET status = 'queued', failure_code = NULL, updated_at = ?
       WHERE id = ? AND status = 'failed' AND failure_code IN ('temporary', 'metadata_unavailable')
       AND (SELECT max(attempt_number) FROM analysis_attempts WHERE analysis_job_id = ?) = ?
-      AND NOT EXISTS (SELECT 1 FROM analysis_attempts WHERE analysis_job_id = ? AND status IN ('succeeded', 'ambiguous'))`,
+      AND NOT EXISTS (SELECT 1 FROM analysis_attempts WHERE analysis_job_id = ? AND status IN ('succeeded', 'ambiguous'))
+      AND EXISTS (SELECT 1 FROM summary_requests q WHERE q.id = ? AND q.user_id = ? AND ${eligibleRequest})
+      AND (? IS NULL OR (SELECT count(*) FROM summary_admissions WHERE user_id = ? AND accepted_at >= ? AND accepted_at < ?) < ?)`,
       now,
       request.analysisJobId,
       request.analysisJobId,
       attempt,
       request.analysisJobId,
+      id,
+      userId,
+      limit,
+      userId,
+      day,
+      day + 86_400,
+      limit,
+    ),
+    statement(
+      db,
+      `INSERT INTO summary_admissions (analysis_job_id, attempt_number, user_id, accepted_at)
+      SELECT ?, ?, ?, ? WHERE changes() = 1 AND ? IS NOT NULL`,
+      request.analysisJobId,
+      attempt + 1,
+      userId,
+      now,
+      limit,
     ),
     statement(
       db,
@@ -502,5 +635,22 @@ export async function retryAnalysis(
       request.analysisJobId,
     ),
   ]);
-  return getAnalysisRequest(db, userId, id);
+  const current = await getAnalysisRequest(db, userId, id);
+  if (
+    rows[0]?.meta.changes === 0 &&
+    current.status === "failed" &&
+    current.attempt === attempt &&
+    !current.retryable
+  )
+    throw new JobError("RETRY_NOT_ALLOWED");
+  if (
+    rows[0]?.meta.changes === 0 &&
+    current.retryable &&
+    current.attempt === attempt &&
+    limit !== null
+  )
+    throw new JobError(
+      limit === 0 ? "SUMMARY_UNAVAILABLE" : "USAGE_LIMIT_REACHED",
+    );
+  return { ...current, accepted: rows[0]?.meta.changes === 1 };
 }

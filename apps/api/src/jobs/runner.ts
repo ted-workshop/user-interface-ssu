@@ -98,6 +98,7 @@ async function runAnalysis(env: Env, io: JobProviders) {
       ...report,
       title: metadata.title,
       channel: metadata.channel,
+      channelUrl: metadata.channelUrl,
       model: report.model ?? model,
     },
     io.now(),

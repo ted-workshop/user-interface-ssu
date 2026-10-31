@@ -19,6 +19,7 @@ const video = {
   url,
   title: "테스트 영상",
   channel: "테스트 채널",
+  channelUrl: null,
   metadataSource: "https://www.youtube.com/oembed",
 };
 const generated = {

@@ -1,3 +1,9 @@
+import type {
+  DeliveryMessageRow,
+  DeliveryRow,
+  ExpiredRunRow,
+  IdRow,
+} from "../rows";
 import {
   DELIVERY_LEASE_SECONDS,
   type JobClaim,
@@ -15,10 +21,10 @@ const eligibleDelivery = `EXISTS (SELECT 1 FROM channel_subscriptions s WHERE s.
 export async function getDeliveryMessage(db: D1Database, id: string) {
   const message = await statement(
     db,
-    `SELECT d.recipient_email, r.title, r.body_markdown
+    `SELECT d.recipient_email AS recipientEmail, r.title, r.body_markdown AS bodyMarkdown
     FROM deliveries d JOIN reports r ON r.id = d.report_id WHERE d.id = ?`,
     id,
-  ).first<{ recipient_email: string; title: string; body_markdown: string }>();
+  ).first<DeliveryMessageRow>();
   if (!message) throw new Error("발송할 보고서를 찾지 못했어요.");
   return message;
 }
@@ -56,7 +62,7 @@ export async function enqueueDelivery(
     userId,
     requestId,
     recipientId,
-  ).first<{ id: string }>();
+  ).first<IdRow>();
   if (!existing) throw new JobError("INELIGIBLE");
   return getDelivery(db, userId, existing.id);
 }
@@ -263,7 +269,7 @@ export async function recoverDeliveries(db: D1Database, now = unixNow()) {
     AND (d.lease_token IS NULL OR EXISTS (SELECT 1 FROM delivery_attempts a WHERE a.delivery_id = d.id AND a.status = 'started' AND a.dispatched_at IS NOT NULL))
     ORDER BY d.lease_expires_at, d.id LIMIT 2`,
     now,
-  ).all<{ id: string; attempt: number }>();
+  ).all<ExpiredRunRow>();
   for (const { id, attempt } of expired.results) {
     const rows = await db.batch([
       statement(
@@ -288,15 +294,6 @@ export async function recoverDeliveries(db: D1Database, now = unixNow()) {
       jobLog("delivery", id, "recovered_unknown", attempt, "ambiguous");
   }
 }
-
-type DeliveryRow = {
-  id: string;
-  status: string;
-  attempt: number;
-  failureCode: string | null;
-  eligible: number;
-  availableAt: number;
-};
 
 export async function getDelivery(db: D1Database, userId: string, id: string) {
   const row = await statement(

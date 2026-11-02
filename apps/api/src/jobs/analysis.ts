@@ -1,3 +1,4 @@
+import type { AnalysisJobRow, ExpiredRunRow, IdRow, RequestRow } from "../rows";
 import { parseYouTubeUrl, SummaryError, summaryConfigSchema } from "../summary";
 import {
   ANALYSIS_LEASE_SECONDS,
@@ -49,13 +50,10 @@ export async function generationKey(config: string) {
 export async function getAnalysisJob(db: D1Database, id: string) {
   const job = await statement(
     db,
-    "SELECT video_id, generation_key, generation_config_json FROM analysis_jobs WHERE id = ?",
+    `SELECT video_id AS videoId, generation_key AS generationKey, generation_config_json AS generationConfigJson
+    FROM analysis_jobs WHERE id = ?`,
     id,
-  ).first<{
-    video_id: string;
-    generation_key: string;
-    generation_config_json: string;
-  }>();
+  ).first<AnalysisJobRow>();
   if (!job) throw new Error("접수한 분석 작업을 찾지 못했어요.");
   return job;
 }
@@ -165,7 +163,7 @@ export async function enqueueAnalysis(
     input.userId,
     videoId,
     key,
-  ).first<{ id: string }>();
+  ).first<IdRow>();
   if (!request)
     throw new JobError(
       limit === null
@@ -428,7 +426,7 @@ export async function recoverAnalysis(db: D1Database, now = unixNow()) {
     AND (j.lease_token IS NULL OR EXISTS (SELECT 1 FROM analysis_attempts a WHERE a.analysis_job_id = j.id AND a.status = 'running' AND a.dispatched_at IS NOT NULL))
     ORDER BY j.lease_expires_at, j.id LIMIT 2`,
     now,
-  ).all<{ id: string; attempt: number }>();
+  ).all<ExpiredRunRow>();
   for (const { id, attempt } of expired.results) {
     const rows = await db.batch([
       statement(
@@ -461,22 +459,6 @@ export async function recoverAnalysis(db: D1Database, now = unixNow()) {
       );
   }
 }
-
-type RequestRow = {
-  id: string;
-  videoId: string;
-  origin: "direct" | "channel";
-  createdAt: number;
-  updatedAt: number;
-  eligible: number;
-  analysisJobId: string;
-  status: "queued" | "running" | "completed" | "failed";
-  jobStatus: string;
-  attempt: number;
-  failureCode: string | null;
-  jobFailure: string | null;
-  reportId: string | null;
-};
 
 const requestQuery = `SELECT q.id, j.video_id AS videoId, q.origin, q.created_at AS createdAt, q.updated_at AS updatedAt,
   CASE WHEN ${eligibleRequest} THEN 1 ELSE 0 END AS eligible,

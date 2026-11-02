@@ -107,7 +107,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | `GET /v1/summary-requests` | `status`, `limit`, `cursor` | 본인 요청 목록 `200` |
 | `GET /v1/summary-requests/{id}` | 본인 요청 ID | 요청 객체 `200` |
 | `POST /v1/summary-requests/{id}/retry` | `{"attempt":1}`: 마지막으로 확인한 시도 번호 | 접수 `202`, 이미 접수한 같은 재시도 `200` |
-| `GET /v1/reports` | `q`, `channelUrl`, `origin`, `deliveryStatus`, `limit`, `cursor` | 리포트 목록 `200` |
+| `GET /v1/reports` | `limit`, `cursor` (`q`, `channelUrl`, `origin`, `deliveryStatus`는 #12 후속 PR 전까지 `400`) | 리포트 목록 `200` |
 | `GET /v1/reports/{id}` | 접근 가능한 공통 보고서 ID | 보고서 상세 `200` |
 
 ```json

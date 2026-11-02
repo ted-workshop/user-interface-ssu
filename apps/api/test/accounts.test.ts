@@ -108,6 +108,10 @@ beforeEach(async () => {
   for (const table of [
     "auth_mail_outbox",
     "auth_rate_limits",
+    "summary_admissions",
+    "summary_requests",
+    "analysis_jobs",
+    "videos",
     "account_tokens",
     "sessions",
     "users",
@@ -569,6 +573,153 @@ test("발송 중 멈춘 메일과 만료된 메일은 재발송 없이 지워요
   await deliverMail();
   expect(sent.length).toBe(0);
   expect(await count("auth_mail_outbox")).toBe(0);
+});
+
+test("서버 키가 잘못되면 대기 메일을 지우지 않고 복구 후 보내요", async () => {
+  await register();
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const send = vi.fn();
+  await runBackgroundJobs(
+    { ...env, AUTH_TOKEN_KEY: "" },
+    {
+      now: () => clock,
+      metadata: vi.fn() as unknown as typeof getVideoMetadata,
+      generate: vi.fn() as unknown as typeof generateReport,
+      send,
+    },
+  );
+  expect(send).not.toHaveBeenCalled();
+  expect(await count("auth_mail_outbox")).toBe(1);
+  expect(JSON.stringify(error.mock.calls)).toContain(
+    "auth_mail.key_unavailable",
+  );
+  expect(await deliverMail()).toHaveLength(43);
+});
+
+test("인증 응답은 성공·오류·본문 없음 모두 no-store예요", async () => {
+  const invalid = await register({ password: "x" });
+  expect(invalid.status).toBe(400);
+  expect(invalid.headers.get("cache-control")).toBe("no-store");
+
+  await register();
+  const token = await deliverMail();
+  const wrong = await call("POST", "/auth/email-verifications/confirm", {
+    token: "a".repeat(43),
+    password,
+  });
+  expect(wrong.status).toBe(400);
+  expect(wrong.headers.get("cache-control")).toBe("no-store");
+  const confirmed = await call("POST", "/auth/email-verifications/confirm", {
+    token,
+    password,
+  });
+  expect(confirmed.status).toBe(204);
+  expect(confirmed.headers.get("cache-control")).toBe("no-store");
+
+  const mail = () =>
+    call("POST", "/auth/password-resets", { email: "z@example.com" });
+  await mail();
+  const limited = await mail();
+  expect(limited.status).toBe(429);
+  expect(limited.headers.get("cache-control")).toBe("no-store");
+
+  const large = await register({ nickname: "가".repeat(20_000) });
+  expect(large.status).toBe(413);
+  expect(large.headers.get("cache-control")).toBe("no-store");
+
+  const session = await loginToken();
+  const me = await call("GET", "/me", undefined, bearer(session));
+  expect(me.headers.get("cache-control")).toBe("no-store");
+  const out = await call("DELETE", "/auth/session", undefined, bearer(session));
+  expect(out.headers.get("cache-control")).toBe("no-store");
+});
+
+test("본문이 없는 경로도 알 수 없는 query는 400이에요", async () => {
+  await verifiedAccount();
+  const session = await loginToken();
+  const me = await call("GET", "/me?x=1", undefined, bearer(session));
+  expect(me.status).toBe(400);
+  expect(await me.json()).toEqual({ error: { code: "INVALID_INPUT" } });
+  const out = await call(
+    "DELETE",
+    "/auth/session?x=1",
+    undefined,
+    bearer(session),
+  );
+  expect(out.status).toBe(400);
+  // 거부한 요청은 세션을 폐기하지 않아요.
+  expect((await call("GET", "/me", undefined, bearer(session))).status).toBe(
+    200,
+  );
+});
+
+test("인증 경로 밖의 없는 경로는 큰 본문이어도 JSON 404예요", async () => {
+  const response = await call("POST", "/nope", { value: "x".repeat(20_000) });
+  expect(response.status).toBe(404);
+  expect(await response.json()).toEqual({ error: { code: "NOT_FOUND" } });
+});
+
+test("세션은 30일 뒤 만료되고 다시 로그인할 수 있어요", async () => {
+  await verifiedAccount();
+  const session = await loginToken();
+  clock += 30 * 86_400 - 1;
+  expect((await call("GET", "/me", undefined, bearer(session))).status).toBe(
+    200,
+  );
+  clock += 1;
+  expect((await call("GET", "/me", undefined, bearer(session))).status).toBe(
+    401,
+  );
+  const again = await loginToken();
+  expect((await call("GET", "/me", undefined, bearer(again))).status).toBe(200);
+});
+
+test("로그아웃은 현재 세션만 폐기해요", async () => {
+  await verifiedAccount();
+  const first = await loginToken();
+  const second = await loginToken();
+  await call("DELETE", "/auth/session", undefined, bearer(first));
+  expect((await call("GET", "/me", undefined, bearer(first))).status).toBe(401);
+  expect((await call("GET", "/me", undefined, bearer(second))).status).toBe(
+    200,
+  );
+});
+
+test("로그인으로 받은 세션끼리 내 정보와 요약 요청을 섞지 않아요", async () => {
+  await verifiedAccount();
+  const a = await loginToken();
+  const other = "other@example.com";
+  await register({ email: other, nickname: "다른사람" });
+  clock += 60;
+  const token = await deliverMail();
+  await call("POST", "/auth/email-verifications/confirm", { token, password });
+  const signedIn = await login({ email: other });
+  const b = (await signedIn.json<{ sessionToken: string }>()).sessionToken;
+
+  const meA = await (await call("GET", "/me", undefined, bearer(a))).json<{
+    email: string;
+  }>();
+  const meB = await (await call("GET", "/me", undefined, bearer(b))).json<{
+    email: string;
+    nickname: string;
+  }>();
+  expect(meA.email).toBe(address);
+  expect(meB).toMatchObject({ email: other, nickname: "다른사람" });
+
+  const created = await call(
+    "POST",
+    "/summary-requests",
+    { url: "https://www.youtube.com/watch?v=jNQXAC9IVRw" },
+    bearer(a),
+  );
+  expect(created.status).toBe(202);
+  const { id } = await created.json<{ id: string }>();
+  expect(
+    (await call("GET", `/summary-requests/${id}`, undefined, bearer(a))).status,
+  ).toBe(200);
+  expect(
+    (await call("GET", `/summary-requests/${id}`, undefined, bearer(b))).status,
+  ).toBe(404);
 });
 
 test("로그에 주소와 코드를 남기지 않아요", async () => {

@@ -59,7 +59,7 @@ class RateLimited extends Error {
 class InvalidToken extends Error {}
 
 async function body<T>(c: Context, schema: z.ZodType<T>) {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const parsed = schema.safeParse(await jsonInput(c, z.unknown()));
   if (parsed.success) return parsed.data;
   const fields: Record<string, string> = {};
@@ -68,6 +68,10 @@ async function body<T>(c: Context, schema: z.ZodType<T>) {
     if (guide) fields[String(issue.path[0])] = guide;
   }
   throw new FieldError(fields);
+}
+
+function rejectQuery(c: Context) {
+  if (Object.keys(c.req.query()).length) throw new InvalidInput();
 }
 
 async function limit(c: Context<{ Bindings: Env }>, rules: RateRule[]) {
@@ -103,7 +107,6 @@ function requestMail(purpose: TokenPurpose, where: string) {
         unixNow(),
       ),
     );
-    c.header("Cache-Control", "no-store");
     return c.json({ status: "accepted" }, 202);
   };
 }
@@ -126,8 +129,12 @@ async function findToken(
 }
 
 export const accounts = new Hono<{ Bindings: Env }>();
+accounts.use("/auth/*", async (c, next) => {
+  c.header("Cache-Control", "no-store");
+  await next();
+});
 accounts.use(
-  "*",
+  "/auth/*",
   bodyLimit({
     maxSize: 16 * 1024,
     onError: (c) => c.json({ error: { code: "PAYLOAD_TOO_LARGE" } }, 413),
@@ -163,7 +170,6 @@ accounts.post("/auth/registrations", async (c) => {
       now,
     )),
   ]);
-  c.header("Cache-Control", "no-store");
   return c.json({ status: "verification_required" }, 202);
 });
 
@@ -222,7 +228,6 @@ accounts.post("/auth/sessions", async (c) => {
     input.password,
     user?.passwordHash ?? null,
   );
-  c.header("Cache-Control", "no-store");
   if (!user || !matches)
     return c.json({ error: { code: "INVALID_CREDENTIALS" } }, 401);
   if (user.emailVerifiedAt === null)
@@ -250,6 +255,7 @@ accounts.post("/auth/sessions", async (c) => {
 });
 
 accounts.delete("/auth/session", requireSession, async (c) => {
+  rejectQuery(c);
   await statement(
     c.env.DB,
     "DELETE FROM sessions WHERE token_hash = ?",
@@ -259,6 +265,7 @@ accounts.delete("/auth/session", requireSession, async (c) => {
 });
 
 accounts.get("/me", requireSession, async (c) => {
+  rejectQuery(c);
   const user = await statement(
     c.env.DB,
     "SELECT id, email, nickname FROM users WHERE id = ?",

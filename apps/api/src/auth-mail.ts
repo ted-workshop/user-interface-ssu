@@ -141,6 +141,13 @@ export async function runAuthMail(
   send: typeof sendEmail,
   now: number,
 ) {
+  // 키가 복구되면 보낼 수 있도록 대기 메일을 그대로 둬요.
+  try {
+    authKeyBytes(env);
+  } catch {
+    console.error(JSON.stringify({ event: "auth_mail.key_unavailable" }));
+    return;
+  }
   const db = env.DB;
   const lease = crypto.randomUUID();
   const claimed = await db.batch<AuthMailRow>([

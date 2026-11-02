@@ -3,7 +3,7 @@
 - 상태: 확정
 - 작성·확정일: 2026-10-31
 - 확정 근거: 사용자가 #12를 조회 기본과 검색·필터의 두 PR로 나누고 첫 PR 구현을 승인했어요. 세부 구현은 승인 범위 안에서 판단했어요.
-- 관련 기록: [ADR-0018](0018-api-contract-and-policies.md)의 HTTP 정책, [ADR-0020](0020-shared-analysis-and-report-permissions.md)의 공통 보고서·권한, [ADR-0024](0024-direct-summary-http.md)의 세션·입력 경계를 적용해요.
+- 관련 기록: [ADR-0018](0018-api-contract-and-policies.md)의 HTTP 정책, [ADR-0020](0020-shared-analysis-and-report-permissions.md)의 공통 보고서·권한, [ADR-0024](0024-direct-summary-http.md)의 세션·입력 경계, [ADR-0027](0027-no-orm-typed-rows.md)의 행 타입 규칙을 적용해요.
 - 구현·검증 상태: 로컬 구현과 workerd·로컬 D1 검사를 마쳤어요. PR #39의 `d10fd5c`에서 원격 CI가 성공했어요. 실제 로그인, 공급자 생성, 원격 배포, Android 연결은 확인하지 않았어요.
 
 ## 문제와 현재 상태
@@ -68,4 +68,5 @@ main `2b84d23`에는 보고서 저장과 `reportId` 응답이 있지만 본문�
 ## 반론과 변경 이력
 
 - 2026-10-31: 첫 PR 범위로 작성했어요.
+- 2026-11-02: main의 ADR-0027에 맞춰 행 타입을 `rows.ts`로 옮겼어요.
 - 2026-11-02: 리뷰 의견을 반영해 cursor 시간 상한을 이름 있는 상수로 분리하고, `viewerContext`의 네 값을 모두 확인하며, 원격 CI 결과를 기록했어요.

@@ -10,21 +10,7 @@ import {
   parseQuery,
 } from "./http-input";
 import { statement } from "./jobs/shared";
-
-type ReportRow = {
-  id: string;
-  videoId: string;
-  title: string;
-  channelName: string;
-  channelUrl: string | null;
-  model: string;
-  timestampVerification: string;
-  createdAt: number;
-  requestId: string | null;
-  origin: string | null;
-  deliveryStatus: string | null;
-  savedAt: number | null;
-};
+import type { ReportDetailRow, ReportRow } from "./rows";
 
 // 취소된 발송은 상태 계산에서 빼요. 대상이 없거나 전부 취소되면 합계가 0 또는 NULL이에요.
 const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
@@ -112,7 +98,7 @@ reports.get("/:id", async (c) => {
       SELECT 1 FROM report_permissions WHERE report_id = r.id AND audience = 'authenticated'))`,
     userId,
     parseIdParam(c),
-  ).first<ReportRow & { bodyMarkdown: string }>();
+  ).first<ReportDetailRow>();
   if (!row) return c.json({ error: { code: "NOT_FOUND" } }, 404);
   return c.json({ ...resource(row), bodyMarkdown: row.bodyMarkdown });
 });

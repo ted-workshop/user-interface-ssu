@@ -356,6 +356,26 @@ test("본인 보관 관계를 지우면 공개되지 않은 리포트는 더 읽
   expect((await request(`/${item?.id}`)).status).toBe(404);
 });
 
+test("본인 보관 관계를 지워도 공개 리포트는 내 정보 없이 읽어요", async () => {
+  await saveReport(owner, videoIds[0], now);
+  const [item] = (await list()).items;
+  await env.DB.batch([
+    sql(
+      "INSERT INTO report_permissions (id,report_id,audience,user_id,can_read,can_comment) VALUES (?,?,'authenticated',NULL,1,1)",
+      crypto.randomUUID(),
+      item?.id ?? "",
+    ),
+    sql(
+      "DELETE FROM report_permissions WHERE user_id = ? AND audience = 'user'",
+      owner,
+    ),
+  ]);
+  const response = await request(`/${item?.id}`);
+  expect(response.status).toBe(200);
+  expect((await response.json<Report>()).viewerContext).toBeNull();
+  expect((await list()).items).toEqual([]);
+});
+
 test("목록은 보관 시각 최신순이고 페이지 사이에 누락과 중복이 없어요", async () => {
   await saveReport(owner, videoIds[0], now);
   await saveReport(owner, videoIds[1], now + 10);

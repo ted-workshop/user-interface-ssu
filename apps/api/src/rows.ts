@@ -51,7 +51,7 @@ export type DeliveryRow = {
   availableAt: number;
 };
 
-// 공통 보고서와 현재 사용자의 보관 정보예요. 보관 관계가 없는 공개 열람은 보관 정보가 NULL이에요.
+// 공통 보고서와 현재 사용자의 보관 정보예요. 보관 관계가 없는 공개 열람은 요청·보관 값이 NULL이에요.
 export type ReportRow = {
   id: string;
   videoId: string;
@@ -63,7 +63,7 @@ export type ReportRow = {
   createdAt: number;
   requestId: string | null;
   origin: "direct" | "channel" | null;
-  deliveryStatus: "not_applicable" | "pending" | "sent" | "failed" | null;
+  deliveryStatus: "not_applicable" | "pending" | "sent" | "failed";
   savedAt: number | null;
 };
 

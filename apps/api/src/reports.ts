@@ -12,7 +12,7 @@ import {
 import { statement } from "./jobs/shared";
 import type { ReportDetailRow, ReportRow } from "./rows";
 
-// 취소된 발송은 상태 계산에서 빼요. 대상이 없거나 전부 취소되면 합계가 0 또는 NULL이에요.
+// 취소된 발송은 상태 계산에서 빼요. 대상이 없으면 합계가 NULL이어도 ELSE로 떨어져 deliveryStatus는 NULL이 되지 않아요.
 const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
   r.channel_url AS channelUrl, r.model, r.timestamp_verification AS timestampVerification,
   r.created_at AS createdAt, q.id AS requestId, q.origin, p.created_at AS savedAt,
@@ -37,10 +37,7 @@ function resource(row: ReportRow) {
     timestampVerification: row.timestampVerification,
     createdAt: toIso(row.createdAt),
     viewerContext:
-      row.requestId !== null &&
-      row.origin !== null &&
-      row.deliveryStatus !== null &&
-      row.savedAt !== null
+      row.requestId !== null && row.origin !== null && row.savedAt !== null
         ? {
             requestId: row.requestId,
             origin: row.origin,
@@ -64,6 +61,7 @@ reports.get("/", async (c) => {
     FROM report_permissions p
     JOIN reports r ON r.id = p.report_id
     JOIN analysis_jobs j ON j.id = r.analysis_job_id
+    -- 개인 권한 행은 항상 본인 요청에서 만들어지므로 요청 행이 함께 있다고 가정해요.
     JOIN summary_requests q ON q.user_id = p.user_id AND q.analysis_job_id = r.analysis_job_id
     WHERE p.audience = 'user' AND p.user_id = ?
     ${position ? "AND (p.created_at, p.report_id) < (?, ?)" : ""}

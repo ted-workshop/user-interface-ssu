@@ -68,6 +68,7 @@ mise exec -- terraform -chdir=infra/state state list
 | Secret | `SMTP_USER` | 발신 Gmail 계정 주소 |
 | Secret | `SMTP_APP_PASSWORD` | 해당 Gmail 계정의 Google 앱 비밀번호 |
 | Secret | `GEMINI_API_KEY` | 서버에서 Gemini를 호출할 API 키 |
+| Secret | `AUTH_TOKEN_KEY` | 인증 메일 토큰 암호화·요청 제한 HMAC용 32바이트 base64url 키. `openssl rand -base64 32 \| tr '+/' '-_' \| tr -d '='`로 만들어요 |
 | Secret | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | state 버킷 전용 S3 자격증명 |
 
 API 배포 job에는 R2 자격증명을 전달하지 않아요. 인프라 job만 공유 state를 읽고 써요.

@@ -4,7 +4,8 @@
 [ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델은 [D1 가이드](database.md)예요.
 F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아래 `summary-requests`의
 접수·목록·상세·재시도 경로를 구현했어요. [ADR-0024](decisions/0024-direct-summary-http.md)에 구현 경계를 남겨요.
-기존 D1 세션의 hash·만료·이메일 확인을 검사하며, 세션 발급 #9·리포트 조회 #12·Android 연결은 후속 작업이에요.
+`GET /v1/reports`의 `limit`·`cursor`와 `GET /v1/reports/{id}`도 구현했고 경계는 [ADR-0026](decisions/0026-report-read-http.md)에 남겨요.
+기존 D1 세션의 hash·만료·이메일 확인을 검사하며, 세션 발급 #9·리포트 검색·필터 #12·Android 연결은 후속 작업이에요.
 로컬 세션·공급자 fixture 검증을 실제 로그인·Gemini 생성 성공으로 보지 않아요.
 
 ## 공통 규칙
@@ -106,7 +107,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | `GET /v1/summary-requests` | `status`, `limit`, `cursor` | 본인 요청 목록 `200` |
 | `GET /v1/summary-requests/{id}` | 본인 요청 ID | 요청 객체 `200` |
 | `POST /v1/summary-requests/{id}/retry` | `{"attempt":1}`: 마지막으로 확인한 시도 번호 | 접수 `202`, 이미 접수한 같은 재시도 `200` |
-| `GET /v1/reports` | `q`, `channelUrl`, `origin`, `deliveryStatus`, `limit`, `cursor` | 리포트 목록 `200` |
+| `GET /v1/reports` | `limit`, `cursor` (`q`, `channelUrl`, `origin`, `deliveryStatus`는 #12 후속 PR 전까지 `400`) | 리포트 목록 `200` |
 | `GET /v1/reports/{id}` | 접근 가능한 공통 보고서 ID | 보고서 상세 `200` |
 
 ```json

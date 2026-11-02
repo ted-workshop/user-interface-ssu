@@ -50,3 +50,22 @@ export type DeliveryRow = {
   eligible: number;
   availableAt: number;
 };
+
+// 공통 보고서와 현재 사용자의 보관 정보예요. 보관 관계가 없는 공개 열람은 요청·보관 값이 NULL이에요.
+export type ReportRow = {
+  id: string;
+  videoId: string;
+  title: string;
+  channelName: string;
+  channelUrl: string | null;
+  model: string;
+  timestampVerification: string;
+  createdAt: number;
+  requestId: string | null;
+  origin: "direct" | "channel" | null;
+  deliveryStatus: "not_applicable" | "pending" | "sent" | "failed";
+  savedAt: number | null;
+};
+
+// 상세 조회에서만 읽는 보고서 본문이에요.
+export type ReportDetailRow = ReportRow & { bodyMarkdown: string };

@@ -51,7 +51,10 @@ function resource(row: ReportRow) {
     timestampVerification: row.timestampVerification,
     createdAt: toIso(row.createdAt),
     viewerContext:
-      row.requestId !== null && row.savedAt !== null
+      row.requestId !== null &&
+      row.origin !== null &&
+      row.deliveryStatus !== null &&
+      row.savedAt !== null
         ? {
             requestId: row.requestId,
             origin: row.origin,

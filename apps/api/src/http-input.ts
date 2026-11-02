@@ -4,8 +4,11 @@ import { z } from "zod";
 
 export class InvalidInput extends Error {}
 
+// 9999-12-31T23:59:59Z의 Unix 초예요. toISOString으로 변환할 수 있는 네 자리 연도의 끝이에요.
+const maxCursorCreatedAt = 253402300799;
+
 const cursorSchema = z.strictObject({
-  createdAt: z.number().int().min(0).max(253402300799),
+  createdAt: z.number().int().min(0).max(maxCursorCreatedAt),
   id: z.uuid(),
 });
 

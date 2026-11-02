@@ -1,10 +1,11 @@
-import { type Context, Hono } from "hono";
+import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { type AuthenticatedEnv, requireSession } from "./auth";
 import {
   encodeCursor,
   InvalidInput,
+  jsonInput,
   pageQuery,
   parseCursor,
   parseIdParam,
@@ -26,26 +27,6 @@ const querySchema = z.strictObject({
   status: z.enum(["queued", "running", "completed", "failed"]).optional(),
   ...pageQuery,
 });
-
-async function jsonInput<T>(
-  c: Context<AuthenticatedEnv>,
-  schema: z.ZodType<T>,
-) {
-  if (
-    c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() !==
-    "application/json"
-  )
-    throw new InvalidInput();
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new InvalidInput();
-  }
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) throw new InvalidInput();
-  return parsed.data;
-}
 
 function admissionLimit(env: Env) {
   const config = summaryConfigSchema.safeParse({

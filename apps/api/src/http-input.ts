@@ -40,6 +40,23 @@ export function encodeCursor(cursor: { createdAt: number; id: string } | null) {
     : null;
 }
 
+export async function jsonInput<T>(c: Context, schema: z.ZodType<T>) {
+  if (
+    c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() !==
+    "application/json"
+  )
+    throw new InvalidInput();
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    throw new InvalidInput();
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) throw new InvalidInput();
+  return parsed.data;
+}
+
 export function parseQuery<T>(c: Context, schema: z.ZodType<T>) {
   const query = c.req.queries();
   if (Object.values(query).some((values) => values.length !== 1))

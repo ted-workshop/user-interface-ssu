@@ -4,7 +4,7 @@ import type { SessionRow } from "./rows";
 
 export type AuthenticatedEnv = {
   Bindings: Env;
-  Variables: { userId: string };
+  Variables: { userId: string; sessionTokenHash: string };
 };
 
 export const requireSession = createMiddleware<AuthenticatedEnv>(
@@ -33,6 +33,7 @@ export const requireSession = createMiddleware<AuthenticatedEnv>(
     if (!session)
       return c.json({ error: { code: "AUTHENTICATION_REQUIRED" } }, 401);
     c.set("userId", session.userId);
+    c.set("sessionTokenHash", hash);
     await next();
   },
 );

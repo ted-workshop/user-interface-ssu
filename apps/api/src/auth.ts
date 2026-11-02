@@ -1,5 +1,6 @@
 import { createMiddleware } from "hono/factory";
 import { statement, unixNow } from "./jobs/shared";
+import type { SessionRow } from "./rows";
 
 export type AuthenticatedEnv = {
   Bindings: Env;
@@ -24,14 +25,14 @@ export const requireSession = createMiddleware<AuthenticatedEnv>(
     ).join("");
     const session = await statement(
       c.env.DB,
-      `SELECT s.user_id FROM sessions s JOIN users u ON u.id = s.user_id
+      `SELECT s.user_id AS userId FROM sessions s JOIN users u ON u.id = s.user_id
     WHERE s.token_hash = ? AND s.expires_at > ? AND u.email_verified_at IS NOT NULL`,
       hash,
       unixNow(),
-    ).first<{ user_id: string }>();
+    ).first<SessionRow>();
     if (!session)
       return c.json({ error: { code: "AUTHENTICATION_REQUIRED" } }, 401);
-    c.set("userId", session.user_id);
+    c.set("userId", session.userId);
     await next();
   },
 );

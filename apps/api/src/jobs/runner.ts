@@ -61,13 +61,13 @@ async function runAnalysis(env: Env, io: JobProviders) {
   let model: string;
   try {
     const config = await parseGenerationProfile(
-      job.generation_config_json,
-      job.generation_key,
+      job.generationConfigJson,
+      job.generationKey,
     );
     model = config.model;
     if (!env.GEMINI_API_KEY?.trim()) throw new SummaryError("configuration");
     metadata = await io.metadata(
-      `https://www.youtube.com/watch?v=${job.video_id}`,
+      `https://www.youtube.com/watch?v=${job.videoId}`,
     );
   } catch (error) {
     await failAnalysis(
@@ -133,10 +133,10 @@ async function runDelivery(env: Env, io: JobProviders) {
       { user: env.SMTP_USER, appPassword: env.SMTP_APP_PASSWORD },
       {
         deliveryId: claim.id,
-        to: message.recipient_email,
+        to: message.recipientEmail,
         subject: message.title.replace(/[\r\n]/g, " "),
-        text: message.body_markdown,
-        html: `<pre>${escapeHtml(message.body_markdown)}</pre>`,
+        text: message.bodyMarkdown,
+        html: `<pre>${escapeHtml(message.bodyMarkdown)}</pre>`,
       },
     );
   } catch (error) {

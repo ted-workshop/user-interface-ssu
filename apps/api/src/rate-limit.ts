@@ -34,17 +34,18 @@ export async function consumeRateLimits(
 ) {
   const statements = await Promise.all(
     rules.map(async (rule) => {
-      const start = Math.floor(now / rule.window) * rule.window;
+      // 첫 요청부터 윈도우를 세서 시계 경계에서 연달아 통과하지 않아요.
       return statement(
         env.DB,
-        `INSERT INTO auth_rate_limits (key, window_start, window_end, count) VALUES (?, ?, ?, 1)
+        `INSERT INTO auth_rate_limits (key, window_end, count) VALUES (?, ?, 1)
         ON CONFLICT(key) DO UPDATE SET
-          count = CASE WHEN window_start = excluded.window_start THEN count + 1 ELSE 1 END,
-          window_start = excluded.window_start, window_end = excluded.window_end
+          count = CASE WHEN window_end > ? THEN count + 1 ELSE 1 END,
+          window_end = CASE WHEN window_end > ? THEN window_end ELSE excluded.window_end END
         RETURNING count, window_end AS windowEnd`,
         await bucketKey(env, rule),
-        start,
-        start + rule.window,
+        now + rule.window,
+        now,
+        now,
       );
     }),
   );

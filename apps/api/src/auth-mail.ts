@@ -3,7 +3,7 @@ import { EmailError, type sendEmail } from "./email";
 import { statement } from "./jobs/shared";
 import type { AuthMailRow } from "./rows";
 
-export type TokenPurpose = "verify_email" | "reset_password";
+export type TokenPurpose = AuthMailRow["purpose"];
 
 const TOKEN_LIFETIME: Record<TokenPurpose, number> = {
   verify_email: 86_400,
@@ -122,7 +122,7 @@ function authMailLog(event: string, id: string, reason: string | null = null) {
   console.info(JSON.stringify({ event: `auth_mail.${event}`, id, reason }));
 }
 
-function message(purpose: string, token: string) {
+function message(purpose: TokenPurpose, token: string) {
   const verify = purpose === "verify_email";
   const guide = verify
     ? "앱의 이메일 확인 화면에 아래 코드와 가입한 비밀번호를 입력해 주세요. 24시간 동안 사용할 수 있어요."

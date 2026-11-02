@@ -17,7 +17,6 @@ CREATE INDEX auth_mail_outbox_expiry ON auth_mail_outbox(expires_at);
 -- IP·이메일 원문 대신 서버 키로 만든 HMAC을 키로 저장해요.
 CREATE TABLE auth_rate_limits (
   key TEXT PRIMARY KEY NOT NULL,
-  window_start INTEGER NOT NULL,
   window_end INTEGER NOT NULL,
   count INTEGER NOT NULL CHECK (count >= 1)
 ) STRICT;

@@ -90,7 +90,7 @@ export type AuthMailRow = {
   id: string;
   tokenCiphertext: string;
   attempts: number;
-  purpose: string;
+  purpose: "verify_email" | "reset_password";
   email: string;
 };
 

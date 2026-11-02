@@ -1,10 +1,10 @@
 import { Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { type AuthenticatedEnv, requireSession } from "./auth";
 import {
   encodeCursor,
   InvalidInput,
+  jsonBodyLimit,
   jsonInput,
   pageQuery,
   parseCursor,
@@ -57,14 +57,7 @@ function resource(
 }
 
 export const summaryRequests = new Hono<AuthenticatedEnv>();
-summaryRequests.use(
-  "*",
-  requireSession,
-  bodyLimit({
-    maxSize: 16 * 1024,
-    onError: (c) => c.json({ error: { code: "PAYLOAD_TOO_LARGE" } }, 413),
-  }),
-);
+summaryRequests.use("*", requireSession, jsonBodyLimit);
 
 summaryRequests.post("/", async (c) => {
   if (Object.keys(c.req.query()).length) throw new InvalidInput();

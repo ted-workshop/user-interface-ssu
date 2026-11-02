@@ -1,6 +1,14 @@
 import { Buffer } from "node:buffer";
 import type { Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
+
+const MAX_JSON_BODY_BYTES = 16 * 1024;
+
+export const jsonBodyLimit = bodyLimit({
+  maxSize: MAX_JSON_BODY_BYTES,
+  onError: (c) => c.json({ error: { code: "PAYLOAD_TOO_LARGE" } }, 413),
+});
 
 export class InvalidInput extends Error {}
 

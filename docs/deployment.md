@@ -2,7 +2,7 @@
 
 CI는 PR·main push에서 자동 실행해요. API 배포와 인프라 적용은 각각 GitHub Actions에서 수동 실행해요.
 두 workflow는 기본 브랜치에 반영돼야 Run workflow 버튼이 나타나요.
-아래는 최초 설정과 반복 배포 절차예요. 메일·Gemini Secret과 모델 Variable의 배포 전달을 구현했어요.
+아래는 최초 설정과 반복 배포 절차예요. 메일·Gemini·인증 Secret과 모델 Variable의 배포 전달을 구현했어요.
 로컬 검사와 GitHub 설정 등록은 실제 원격 Worker 배포·공급자 동작 검증과 구분해요.
 
 ## 관리 범위
@@ -94,9 +94,9 @@ R2 state에는 S3 lockfile을 사용하고 API 배포와 인프라 적용은 같
 1. Actions → Deploy API → Run workflow에서 main을 선택해요.
 2. `sha`에 main에 포함된 40자리 SHA를 넣어요. 비우면 실행 시점의 최신 main을 선택해요.
 3. 해당 SHA의 최신 main push Quality 실행이 성공했는지 확인하고 같은 SHA를 checkout해요.
-4. API 검사 후 SMTP 두 값과 Gemini 키를 검사하고 권한 `0600`의 임시 JSON으로 저장해요. 누락되거나 공백뿐이면 원격 변경 전에 중단해요.
+4. API 검사 후 SMTP 두 값, Gemini 키, `AUTH_TOKEN_KEY`를 검사하고 권한 `0600`의 임시 JSON으로 저장해요. 누락되거나 공백뿐이면 원격 변경 전에 중단해요.
 5. 실제 D1 ID·SHA·`GEMINI_MODEL`을 넣은 배포 설정의 dry-run을 확인하고 원격 D1 migration을 적용해요. 모델이 비어 있으면 로컬 기본값으로 배포하지 않아요.
-6. Wrangler의 `--secrets-file`로 코드·SMTP 자격증명·Gemini 키를 함께 배포하고 tag·message에 해당 SHA를 기록해요.
+6. Wrangler의 `--secrets-file`로 코드·SMTP 자격증명·Gemini 키·`AUTH_TOKEN_KEY`를 함께 배포하고 tag·message에 해당 SHA를 기록해요.
 7. health 200·동일한 revision 헤더·JSON 404를 확인한 뒤 summary에 SHA와 URL을 남겨요. 마지막 정리 step은 배포 실패 때도 임시 파일을 삭제해요.
 
 `apps/api/wrangler.deploy.json`은 이 실행에서만 생성해요. 로컬 DB ID와 `BUILD_REVISION=local` 설정은 변경하지 않아요.

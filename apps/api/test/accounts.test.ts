@@ -252,7 +252,7 @@ test.each([
   ["email", { email: "not-mail" }],
   ["email", { email: `${"a".repeat(250)}@example.com` }],
   ["password", { password: "short" }],
-  ["password", { password: "a".repeat(129) }],
+  ["password", { password: "ab".repeat(64).concat("a") }],
   ["password", { password: "aaaaaaaaaaaaaaaaaaaa" }],
   ["password", { password: "seven77" }],
   ["nickname", { nickname: "a" }],
@@ -272,6 +272,16 @@ test.each([
 test("흔한 비밀번호도 8자 이상이고 한 글자 반복이 아니면 받아요", async () => {
   const response = await register({ password: "password" });
   expect(response.status).toBe(202);
+});
+
+test.each([
+  ["비밀번호 8자", { password: "abcd1234" }],
+  ["비밀번호 128자", { password: "ab".repeat(64) }],
+  ["닉네임 2자", { nickname: "독자" }],
+  ["닉네임 20자", { nickname: "가".repeat(20) }],
+  ["이메일 254자", { email: `${"a".repeat(242)}@example.com` }],
+])("경계값 %s는 받아요", async (_name, input) => {
+  expect((await register(input)).status).toBe(202);
 });
 
 test("공백과 유니코드 비밀번호를 자르거나 바꾸지 않아요", async () => {
@@ -476,6 +486,19 @@ test("메일 요청은 대상 주소당 60초 간격·시간당 3회로 제한�
     call("POST", "/auth/password-resets", { email: "gap@example.com" });
   expect((await gap()).status).toBe(202);
   expect((await gap()).status).toBe(429);
+});
+
+test("메일 요청 60초 간격은 시계 경계와 상관없이 첫 요청부터 세요", async () => {
+  const request = () =>
+    call("POST", "/auth/password-resets", { email: "edge@example.com" });
+  clock = now + 59;
+  expect((await request()).status).toBe(202);
+  clock = now + 60;
+  const blocked = await request();
+  expect(blocked.status).toBe(429);
+  expect(blocked.headers.get("retry-after")).toBe("59");
+  clock = now + 119;
+  expect((await request()).status).toBe(202);
 });
 
 test("가입은 IP당 시간당 10회로 제한해요", async () => {

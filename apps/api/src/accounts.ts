@@ -1,5 +1,4 @@
 import { type Context, Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { requireSession } from "./auth";
 import {
@@ -9,7 +8,7 @@ import {
   sha256Hex,
   type TokenPurpose,
 } from "./auth-mail";
-import { InvalidInput, jsonInput } from "./http-input";
+import { InvalidInput, jsonBodyLimit, jsonInput } from "./http-input";
 import { statement, unixNow } from "./jobs/shared";
 import { hashPassword, isAcceptablePassword, verifyPassword } from "./password";
 import { consumeRateLimits, type RateRule } from "./rate-limit";
@@ -18,6 +17,21 @@ import type { AccountRow, AccountTokenRow, LoginUserRow } from "./rows";
 const SESSION_SECONDS = 30 * 86_400;
 const MINUTE = 60;
 const HOUR = 3_600;
+// 계약의 초기 방어 수치예요. 확인 경로는 해시 남용을 줄이려고 추가했어요(ADR-0028).
+const LOGIN_PER_IP_PER_MINUTE = 5;
+const LOGIN_PER_EMAIL_PER_MINUTE = 5;
+const CONFIRM_PER_IP_PER_MINUTE = 5;
+const REGISTER_PER_IP_PER_HOUR = 10;
+const MAIL_PER_IP_PER_HOUR = 10;
+const MAIL_PER_TARGET_PER_HOUR = 3;
+const MAIL_PER_TARGET_PER_MINUTE = 1;
+const MAX_EMAIL_LENGTH = 254;
+const MIN_NICKNAME_LENGTH = 2;
+const MAX_NICKNAME_LENGTH = 20;
+// 로그인은 비밀번호 정책을 다시 검사하지 않고 해시할 입력 길이만 제한해요.
+const MAX_LOGIN_PASSWORD_LENGTH = 1024;
+// 32바이트 토큰의 padding 없는 base64url만 받아요.
+const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const REVOKABLE = "('verify_email', 'reset_password')";
 
 const email = z
@@ -25,7 +39,7 @@ const email = z
   .transform((value) =>
     value.trim().replace(/[A-Z]/g, (letter) => letter.toLowerCase()),
   )
-  .pipe(z.email().max(254));
+  .pipe(z.email().max(MAX_EMAIL_LENGTH));
 const newPassword = z.string().refine(isAcceptablePassword);
 const nickname = z
   .string()
@@ -33,11 +47,14 @@ const nickname = z
   .refine((value) => {
     const length = Array.from(value).length;
     // 제어문자·줄바꿈은 표시 이름에 허용하지 않아요.
-    return length >= 2 && length <= 20 && !/\p{Cc}/u.test(value);
+    return (
+      length >= MIN_NICKNAME_LENGTH &&
+      length <= MAX_NICKNAME_LENGTH &&
+      !/\p{Cc}/u.test(value)
+    );
   });
-const token = z.string().regex(/^[A-Za-z0-9_-]{43}$/);
-// 로그인은 정책을 다시 검사하지 않고 해시할 입력 길이만 제한해요.
-const anyPassword = z.string().min(1).max(1024);
+const token = z.string().regex(TOKEN_PATTERN);
+const anyPassword = z.string().min(1).max(MAX_LOGIN_PASSWORD_LENGTH);
 
 const FIELD_GUIDE: Record<string, string> = {
   email: "이메일 주소를 확인해 주세요.",
@@ -95,9 +112,19 @@ function requestMail(purpose: TokenPurpose, where: string) {
   return async (c: Context<{ Bindings: Env }>) => {
     const input = await body(c, z.strictObject({ email }));
     await limit(c, [
-      ipRule(c, "mail-ip", 10, HOUR),
-      { scope: "mail-target", value: input.email, limit: 3, window: HOUR },
-      { scope: "mail-gap", value: input.email, limit: 1, window: MINUTE },
+      ipRule(c, "mail-ip", MAIL_PER_IP_PER_HOUR, HOUR),
+      {
+        scope: "mail-target",
+        value: input.email,
+        limit: MAIL_PER_TARGET_PER_HOUR,
+        window: HOUR,
+      },
+      {
+        scope: "mail-gap",
+        value: input.email,
+        limit: MAIL_PER_TARGET_PER_MINUTE,
+        window: MINUTE,
+      },
     ]);
     await c.env.DB.batch(
       await issueTokenStatements(
@@ -133,20 +160,14 @@ accounts.use("/auth/*", async (c, next) => {
   c.header("Cache-Control", "no-store");
   await next();
 });
-accounts.use(
-  "/auth/*",
-  bodyLimit({
-    maxSize: 16 * 1024,
-    onError: (c) => c.json({ error: { code: "PAYLOAD_TOO_LARGE" } }, 413),
-  }),
-);
+accounts.use("/auth/*", jsonBodyLimit);
 
 accounts.post("/auth/registrations", async (c) => {
   const input = await body(
     c,
     z.strictObject({ email, password: newPassword, nickname }),
   );
-  await limit(c, [ipRule(c, "register-ip", 10, HOUR)]);
+  await limit(c, [ipRule(c, "register-ip", REGISTER_PER_IP_PER_HOUR, HOUR)]);
   // 중복 여부와 상관없이 먼저 해시해 계정 유무에 따른 처리 시간 차이를 줄여요.
   const passwordHash = await hashPassword(input.password);
   const id = crypto.randomUUID();
@@ -180,7 +201,7 @@ accounts.post(
 
 accounts.post("/auth/email-verifications/confirm", async (c) => {
   const input = await body(c, z.strictObject({ token, password: anyPassword }));
-  await limit(c, [ipRule(c, "confirm-ip", 5, MINUTE)]);
+  await limit(c, [ipRule(c, "confirm-ip", CONFIRM_PER_IP_PER_MINUTE, MINUTE)]);
   const now = unixNow();
   const found = await findToken(c, input.token, "verify_email", now);
   const stored = await statement(
@@ -216,8 +237,13 @@ accounts.post("/auth/email-verifications/confirm", async (c) => {
 accounts.post("/auth/sessions", async (c) => {
   const input = await body(c, z.strictObject({ email, password: anyPassword }));
   await limit(c, [
-    ipRule(c, "login-ip", 5, MINUTE),
-    { scope: "login-email", value: input.email, limit: 5, window: MINUTE },
+    ipRule(c, "login-ip", LOGIN_PER_IP_PER_MINUTE, MINUTE),
+    {
+      scope: "login-email",
+      value: input.email,
+      limit: LOGIN_PER_EMAIL_PER_MINUTE,
+      window: MINUTE,
+    },
   ]);
   const user = await statement(
     c.env.DB,
@@ -283,7 +309,7 @@ accounts.post(
 
 accounts.post("/auth/password-resets/confirm", async (c) => {
   const input = await body(c, z.strictObject({ token, password: newPassword }));
-  await limit(c, [ipRule(c, "confirm-ip", 5, MINUTE)]);
+  await limit(c, [ipRule(c, "confirm-ip", CONFIRM_PER_IP_PER_MINUTE, MINUTE)]);
   const now = unixNow();
   const found = await findToken(c, input.token, "reset_password", now);
   const passwordHash = await hashPassword(input.password);

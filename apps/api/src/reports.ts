@@ -23,6 +23,30 @@ const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS c
     ELSE 'not_applicable' END
   FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id) AS deliveryStatus`;
 
+const MAX_SEARCH_LENGTH = 100;
+const MAX_CHANNEL_URL_LENGTH = 2048;
+
+const listQuery = z.strictObject({
+  ...pageQuery,
+  q: z
+    .string()
+    .transform((value) => value.trim())
+    .refine((value) => {
+      const length = Array.from(value).length;
+      return length >= 1 && length <= MAX_SEARCH_LENGTH;
+    })
+    .optional(),
+  channelUrl: z.string().min(1).max(MAX_CHANNEL_URL_LENGTH).optional(),
+  origin: z.enum(["direct", "channel"]).optional(),
+  deliveryStatus: z
+    .enum(["not_applicable", "pending", "sent", "failed"])
+    .optional(),
+});
+
+// LIKE의 wildcard를 일반 문자로 검색하도록 escape해요.
+const likePattern = (value: string) =>
+  `%${value.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+
 const toIso = (seconds: number) => new Date(seconds * 1000).toISOString();
 
 function resource(row: ReportRow) {
@@ -52,9 +76,33 @@ export const reports = new Hono<AuthenticatedEnv>();
 reports.use("*", requireSession);
 
 reports.get("/", async (c) => {
-  // 검색·필터는 아직 없으므로 strict 검사로 거부해 전체 목록을 결과로 착각하지 않게 해요.
-  const { limit, cursor } = parseQuery(c, z.strictObject(pageQuery));
+  const { limit, cursor, q, channelUrl, origin, deliveryStatus } = parseQuery(
+    c,
+    listQuery,
+  );
   const position = parseCursor(cursor);
+  const conditions: string[] = [];
+  const values: (string | number)[] = [];
+  if (q !== undefined) {
+    conditions.push("r.title LIKE ? ESCAPE '\\'");
+    values.push(likePattern(q));
+  }
+  if (channelUrl !== undefined) {
+    conditions.push("r.channel_url = ?");
+    values.push(channelUrl);
+  }
+  if (origin !== undefined) {
+    conditions.push("q.origin = ?");
+    values.push(origin);
+  }
+  if (deliveryStatus !== undefined) {
+    conditions.push("deliveryStatus = ?");
+    values.push(deliveryStatus);
+  }
+  if (position) {
+    conditions.push("(p.created_at, p.report_id) < (?, ?)");
+    values.push(position.createdAt, position.id);
+  }
   const rows = await statement(
     c.env.DB,
     `SELECT ${reportColumns}
@@ -64,10 +112,10 @@ reports.get("/", async (c) => {
     -- 개인 권한 행은 항상 본인 요청에서 만들어지므로 요청 행이 함께 있다고 가정해요.
     JOIN summary_requests q ON q.user_id = p.user_id AND q.analysis_job_id = r.analysis_job_id
     WHERE p.audience = 'user' AND p.user_id = ?
-    ${position ? "AND (p.created_at, p.report_id) < (?, ?)" : ""}
+    ${conditions.map((condition) => `AND ${condition}`).join("\n    ")}
     ORDER BY p.created_at DESC, p.report_id DESC LIMIT ?`,
     c.get("userId"),
-    ...(position ? [position.createdAt, position.id] : []),
+    ...values,
     limit + 1,
   ).all<ReportRow>();
   const page = rows.results.slice(0, limit);

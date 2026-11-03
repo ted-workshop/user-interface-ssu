@@ -65,7 +65,11 @@ scrypt 2^13은 이 측정에서 가장 빠른 OWASP 충족 구성이고 메모�
 
 - 2026-11-02 `cef80ba`: WSL Ubuntu에서 `mise run api:check`를 실행해 workerd 298개, `tools` 16개, `scripts` 50개가 통과했어요.
 - 2026-11-02 `cef80ba`: Windows의 로컬 `wrangler dev`와 별도 D1에서 실제 HTTP로 가입 202, 확인 전 로그인 403, DB 확인 처리 후 로그인 201, `/v1/me` 200, 로그아웃 204, 로그아웃 후 401을 확인했어요.
-- 원격 CI와 실제 Gmail 발송, Workers CPU, Android 연결은 확인하지 않았어요.
+- 2026-11-03 배포된 Worker(`qletter-api.qletter.workers.dev`, revision `65604d0`)에 존재하지 않는 계정으로 로그인 요청을 3번 보냈어요.
+  없는 계정도 같은 scrypt 비용을 쓰므로 해시 경로를 지나요. 세 번 모두 `401 INVALID_CREDENTIALS`였고 Error 1102(CPU 초과)는 없었어요.
+  전체 요청 시간은 1.2~3.3초(로컬 네트워크 포함)예요. 이 관찰만으로는 무료 플랜의 CPU 10ms 한도를 만족한다고 결론 내릴 수 없어요.
+  이 계정의 Workers 요금제를 확인하지 못했고, Cloudflare가 측정한 CPU 시간을 보지 못했고, 가입·재설정의 해시 경로와 동시 요청은 시험하지 않았어요.
+- 원격 CI와 실제 Gmail 발송, Workers CPU 측정값, Android 연결은 확인하지 않았어요.
 
 Free 플랜 실측에서 해시 경로가 실패하면 이 결정을 바꿔요. 분산 우회·정상 사용자 차단 측정도 남아 있어요.
 

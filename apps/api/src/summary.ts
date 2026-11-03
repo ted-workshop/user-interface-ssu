@@ -226,16 +226,17 @@ function toSummaryError(error: unknown) {
     return new SummaryError("unknown");
 
   const status = error.status;
-  const payload = readProviderErrorPayload(error);
+  const details = readProviderErrorDetails(error);
+  const violations = status === 429 ? readQuotaViolations(details) : null;
   return new SummaryError(
-    classifyProviderError(status, payload),
+    classifyProviderError(status, details),
     status,
     null,
-    readQuotaViolations(status, payload),
+    violations,
   );
 }
 
-function readProviderErrorPayload(error: object): unknown {
+function readProviderErrorDetails(error: object): ProviderErrorDetail[] {
   let payload = "error" in error ? error.error : null;
   // SDK가 배열 응답의 세부 정보를 error에서 잃어도 body에는 원문 JSON이 남아요.
   if ("body" in error && typeof error.body === "string") {
@@ -243,15 +244,26 @@ function readProviderErrorPayload(error: object): unknown {
       payload = JSON.parse(error.body);
     } catch {}
   }
-  return Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
+  const normalizedPayload =
+    Array.isArray(payload) && payload.length === 1 ? payload[0] : payload;
+  const parsed = providerErrorSchema.safeParse(normalizedPayload);
+  return parsed.success ? parsed.data.error.details : [];
 }
 
 function classifyProviderError(
   status: number,
-  payload: unknown,
+  details: ProviderErrorDetail[],
 ): FailureReason {
-  if (status === 401 || status === 403) return "configuration";
-  if (status === 400 && invalidApiKeyErrorSchema.safeParse(payload).success)
+  const hasInvalidApiKeyDetail = details.some(
+    (detail) =>
+      detail["@type"] === "type.googleapis.com/google.rpc.ErrorInfo" &&
+      detail.reason === "API_KEY_INVALID",
+  );
+  if (
+    status === 401 ||
+    status === 403 ||
+    (status === 400 && hasInvalidApiKeyDetail)
+  )
     return "configuration";
   if (status === 429) return "quota";
   if (status >= 500) return "temporary";
@@ -260,15 +272,9 @@ function classifyProviderError(
 }
 
 function readQuotaViolations(
-  status: number,
-  payload: unknown,
+  details: ProviderErrorDetail[],
 ): QuotaViolation[] | null {
-  if (status !== 429) return null;
-  const parsed = quotaErrorSchema.safeParse(payload);
-  if (!parsed.success) return null;
-  const violations = parsed.data.error.details.flatMap(
-    (detail) => detail.violations ?? [],
-  );
+  const violations = details.flatMap((detail) => detail.violations ?? []);
   return violations.length ? violations : null;
 }
 
@@ -320,25 +326,6 @@ function parseChannelUrl(value: unknown) {
   return url.href;
 }
 
-const invalidApiKeyErrorSchema = z.object({
-  error: z.object({
-    details: z
-      .array(
-        z.object({
-          "@type": z.string().optional(),
-          reason: z.string().optional(),
-        }),
-      )
-      .refine((details) =>
-        details.some(
-          (detail) =>
-            detail["@type"] === "type.googleapis.com/google.rpc.ErrorInfo" &&
-            detail.reason === "API_KEY_INVALID",
-        ),
-      ),
-  }),
-});
-
 const quotaViolationSchema = z.object({
   quotaMetric: z.string(),
   quotaId: z.string(),
@@ -347,12 +334,14 @@ const quotaViolationSchema = z.object({
     .optional()
     .transform((value) => value ?? null),
 });
-const quotaErrorSchema = z.object({
-  error: z.object({
-    details: z.array(
-      z.object({ violations: z.array(quotaViolationSchema).optional() }),
-    ),
-  }),
+const providerErrorDetailSchema = z.object({
+  "@type": z.string().optional(),
+  reason: z.string().optional(),
+  violations: z.array(quotaViolationSchema).optional(),
+});
+type ProviderErrorDetail = z.infer<typeof providerErrorDetailSchema>;
+const providerErrorSchema = z.object({
+  error: z.object({ details: z.array(providerErrorDetailSchema) }),
 });
 
 const REPORT_PROMPT = `당신은 유튜브 영상을 깊이 있게 분석하여 한국어 블로그 리포트를 작성하는 전문 애널리스트입니다.

@@ -25,6 +25,7 @@ describe("운영 시크릿 파일", () => {
     SMTP_USER: "fixture-sender@gmail.com",
     SMTP_APP_PASSWORD: 'fixture "password"\\value\n두 번째 줄',
     GEMINI_API_KEY: "fixture-gemini-key",
+    AUTH_TOKEN_KEY: "fixture-auth-token-key",
   };
 
   afterEach(() => {

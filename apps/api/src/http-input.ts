@@ -1,6 +1,14 @@
 import { Buffer } from "node:buffer";
 import type { Context } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
+
+const MAX_JSON_BODY_BYTES = 16 * 1024;
+
+export const jsonBodyLimit = bodyLimit({
+  maxSize: MAX_JSON_BODY_BYTES,
+  onError: (c) => c.json({ error: { code: "PAYLOAD_TOO_LARGE" } }, 413),
+});
 
 export class InvalidInput extends Error {}
 
@@ -38,6 +46,27 @@ export function encodeCursor(cursor: { createdAt: number; id: string } | null) {
   return cursor
     ? Buffer.from(JSON.stringify(cursor)).toString("base64url")
     : null;
+}
+
+export async function jsonInput<T>(c: Context, schema: z.ZodType<T>) {
+  if (
+    c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() !==
+    "application/json"
+  )
+    throw new InvalidInput();
+  let body: unknown;
+  try {
+    body = await c.req.json();
+  } catch {
+    throw new InvalidInput();
+  }
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) throw new InvalidInput();
+  return parsed.data;
+}
+
+export function rejectQuery(c: Context) {
+  if (Object.keys(c.req.query()).length) throw new InvalidInput();
 }
 
 export function parseQuery<T>(c: Context, schema: z.ZodType<T>) {

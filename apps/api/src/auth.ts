@@ -1,11 +1,20 @@
+import { Buffer } from "node:buffer";
 import { createMiddleware } from "hono/factory";
 import { statement, unixNow } from "./jobs/shared";
 import type { SessionRow } from "./rows";
 
 export type AuthenticatedEnv = {
   Bindings: Env;
-  Variables: { userId: string };
+  Variables: { userId: string; sessionTokenHash: string };
 };
+
+export async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Buffer.from(digest).toString("hex");
+}
 
 export const requireSession = createMiddleware<AuthenticatedEnv>(
   async (c, next) => {
@@ -16,13 +25,7 @@ export const requireSession = createMiddleware<AuthenticatedEnv>(
     )?.[1];
     if (!token)
       return c.json({ error: { code: "AUTHENTICATION_REQUIRED" } }, 401);
-    const digest = await crypto.subtle.digest(
-      "SHA-256",
-      new TextEncoder().encode(token),
-    );
-    const hash = Array.from(new Uint8Array(digest), (byte) =>
-      byte.toString(16).padStart(2, "0"),
-    ).join("");
+    const hash = await sha256Hex(token);
     const session = await statement(
       c.env.DB,
       `SELECT s.user_id AS userId FROM sessions s JOIN users u ON u.id = s.user_id
@@ -33,6 +36,7 @@ export const requireSession = createMiddleware<AuthenticatedEnv>(
     if (!session)
       return c.json({ error: { code: "AUTHENTICATION_REQUIRED" } }, 401);
     c.set("userId", session.userId);
+    c.set("sessionTokenHash", hash);
     await next();
   },
 );

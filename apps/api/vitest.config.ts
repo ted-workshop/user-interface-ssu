@@ -11,6 +11,7 @@ export default defineConfig({
           SMTP_USER: "fixture-sender@gmail.com",
           SMTP_APP_PASSWORD: "fixture-app-password",
           GEMINI_API_KEY: "fixture-binding-key",
+          AUTH_TOKEN_KEY: "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
           GEMINI_MODEL: "gemini-3.5-flash-lite",
         },
       },

@@ -3,6 +3,7 @@ erDiagram
     users ||..o{ sessions : "세션"
     users ||--o| user_settings : "개인 설정"
     users ||..o{ account_tokens : "계정 확인·복구"
+    account_tokens ||..o| auth_mail_outbox : "대기 중인 인증 메일"
     recipients |o..o{ account_tokens : "주소 확인에만 연결"
     users ||..o{ recipients : "개인 주소"
     users ||..o{ channel_subscriptions : "개인 구독"
@@ -64,6 +65,24 @@ erDiagram
         integer expires_at "만료 시각"
         integer consumed_at "소비 전 NULL"
     }
+    auth_mail_outbox {
+        text id PK "대기 메일 ID"
+        text token_id FK "account_tokens.id, unique"
+        text token_ciphertext "AES-GCM 암호문"
+        integer attempts "발송 시도 수"
+        integer available_at "다음 발송 가능 시각"
+        text lease_token "발송 실행권"
+        integer lease_expires_at "실행권 만료"
+        integer expires_at "토큰 만료"
+        integer created_at "생성 시각"
+    }
+
+    auth_rate_limits {
+        text key PK "범위와 HMAC"
+        integer window_end "윈도우 끝"
+        integer count "요청 수"
+    }
+
     channels {
         text id PK "공통 채널 ID"
         text youtube_channel_id UK "원본 채널 ID"

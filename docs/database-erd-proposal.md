@@ -167,6 +167,8 @@ B의 권한·구독·발송이나 공통 보고서·댓글을 삭제하면 안 �
 | `recipients` | 사용자별 확인된 메일 주소 | 활성 `(user_id, email)` unique |
 | `deliveries` | 공통 보고서와 개인 자동 요청·구독·주소·발송 상태 | 사용자·보고서·주소 기준 unique |
 | `delivery_attempts` | 개인 발송의 SMTP 실행 이력 | `(delivery_id, attempt_number)` unique |
+| `auth_mail_outbox` | 인증 메일 대기열. 토큰 암호문을 발송·만료 뒤 지워요 | `token_id` unique |
+| `auth_rate_limits` | 인증 요청 제한. 키는 HMAC이에요 | `key` PK |
 
 ```mermaid
 erDiagram

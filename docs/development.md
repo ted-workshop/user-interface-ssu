@@ -71,7 +71,7 @@ curl http://127.0.0.1:3000/health
 ```
 
 응답은 `{"status":"ok","service":"qletter-api"}`예요. 서버는 개발 PC의 127.0.0.1:3000에만 바인딩해요.
-Wrangler가 로컬 workerd에서 실행하며 Cloudflare 로그인이나 공급자 키는 필요하지 않아요.
+Wrangler가 로컬 workerd에서 실행하며 Cloudflare 로그인은 필요하지 않아요. 인증 경로는 아래 `AUTH_TOKEN_KEY`가 있어야 동작해요.
 `X-Qletter-Revision` 헤더는 로컬에서 `local`, 배포 후에는 해당 커밋 SHA를 반환해요. health JSON은 그대로 유지해요.
 
 Android Studio에서 debug variant로 Run해요. 개발 연결 화면의 `연결 확인`을 눌러요. 에뮬레이터 기본 주소는 http://10.0.2.2:3000/예요. 이 화면은 제품 로그인·요약 기능과 별개인 개발 확인 도구예요.
@@ -103,7 +103,7 @@ mise exec -- bun run --cwd apps/api wrangler d1 execute DB --local --command "SE
 mise run api:types
 ```
 
-첫 명령은 새 로컬 DB에 `0001_initialize.sql`부터 `0005_summary_admissions.sql`까지 적용해요. 다시 실행하면 이미 적용한 파일은 건너뛰어요.
+첫 명령은 새 로컬 DB에 모든 마이그레이션을 순서대로 적용해요. 다시 실행하면 이미 적용한 파일은 건너뛰어요.
 0003은 기존 개인 제품 행이 있으면 전체 전환을 중단해 보존해요. 계정·세션·수신 주소는 유지하고, 빈 제품 스키마에 공통 보고서·개인 권한·댓글·발송 제약을 적용해요.
 실행과 중단 복구는 [영속 작업 가이드](jobs.md), 저장 모델·계측은 [D1 가이드](database.md), 구현할 HTTP 형식은 [API 계약](api-contract.md)을 따라요.
 `DB` 접근과 SQL 실패 처리는 workerd 테스트에서 검증하고, 제품 API에 진단용 DB 경로를 추가하지 않아요.
@@ -112,10 +112,22 @@ binding을 바꾸면 `api:types`로 추적 중인 `worker-configuration.d.ts`를
 `api:check`의 `wrangler types --check`는 설정과 생성 타입이 다르면 실패해요.
 런타임 타입은 workerd와 맞춘 `@cloudflare/workers-types`를 사용하고, Bun 도구의 타입 검사와 분리해요.
 
-비밀값이 필요해지는 단계에서는 Git에서 제외한 `apps/api/.dev.vars`를 사용해요.
-현재 로컬 검사에는 비밀값이 필요하지 않고, `.dev.vars`·`.env`·개인 SDK 경로를 커밋하지 않아요.
+로컬 서버의 비밀값은 Git에서 제외한 `apps/api/.dev.vars`를 사용해요. `mise run api:check`에는 필요하지 않고,
+`.dev.vars`·`.env`·개인 SDK 경로를 커밋하지 않아요. 로그인을 로컬에서 쓰려면 임의의 값을 만들어 넣어요.
 
-직접 요약 HTTP는 [계약](api-contract.md)의 Bearer 세션을 검사해요. 세션 발급은 #9에서 구현해요.
+```sh
+echo "AUTH_TOKEN_KEY=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')" >> apps/api/.dev.vars
+mise run api:db:migrate
+```
+
+Cron이 돌아야 메일을 보내고, 보내려면 SMTP 설정이 필요해요. 메일 없이 가입 흐름을 이어가려면 로컬 DB에서만 이메일을 확인 처리해요.
+
+```sh
+cd apps/api
+bunx wrangler d1 execute DB --local --command "UPDATE users SET email_verified_at = unixepoch() WHERE email = 'reader@example.com'"
+```
+
+직접 요약 HTTP는 [계약](api-contract.md)의 Bearer 세션을 검사해요. 세션은 `POST /v1/auth/sessions`로 발급해요.
 새 분석·재시도는 계정별 UTC 하루 합계 3회예요. 키·모델이 준비되지 않으면 새 분석은 503이며 기존 요청 조회와 결과 재사용은 가능해요.
 workerd 검사는 격리된 D1 세션과 공급자 fixture로 동작해요. 실제 로그인·공급자 검증을 대신하지 않아요.
 
@@ -152,8 +164,7 @@ stack의 중간 브랜치를 대상으로 하는 PR에도 실행하며, 최종 `
 ## Gemini와 인증
 공식 @google/genai SDK의 공통 요약 함수와 수동 검증 도구를 제공해요. 실행 방법과 실제 공급자 검증의 미완료 항목은 [Gemini 가이드](gemini.md)에 있어요. 모델과 키는 서버에서만 관리하고 Android BuildConfig·리소스·PR 본문에 넣지 않아요. health와 CI는 외부 AI를 호출하지 않고 키 없이 실행해요.
 
-제품 인증은 이메일·비밀번호예요. 현재는 로컬 D1 실행·마이그레이션 기반과 Gmail SMTP 공통 함수·수동 검증 도구까지예요.
-제품 데이터 스키마와 로컬 제약 검사는 있지만 인증·제품 저장 HTTP·제품 메일·Gemini 요약 API는 아직 없어요.
+제품 인증은 이메일·비밀번호이고 HTTP 경로는 [ADR-0028](decisions/0028-auth-http.md)에 있어요. 로컬 D1과 메일 fixture로 검증했고, 실제 Gmail 발송과 배포의 인증 CPU는 #17에서 확인해요.
 메일 설정과 검증 범위는 [메일 가이드](email.md), 기능 구현 기준은 [기능 명세](qletter/02-functional-spec.md)를 따라요.
 
 ## 검증 범위

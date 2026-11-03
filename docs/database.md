@@ -4,7 +4,7 @@
 [전체 ERD](diagrams/qletter-full-erd-proposal.mmd)를 구현하는 저장 기반이에요.
 `0001`·`0002`의 이력을 보존하고 `0003_shared_reports.sql`이 공통 보고서 모델로 전환해요.
 `0004_job_leases.sql`은 실행권·호출 의도 열을, `0005_summary_admissions.sql`은 직접 요약의 접수 차감 기록을 추가해요.
-제품 테이블은 18개·126개 열이에요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
+`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을 추가해요. 제품 테이블은 20개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
 실제 로그인·공급자 생성·원격 적용은 별도예요.
 
 ## 공통 데이터와 개인 관계

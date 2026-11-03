@@ -6,6 +6,8 @@ const now = 1_800_000_000;
 const video = "jNQXAC9IVRw";
 const hash = "a".repeat(64);
 const tables = [
+  "auth_mail_outbox",
+  "auth_rate_limits",
   "delivery_attempts",
   "deliveries",
   "comments",
@@ -201,7 +203,7 @@ beforeEach(async () => {
 });
 
 describe("공통 보고서 D1 저장 규칙", () => {
-  test("다섯 마이그레이션을 반복 적용하고 18개 제품 테이블과 FK를 재현해요", async () => {
+  test("여섯 마이그레이션을 반복 적용하고 20개 제품 테이블과 FK를 재현해요", async () => {
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     expect(
       (
@@ -215,6 +217,7 @@ describe("공통 보고서 D1 저장 규칙", () => {
       "0003_shared_reports.sql",
       "0004_job_leases.sql",
       "0005_summary_admissions.sql",
+      "0006_auth_mail_rate_limits.sql",
     ]);
     expect((await sql("PRAGMA foreign_key_check").all()).results).toEqual([]);
     const names = await sql(

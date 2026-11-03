@@ -65,6 +65,7 @@ jobs:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AUTH_TOKEN_KEY: ${{ secrets.AUTH_TOKEN_KEY }}
         run: mise exec -- bun scripts/release.ts secrets "$RUNNER_TEMP/qletter-worker-secrets.json"
       - name: Prepare and validate deployment configuration
         env:

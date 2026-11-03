@@ -1,14 +1,18 @@
 import { type Context, Hono } from "hono";
 import { z } from "zod";
-import { requireSession } from "./auth";
+import { requireSession, sha256Hex } from "./auth";
 import {
   AuthConfigError,
   issueTokenStatements,
   randomToken,
-  sha256Hex,
   type TokenPurpose,
 } from "./auth-mail";
-import { InvalidInput, jsonBodyLimit, jsonInput } from "./http-input";
+import {
+  InvalidInput,
+  jsonBodyLimit,
+  jsonInput,
+  rejectQuery,
+} from "./http-input";
 import { statement, unixNow } from "./jobs/shared";
 import { hashPassword, isAcceptablePassword, verifyPassword } from "./password";
 import { consumeRateLimits, type RateRule } from "./rate-limit";
@@ -85,10 +89,6 @@ async function body<T>(c: Context, schema: z.ZodType<T>) {
     if (guide) fields[String(issue.path[0])] = guide;
   }
   throw new FieldError(fields);
-}
-
-function rejectQuery(c: Context) {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
 }
 
 async function limit(c: Context<{ Bindings: Env }>, rules: RateRule[]) {

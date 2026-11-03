@@ -2,7 +2,7 @@ import { applyD1Migrations } from "cloudflare:test";
 import { env } from "cloudflare:workers";
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { createApp } from "../src/app";
-import { sha256Hex } from "../src/auth-mail";
+import { sha256Hex } from "../src/auth";
 import { EmailError, type EmailMessage } from "../src/email";
 import { runBackgroundJobs } from "../src/jobs/runner";
 import type { generateReport, getVideoMetadata } from "../src/summary";

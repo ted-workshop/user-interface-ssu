@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { sha256Hex } from "./auth";
 import { EmailError, type sendEmail } from "./email";
 import { statement } from "./jobs/shared";
 import type { AuthMailRow } from "./rows";
@@ -14,14 +15,6 @@ const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS = [60, 300];
 
 export class AuthConfigError extends Error {}
-
-export async function sha256Hex(value: string) {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(value),
-  );
-  return Buffer.from(digest).toString("hex");
-}
 
 export function randomToken() {
   return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString(

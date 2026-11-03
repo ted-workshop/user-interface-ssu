@@ -65,6 +65,10 @@ export async function jsonInput<T>(c: Context, schema: z.ZodType<T>) {
   return parsed.data;
 }
 
+export function rejectQuery(c: Context) {
+  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+}
+
 export function parseQuery<T>(c: Context, schema: z.ZodType<T>) {
   const query = c.req.queries();
   if (Object.values(query).some((values) => values.length !== 1))

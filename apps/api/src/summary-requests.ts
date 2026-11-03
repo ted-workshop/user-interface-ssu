@@ -10,6 +10,7 @@ import {
   parseCursor,
   parseIdParam,
   parseQuery,
+  rejectQuery,
 } from "./http-input";
 import {
   canAdmitAnalysis,
@@ -60,7 +61,7 @@ export const summaryRequests = new Hono<AuthenticatedEnv>();
 summaryRequests.use("*", requireSession, jsonBodyLimit);
 
 summaryRequests.post("/", async (c) => {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const input = await jsonInput(c, submission);
   const limit = admissionLimit(c.env);
   const result = await enqueueAnalysis(c.env.DB, {
@@ -92,7 +93,7 @@ summaryRequests.get("/", async (c) => {
 });
 
 summaryRequests.get("/:id", async (c) => {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const result = await getAnalysisRequest(
     c.env.DB,
     c.get("userId"),
@@ -105,7 +106,7 @@ summaryRequests.get("/:id", async (c) => {
 });
 
 summaryRequests.post("/:id/retry", async (c) => {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const input = await jsonInput(c, retry);
   const limit = admissionLimit(c.env);
   const result = await retryAnalysis(

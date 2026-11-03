@@ -646,6 +646,17 @@ test("실제 로그인으로 받은 세션으로 다시 로그인해도 저장�
   expect((await detail.json<Report>()).bodyMarkdown).toBe("검사 보고서 본문");
 });
 
+test("채널을 삭제해도 그 채널에서 만든 리포트는 보관함에 남아요", async () => {
+  await channelReport(1);
+  const [before] = (await list()).items;
+  await sql(
+    "UPDATE channel_subscriptions SET status = 'deleted' WHERE id = 'sub'",
+  ).run();
+  const after = await list("?origin=channel");
+  expect(after.items.map((item) => item.id)).toEqual([before?.id]);
+  expect((await request(`/${before?.id}`)).status).toBe(200);
+});
+
 test("잘못된 상세 입력은 400이에요", async () => {
   for (const path of ["/not-a-uuid", `/${missingId}?extra=1`]) {
     const response = await request(path);

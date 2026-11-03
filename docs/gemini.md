@@ -7,7 +7,7 @@
 
 ## 현재 설정
 
-검증 모델은 `gemini-3.6-flash`, 기본 시간 제한은 600초예요.
+운영·검증 모델은 `gemini-3.8-flash`(ADR-0029), 기본 시간 제한은 600초예요. 2026-11-03 이전 기록은 `gemini-3.6-flash`예요.
 로컬 검증 키는 Git에서 제외한 `credentials.json`에 `0600` 권한으로 보관해요.
 
 운영 원본은 GitHub `production` Environment에서 관리해요. API 키는 `GEMINI_API_KEY` Secret,
@@ -42,12 +42,12 @@ GitHub 설정을 바꾼 뒤의 실제 Worker 반영은 별도 수동 배포가 �
 - `gemini-3.6-flash`·`gemini-3.7-flash`·`gemini-3.8-flash`의 모델 조회는 모두 HTTP 200이었고
   `generateContent`를 지원한다고 표시됐어요. 기록 파일의 경과 시간이 34초 안팎이므로 앞선 재검증처럼
   SDK 기본 재시도 5회가 모두 503이었을 가능성이 크지만, 이번 두 실행은 전송 관찰을 켜지 않아 요청 수를 확인하지 못했어요.
-- 3.8 Flash는 `agenticVideoModels` 허용 목록에 없어요. 시험하려고 작업 트리에서 한 줄을 임시로 추가했다가 되돌렸고,
-  `credentials.json`의 모델도 `gemini-3.6-flash`로 복원했어요. 2026-11-03 사용자가 3.8 시험을 중단하고
-  `gemini-3.6-flash`로 고정하기로 정했어요. 사용자는 3.8이 Agentic을 지원하지 않는다고 설명했지만,
-  2026-11-03 확인한 [영상 이해 문서](https://aistudio.google.com/docs/video-understanding)는
-  Agentic 지원 모델에 3.8 Flash를 포함해요("Gemini 4 Argon, 3.8 Flash, 3.6 Flash, 3.5 Flash Lite").
-  그래서 미지원은 사실로 기록하지 않고, 600초 시간 초과의 원인도 알지 못해요. 3.8은 허용 목록에 넣지 않아요.
+- 시험 당시 3.8 Flash는 `agenticVideoModels` 허용 목록에 없어서 한 줄을 임시로 추가했다가 되돌렸어요.
+  사용자는 3.8이 Agentic을 지원하지 않는다고 판단해 3.6 고정을 정했다가, 2026-11-03 확인한
+  [영상 이해 문서](https://aistudio.google.com/docs/video-understanding)가 Agentic 지원 모델에 3.8 Flash를
+  포함하는 것을 보고("Gemini 4 Argon, 3.8 Flash, 3.6 Flash, 3.5 Flash Lite") 3.8로 가기로 바꿨어요.
+  이 변경은 [ADR-0029](decisions/0029-gemini-3-8-flash.md)에 있고 허용 목록과 개발용 기본 모델에 3.8을 추가했어요.
+  첫 시험의 600초 시간 초과는 원인을 알지 못한 채 남아 있어요.
 - 3.8의 600초 시간 초과는 3.6의 빠른 503과 다른 실패 방식이에요. 한 번의 실행이라 모델 특성이라고 단정하지 않아요.
 - 3.6과 3.8의 요금이 같다는 말은 사용자가 전달했어요. 공식 요금표로 확인하지 않았어요.
 - 생성 성공·원본 대조가 없으므로 #5는 미완료예요. 기록은 `.artifacts/gemini/`에 `0600`으로 보관해요.
@@ -266,7 +266,7 @@ mkdir -p apps/api/.artifacts/gemini
 ```json
 {
   "apiKey": "개인 Gemini API 키",
-  "model": "gemini-3.6-flash",
+  "model": "gemini-3.8-flash",
   "timeoutMs": 600000
 }
 ```
@@ -276,7 +276,7 @@ chmod 600 apps/api/.artifacts/gemini/credentials.json
 mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=jNQXAC9IVRw' zoo-next
 ```
 
-모델은 명시한 값으로 고정하고 `gemini-3.5-flash-lite`·`gemini-3.6-flash`·`gemini-3.7-flash`만 받아요.
+모델은 명시한 값으로 고정하고 `gemini-3.5-flash-lite`·`gemini-3.6-flash`·`gemini-3.7-flash`·`gemini-3.8-flash`만 받아요.
 기본 시간 제한은 600초이며 허용 범위는 1~600초예요.
 Interactions의 Agentic 영상 처리를 사용하며 출력 상한·temperature·thinking·재시도 옵션은 명시하지 않아요.
 SDK 기본 재시도를 사용하므로 한 번의 명령에서 여러 HTTP 요청이 발생할 수 있어요.

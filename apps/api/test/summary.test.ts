@@ -580,6 +580,15 @@ describe("리포트 생성 설정과 시간 링크", () => {
     ).toBe(false);
   });
 
+  test.each(["gemini-3.6-flash", "gemini-3.8-flash"])(
+    "Agentic 영상 처리를 지원하는 모델 %s를 받아요",
+    (model) => {
+      expect(
+        summaryConfigSchema.safeParse({ ...settings, model }).success,
+      ).toBe(true);
+    },
+  );
+
   test.each([
     ["[03:42]", `[03:42](${url}&t=222s)`],
     ["(03:42)", `[03:42](${url}&t=222s)`],

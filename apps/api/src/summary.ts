@@ -226,13 +226,31 @@ function toSummaryError(error: unknown) {
     return new SummaryError("unknown");
 
   const status = error.status;
+  let response = "error" in error ? error.error : null;
+  // SDK가 배열 응답의 세부 정보를 error에서 잃어도 body에는 원문 JSON이 남아요.
+  if ("body" in error && typeof error.body === "string") {
+    try {
+      response = JSON.parse(error.body);
+    } catch {}
+  }
+  const normalizedError = {
+    error:
+      Array.isArray(response) && response.length === 1 ? response[0] : response,
+  };
   let reason: FailureReason = "unknown";
-  if (status === 401 || status === 403) reason = "configuration";
+  if (
+    status === 401 ||
+    status === 403 ||
+    (status === 400 &&
+      invalidApiKeyErrorSchema.safeParse(normalizedError).success)
+  )
+    reason = "configuration";
   else if (status === 429) reason = "quota";
   else if (status >= 500) reason = "temporary";
   else if (status < 500) reason = "provider_rejected";
 
-  const quota = status === 429 ? quotaErrorSchema.safeParse(error) : null;
+  const quota =
+    status === 429 ? quotaErrorSchema.safeParse(normalizedError) : null;
   const violations = quota?.success
     ? quota.data.error.error.details.flatMap(
         (detail) => detail.violations ?? [],
@@ -293,6 +311,27 @@ function parseChannelUrl(value: unknown) {
     return null;
   return url.href;
 }
+
+const invalidApiKeyErrorSchema = z.object({
+  error: z.object({
+    error: z.object({
+      details: z
+        .array(
+          z.object({
+            "@type": z.string().optional(),
+            reason: z.string().optional(),
+          }),
+        )
+        .refine((details) =>
+          details.some(
+            (detail) =>
+              detail["@type"] === "type.googleapis.com/google.rpc.ErrorInfo" &&
+              detail.reason === "API_KEY_INVALID",
+          ),
+        ),
+    }),
+  }),
+});
 
 const quotaViolationSchema = z.object({
   quotaMetric: z.string(),

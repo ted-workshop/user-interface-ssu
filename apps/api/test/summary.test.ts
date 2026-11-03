@@ -340,6 +340,38 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     },
   );
 
+  test("배열로 감싼 429 응답에서도 알려진 할당량 정보를 보존해요", async () => {
+    network.mockResolvedValue(
+      Response.json(
+        [
+          {
+            error: {
+              details: [
+                {
+                  violations: [
+                    {
+                      quotaMetric: "requests",
+                      quotaId: "daily",
+                      quotaValue: "0",
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+        { status: 429 },
+      ),
+    );
+    expect(await failedReport()).toMatchObject({
+      reason: "quota",
+      httpStatus: 429,
+      quotaViolations: [
+        { quotaMetric: "requests", quotaId: "daily", quotaValue: "0" },
+      ],
+    });
+  });
+
   test("응답 기한을 넘은 요청을 중단하고 다시 보내지 않아요", async () => {
     network.mockImplementation(async (input, init) => {
       const request = new Request(input, init);
@@ -361,6 +393,77 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     });
     expect(network).toHaveBeenCalledTimes(1);
   });
+
+  test.each([
+    [
+      "API_KEY_INVALID",
+      "type.googleapis.com/google.rpc.ErrorInfo",
+      "configuration",
+      false,
+    ],
+    [
+      "API_KEY_INVALID",
+      "type.googleapis.com/google.rpc.ErrorInfo",
+      "configuration",
+      true,
+    ],
+    [
+      "UNSUPPORTED_VIDEO",
+      "type.googleapis.com/google.rpc.ErrorInfo",
+      "provider_rejected",
+      false,
+    ],
+    [
+      "API_KEY_INVALID",
+      "type.googleapis.com/google.rpc.Help",
+      "provider_rejected",
+      false,
+    ],
+  ])(
+    "HTTP 400의 구조화된 키 오류 %s를 분류해요 (%s, 결과=%s, 배열=%s)",
+    async (reason, type, expected, arrayEnvelope) => {
+      const body = {
+        error: {
+          code: 400,
+          status: "INVALID_ARGUMENT",
+          message: "fixture-private-key private account",
+          details: [
+            {
+              "@type": type,
+              reason,
+              metadata: { consumer: "private-project" },
+            },
+            { "@type": "type.googleapis.com/google.rpc.Help", links: [] },
+          ],
+        },
+      };
+      network.mockResolvedValue(
+        Response.json(arrayEnvelope ? [body] : body, { status: 400 }),
+      );
+      const error = await failedReport();
+      expect(error).toMatchObject({ reason: expected, httpStatus: 400 });
+      expect(JSON.stringify(error)).not.toContain("private");
+      expect(network).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  test.each([
+    "API_KEY_INVALID private",
+    "[{broken private",
+    JSON.stringify("API_KEY_INVALID private"),
+  ])(
+    "구조화되지 않은 오류 본문 %s로 키 오류를 추측하지 않아요",
+    async (body) => {
+      network.mockResolvedValue(new Response(body, { status: 400 }));
+      const error = await failedReport();
+      expect(error).toMatchObject({
+        reason: "provider_rejected",
+        httpStatus: 400,
+      });
+      expect(JSON.stringify(error)).not.toContain("private");
+      expect(network).toHaveBeenCalledTimes(1);
+    },
+  );
 
   test.each([
     [429, "quota"],

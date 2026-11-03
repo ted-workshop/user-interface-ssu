@@ -62,6 +62,15 @@ Interactions·Agentic으로 요청하고, 영상 없는 텍스트 요청과 비�
 - 3.8은 텍스트 요청도 503과 21분 무응답이어서 이번 관찰에서는 가장 불안정했어요. 한 번씩의 관찰이에요.
 - 텍스트 요청은 한 번씩만 보냈고, 3.8의 두 텍스트 요청 사이에 몇 분의 간격이 있었어요. 전송 관찰(재시도 횟수)은 켜지 않았어요.
 
+### 동작하던 구현과의 대조
+
+`ted-workshop/summary-youtube-video`(gram-lab에서 운영하는 구현, 비공개)의 `generateReport` 요청은 이 저장소와 같아요.
+`interactions.create`·`type:"video"`·`processing:"agentic"`·`store:false`·같은 프롬프트이고 SDK는 2.20.0, 런타임은 Node 24예요.
+이 저장소의 SDK 2.31.0·Bun 1.4.4와 다른 점은 SDK 버전·런타임·키(프로젝트)뿐이에요.
+그 구현의 코드를 그대로, 이 저장소의 새 키와 같은 짧은 영상으로 실행했더니 `gemini-3.6-flash`가 38,569ms 뒤 HTTP 503이었어요.
+그래서 이번 실패는 이 저장소의 요청 코드·SDK 버전·런타임 때문이 아니에요. 키가 속한 프로젝트·요금제나 공급자 쪽 용량일 가능성이
+남지만 확인하지 못했어요. gram-lab 쪽이 지금도 성공하는지, 어떤 키·요금제를 쓰는지는 아직 확인하지 못했어요.
+
 - 시험 당시 3.8 Flash는 `agenticVideoModels` 허용 목록에 없어서 한 줄을 임시로 추가했다가 되돌렸어요.
   사용자는 3.8이 Agentic을 지원하지 않는다고 판단해 3.6 고정을 정했다가, 2026-11-03 확인한
   [영상 이해 문서](https://aistudio.google.com/docs/video-understanding)가 Agentic 지원 모델에 3.8 Flash를

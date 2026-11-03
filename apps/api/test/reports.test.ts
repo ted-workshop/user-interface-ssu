@@ -11,6 +11,7 @@ import {
   markDeliveryDispatched,
 } from "../src/jobs/delivery";
 import { runBackgroundJobs } from "../src/jobs/runner";
+import { hashPassword } from "../src/password";
 
 const now = 1_800_000_000;
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -593,6 +594,56 @@ test("검색과 필터는 새 작업이나 보관 관계를 만들지 않아요"
   const before = await counts();
   await list("?q=gemini&origin=direct&deliveryStatus=not_applicable");
   expect(await counts()).toEqual(before);
+});
+
+test("실제 로그인으로 받은 세션으로 다시 로그인해도 저장한 리포트를 읽어요", async () => {
+  const email = "relogin@example.com";
+  const password = "relogin password";
+  const userId = "44444444-4444-4444-8444-444444444444";
+  await sql(
+    "INSERT INTO users (id,email,nickname,password_hash,email_verified_at) VALUES (?,?,'독자',?,?)",
+    userId,
+    email,
+    await hashPassword(password),
+    now - 1,
+  ).run();
+  const login = async () => {
+    const response = await app.request(
+      "/v1/auth/sessions",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cf-connecting-ip": "203.0.113.10",
+        },
+        body: JSON.stringify({ email, password }),
+      },
+      settings,
+    );
+    expect(response.status).toBe(201);
+    return (await response.json<{ sessionToken: string }>()).sessionToken;
+  };
+  metadataByVideo = { [videoIds[0]]: { title: "다시 읽을 리포트" } };
+  await saveReport(userId, videoIds[0], now);
+
+  const first = await login();
+  const [saved] = (await list("", first)).items;
+  expect(saved?.title).toBe("다시 읽을 리포트");
+  const out = await app.request(
+    "/v1/auth/session",
+    { method: "DELETE", headers: { authorization: `Bearer ${first}` } },
+    settings,
+  );
+  expect(out.status).toBe(204);
+  expect((await request("", first)).status).toBe(401);
+
+  const second = await login();
+  expect((await list("", second)).items.map((item) => item.id)).toEqual([
+    saved?.id,
+  ]);
+  const detail = await request(`/${saved?.id}`, second);
+  expect(detail.status).toBe(200);
+  expect((await detail.json<Report>()).bodyMarkdown).toBe("검사 보고서 본문");
 });
 
 test("잘못된 상세 입력은 400이에요", async () => {

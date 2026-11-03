@@ -97,6 +97,7 @@ reports.get("/", async (c) => {
     values.push(origin);
   }
   if (deliveryStatus !== undefined) {
+    // SQLite는 WHERE에서 SELECT 별칭을 읽을 수 있어 계산식을 반복하지 않아요.
     conditions.push("deliveryStatus = ?");
     values.push(deliveryStatus);
   }

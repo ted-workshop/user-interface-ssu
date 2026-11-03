@@ -20,7 +20,7 @@
   발송 하나를 접수해요. 직접 요청은 거부하고 같은 사용자·보고서·주소의 발송은 재사용해요.
 - `getDelivery(DB, userId, deliveryId)` / `retryDelivery(DB, userId, deliveryId, attempt)`:
   발송 상태를 조회·재시도해요. 이미 성공한 분석을 다시 실행하지 않아요.
-- `runBackgroundJobs(env)`: 저장된 대기 행을 처리해요. Worker의 scheduled 핸들러가 호출하므로
+- `runBackgroundJobs(env)`: 저장된 분석·발송·인증 메일 대기 행을 처리해요. 인증 메일은 [ADR-0028](decisions/0028-auth-http.md)의 `auth_mail_outbox`예요. Worker의 scheduled 핸들러가 호출하므로
   HTTP 핸들러에서 장기 `waitUntil()` 작업으로 실행하지 않아요.
 
 이 반환값은 서버 내부 상태예요. #11·#15의 HTTP 호출부는 [API 계약](api-contract.md)의 DTO로 변환하고

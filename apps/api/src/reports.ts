@@ -8,6 +8,7 @@ import {
   parseCursor,
   parseIdParam,
   parseQuery,
+  rejectQuery,
 } from "./http-input";
 import { statement } from "./jobs/shared";
 import type { ReportDetailRow, ReportRow } from "./rows";
@@ -83,7 +84,7 @@ reports.get("/", async (c) => {
 });
 
 reports.get("/:id", async (c) => {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const userId = c.get("userId");
   const row = await statement(
     c.env.DB,

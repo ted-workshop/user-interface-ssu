@@ -13,7 +13,12 @@
     "GEMINI_MODEL": "gemini-3.6-flash"
   },
   "secrets": {
-    "required": ["SMTP_USER", "SMTP_APP_PASSWORD", "GEMINI_API_KEY"]
+    "required": [
+      "SMTP_USER",
+      "SMTP_APP_PASSWORD",
+      "GEMINI_API_KEY",
+      "AUTH_TOKEN_KEY"
+    ]
   },
   "d1_databases": [
     {

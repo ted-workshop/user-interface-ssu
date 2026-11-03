@@ -1,14 +1,16 @@
-import { type Context, Hono } from "hono";
-import { bodyLimit } from "hono/body-limit";
+import { Hono } from "hono";
 import { z } from "zod";
 import { type AuthenticatedEnv, requireSession } from "./auth";
 import {
   encodeCursor,
   InvalidInput,
+  jsonBodyLimit,
+  jsonInput,
   pageQuery,
   parseCursor,
   parseIdParam,
   parseQuery,
+  rejectQuery,
 } from "./http-input";
 import {
   canAdmitAnalysis,
@@ -26,26 +28,6 @@ const querySchema = z.strictObject({
   status: z.enum(["queued", "running", "completed", "failed"]).optional(),
   ...pageQuery,
 });
-
-async function jsonInput<T>(
-  c: Context<AuthenticatedEnv>,
-  schema: z.ZodType<T>,
-) {
-  if (
-    c.req.header("content-type")?.split(";")[0]?.trim().toLowerCase() !==
-    "application/json"
-  )
-    throw new InvalidInput();
-  let body: unknown;
-  try {
-    body = await c.req.json();
-  } catch {
-    throw new InvalidInput();
-  }
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) throw new InvalidInput();
-  return parsed.data;
-}
 
 function admissionLimit(env: Env) {
   const config = summaryConfigSchema.safeParse({
@@ -76,17 +58,10 @@ function resource(
 }
 
 export const summaryRequests = new Hono<AuthenticatedEnv>();
-summaryRequests.use(
-  "*",
-  requireSession,
-  bodyLimit({
-    maxSize: 16 * 1024,
-    onError: (c) => c.json({ error: { code: "PAYLOAD_TOO_LARGE" } }, 413),
-  }),
-);
+summaryRequests.use("*", requireSession, jsonBodyLimit);
 
 summaryRequests.post("/", async (c) => {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const input = await jsonInput(c, submission);
   const limit = admissionLimit(c.env);
   const result = await enqueueAnalysis(c.env.DB, {
@@ -118,7 +93,7 @@ summaryRequests.get("/", async (c) => {
 });
 
 summaryRequests.get("/:id", async (c) => {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const result = await getAnalysisRequest(
     c.env.DB,
     c.get("userId"),
@@ -131,7 +106,7 @@ summaryRequests.get("/:id", async (c) => {
 });
 
 summaryRequests.post("/:id/retry", async (c) => {
-  if (Object.keys(c.req.query()).length) throw new InvalidInput();
+  rejectQuery(c);
   const input = await jsonInput(c, retry);
   const limit = admissionLimit(c.env);
   const result = await retryAnalysis(

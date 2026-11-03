@@ -69,3 +69,30 @@ export type ReportRow = {
 
 // 상세 조회에서만 읽는 보고서 본문이에요.
 export type ReportDetailRow = ReportRow & { bodyMarkdown: string };
+
+// 메일 확인·비밀번호 재설정에 쓸 수 있는 토큰이에요.
+export type AccountTokenRow = { id: string; userId: string };
+
+// 로그인 검증에 필요한 계정이에요.
+export type LoginUserRow = {
+  id: string;
+  email: string;
+  nickname: string;
+  passwordHash: string;
+  emailVerifiedAt: number | null;
+};
+
+// 내 정보 응답에 쓰는 계정이에요.
+export type AccountRow = { id: string; email: string; nickname: string };
+
+// 발송 실행권을 얻은 인증 메일이에요.
+export type AuthMailRow = {
+  id: string;
+  tokenCiphertext: string;
+  attempts: number;
+  purpose: "verify_email" | "reset_password";
+  email: string;
+};
+
+// 요청 제한을 센 결과예요.
+export type RateLimitRow = { count: number; windowEnd: number };

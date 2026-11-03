@@ -1,3 +1,4 @@
+import { runAuthMail } from "../auth-mail";
 import { EmailError, sendEmail } from "../email";
 import { generateReport, getVideoMetadata, SummaryError } from "../summary";
 import {
@@ -43,6 +44,7 @@ export async function runBackgroundJobs(
   const outcomes = await Promise.allSettled([
     runAnalysis(env, io),
     runDelivery(env, io),
+    runAuthMail(env, io.send, io.now()),
   ]);
   if (outcomes.some((outcome) => outcome.status === "rejected")) {
     console.error(JSON.stringify({ event: "job.storage_or_runtime_error" }));

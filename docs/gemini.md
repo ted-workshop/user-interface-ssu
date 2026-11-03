@@ -42,6 +42,26 @@ GitHub 설정을 바꾼 뒤의 실제 Worker 반영은 별도 수동 배포가 �
 - `gemini-3.6-flash`·`gemini-3.7-flash`·`gemini-3.8-flash`의 모델 조회는 모두 HTTP 200이었고
   `generateContent`를 지원한다고 표시됐어요. 기록 파일의 경과 시간이 34초 안팎이므로 앞선 재검증처럼
   SDK 기본 재시도 5회가 모두 503이었을 가능성이 크지만, 이번 두 실행은 전송 관찰을 켜지 않아 요청 수를 확인하지 못했어요.
+### 새 키 재검증과 텍스트 대조
+
+같은 날 GitHub에 새로 등록한 키(로컬 `credentials.json`에 넣어 모델 조회 3.6·3.8 모두 HTTP 200 확인)로 같은 짧은 영상을
+Interactions·Agentic으로 요청하고, 영상 없는 텍스트 요청과 비교했어요. 새 키가 GitHub Secret과 같은 값인지는 확인하지 못했어요.
+
+| 기록 ID 또는 요청 | 모델 | 소요 | 결과 |
+| --- | --- | --- | --- |
+| `zoo-flash38-newkey-1103a` | `gemini-3.8-flash` | 47,168ms | 영상·Agentic, HTTP 503 |
+| `zoo-flash36-newkey-1103a` | `gemini-3.6-flash` | 37,854ms | 영상·Agentic, HTTP 503 |
+| `zoo-flashlite-newkey-1103a` | `gemini-3.5-flash-lite` | 36,114ms | 영상·Agentic, HTTP 500 |
+| 텍스트 한 줄 `generateContent` | `gemini-3.6-flash` | 3.1초 | HTTP 200 |
+| 텍스트 한 줄 `generateContent` | `gemini-3.5-flash-lite` | 1.6초 | HTTP 200 |
+| 텍스트 한 줄 `generateContent` | `gemini-3.8-flash` | 첫 시도 즉시 | HTTP 503 "high demand" |
+| 텍스트 한 줄 `generateContent` | `gemini-3.8-flash` | 1,310초 | 응답 없이 연결 종료(curl 코드 000) |
+
+- 영상·Agentic 요청은 세 모델 모두 실패했고 영상 없는 텍스트 요청은 3.6·3.5 flash-lite에서 성공했어요.
+  그래서 키·계정 문제보다 Interactions의 Agentic 영상 경로 쪽이 의심돼요. 다만 원인은 확인하지 못했어요.
+- 3.8은 텍스트 요청도 503과 21분 무응답이어서 이번 관찰에서는 가장 불안정했어요. 한 번씩의 관찰이에요.
+- 텍스트 요청은 한 번씩만 보냈고, 3.8의 두 텍스트 요청 사이에 몇 분의 간격이 있었어요. 전송 관찰(재시도 횟수)은 켜지 않았어요.
+
 - 시험 당시 3.8 Flash는 `agenticVideoModels` 허용 목록에 없어서 한 줄을 임시로 추가했다가 되돌렸어요.
   사용자는 3.8이 Agentic을 지원하지 않는다고 판단해 3.6 고정을 정했다가, 2026-11-03 확인한
   [영상 이해 문서](https://aistudio.google.com/docs/video-understanding)가 Agentic 지원 모델에 3.8 Flash를

@@ -96,3 +96,15 @@ export type AuthMailRow = {
 
 // 요청 제한을 센 결과예요.
 export type RateLimitRow = { count: number; windowEnd: number };
+
+// 내 모음과 담긴 리포트 수예요. reportId를 함께 물으면 그 리포트가 담겼는지도 돌려줘요.
+export type CollectionRow = {
+  id: string;
+  name: string;
+  reportCount: number;
+  containsReport: number | null;
+  createdAt: number;
+};
+
+// 모음 안의 리포트예요. 담은 시각으로 정렬해요.
+export type CollectionReportRow = ReportRow & { addedAt: number };

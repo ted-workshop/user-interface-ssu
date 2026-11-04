@@ -14,7 +14,7 @@ import { statement } from "./jobs/shared";
 import type { ReportDetailRow, ReportRow } from "./rows";
 
 // 취소된 발송은 상태 계산에서 빼요. 대상이 없으면 합계가 NULL이어도 ELSE로 떨어져 deliveryStatus는 NULL이 되지 않아요.
-const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
+export const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
   r.channel_url AS channelUrl, r.model, r.timestamp_verification AS timestampVerification,
   r.created_at AS createdAt, q.id AS requestId, q.origin, p.created_at AS savedAt,
   (SELECT CASE
@@ -24,9 +24,10 @@ const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS c
     ELSE 'not_applicable' END
   FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id) AS deliveryStatus`;
 
-const toIso = (seconds: number) => new Date(seconds * 1000).toISOString();
+export const toIso = (seconds: number) =>
+  new Date(seconds * 1000).toISOString();
 
-function resource(row: ReportRow) {
+export function resource(row: ReportRow) {
   return {
     id: row.id,
     videoId: row.videoId,

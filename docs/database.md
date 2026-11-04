@@ -4,7 +4,7 @@
 [전체 ERD](diagrams/qletter-full-erd-proposal.mmd)를 구현하는 저장 기반이에요.
 `0001`·`0002`의 이력을 보존하고 `0003_shared_reports.sql`이 공통 보고서 모델로 전환해요.
 `0004_job_leases.sql`은 실행권·호출 의도 열을, `0005_summary_admissions.sql`은 직접 요약의 접수 차감 기록을 추가해요.
-`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을 추가해요. 제품 테이블은 20개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
+`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을, `0007_collections.sql`은 리포트 모음을 추가해요. 제품 테이블은 22개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
 실제 로그인·공급자 생성·원격 적용은 별도예요.
 
 ## 공통 데이터와 개인 관계
@@ -37,6 +37,13 @@ oEmbed에서 확인한 채널 URL은 reports.channel_url에 저장해요. 채널
 - 본인의 개인 규칙 제거는 공통 보고서·타인 권한·댓글을 지우지 않고 본인의 대기 발송만 취소해요.
   공개 규칙 제거는 댓글 접근을 차단해요. 현재 저장 기반은 댓글 행을 자동 삭제하지 않아요.
   공개 관리 주체·철회 후 댓글 보존/삭제 API 정책은 #23에서 확정해야 해요.
+
+## 모음
+
+- `collections`는 사용자별 모음이에요. 이름은 NFC·앞뒤 공백 제거 후 1~30자이고 `(user_id, name)` unique예요.
+- `collection_items`는 공통 report_id가 아니라 본인의 개인 규칙 행을 가리켜요. 같은 모음에 같은 행은 한 번만 들어가요.
+- 모음 삭제는 항목만 지우고 보관함의 개인 규칙과 보고서는 남겨요. 개인 규칙이 지워지면 항목도 함께 지워져요.
+- 모음 주인과 개인 규칙의 사용자가 다르면 trigger가 INSERT를 거부해요. 경계는 [ADR-0029](decisions/0029-collections-http.md)예요.
 
 FK·CHECK·trigger는 로그인·SELECT 권한이나 RLS가 아니에요. 개인 요청·구독·주소·발송은 세션에서
 얻은 user_id를 조건으로 bind해요. 공통 본문·댓글에도 위 권한 조건이 필요해요.

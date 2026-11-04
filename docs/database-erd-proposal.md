@@ -2,12 +2,12 @@
 
 상태는 **확정한 저장 설계**예요. [ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)의
 관계를 구체화했어요. [D1 가이드](database.md)의 0003_shared_reports.sql에 적용하고 0004_job_leases.sql에서 실행권·호출 의도 열을 추가했어요.
-0005_summary_admissions.sql에는 직접 요약 접수 차감을 추가해요. 제품 HTTP 검증과 원격 적용은 구분해요.
+0005_summary_admissions.sql에는 직접 요약 접수 차감을, 0007_collections.sql에는 모음을 추가해요. 제품 HTTP 검증과 원격 적용은 구분해요.
 
 같은 공개 영상·생성 설정에는 보고서 하나를 만들어요. A와 B의 보관함·댓글 조회는 동일한
 `reports.id`를 사용해요. 사용자마다 보고서 행을 만드는 앞선 수정안은 철회해요.
 
-18개 테이블·126개 열·29개 논리 관계를 포함한
+22개 테이블·145개 열·33개 논리 관계를 포함한
 [전체 ERD 원본](diagrams/qletter-full-erd-proposal.mmd)을 함께 관리해요.
 아래 도식은 영역별 관계이고, 전체 원본에는 인증·설정·모든 핵심 열도 포함돼요.
 PK는 기본키, FK는 외래키, UK는 단일 unique예요. 복합·부분 unique는 아래 설명을 따라요.
@@ -145,7 +145,7 @@ B의 권한·구독·발송이나 공통 보고서·댓글을 삭제하면 안 �
 
 ## 전체 테이블과 검증 범위
 
-논리 모델은 아래 18개 테이블이에요. 인증·수신 주소의 기존 토큰 hash·소유권·만료 규칙은 유지해요.
+논리 모델은 아래 22개 테이블이에요. 인증·수신 주소의 기존 토큰 hash·소유권·만료 규칙은 유지해요.
 
 | 테이블 | 연결·역할 | 핵심 중복 방지 |
 | --- | --- | --- |
@@ -169,6 +169,8 @@ B의 권한·구독·발송이나 공통 보고서·댓글을 삭제하면 안 �
 | `delivery_attempts` | 개인 발송의 SMTP 실행 이력 | `(delivery_id, attempt_number)` unique |
 | `auth_mail_outbox` | 인증 메일 대기열. 토큰 암호문을 발송·만료 뒤 지워요 | `token_id` unique |
 | `auth_rate_limits` | 인증 요청 제한. 키는 HMAC이에요 | `key` PK |
+| `collections` | 사용자별 리포트 모음 | `(user_id, name)` unique |
+| `collection_items` | 모음과 본인 보관 권한 행의 연결 | `(collection_id, permission_id)` PK |
 
 ```mermaid
 erDiagram
@@ -183,7 +185,7 @@ erDiagram
 한 줄짜리 선만으로 이런 복합 조건을 모두 구현한 것은 아니에요. 세션·토큰의 원문을 저장하지 않으며,
 메일 시도의 사용자 소유권은 부모 `deliveries`에서 판정해요.
 
-모음 #24는 사용자·공통 report_id를 연결하고 본인의 보관 관계를 확인하도록 후속 구현해요.
+모음 #24는 공통 report_id 대신 본인의 보관 권한 행을 연결해요. 보관 관계가 지워지면 모음에서도 빠지고, 다른 사용자의 보관 행은 trigger가 거부해요. 근거는 [ADR-0029](decisions/0029-collections-http.md)예요.
 여기에는 모든 운영 열·FK를 나열하지 않았어요. SDK 재시도·응답 유실까지 포함한 외부 호출의
 정확히 한 번 실행을 보장하지 않으며 결과 불명 이력·재호출 방지 규칙이 필요해요.
 

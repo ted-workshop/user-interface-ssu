@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { accounts } from "./accounts";
+import { collections } from "./collections";
 import { reports } from "./reports";
 import { summaryRequests } from "./summary-requests";
 
@@ -11,6 +12,7 @@ export function createApp() {
   });
   app.route("/v1/summary-requests", summaryRequests);
   app.route("/v1/reports", reports);
+  app.route("/v1/collections", collections);
   app.route("/v1", accounts);
   app.notFound((c) => c.json({ error: { code: "NOT_FOUND" } }, 404));
   app.onError((_error, c) =>

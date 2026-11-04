@@ -41,7 +41,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | 401 | `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS` | 로그인으로 이동하거나 입력을 고쳐요. |
 | 403 | `EMAIL_VERIFICATION_REQUIRED` | 비밀번호가 맞는 계정에만 이메일 확인을 안내해요. |
 | 404 | `NOT_FOUND` | 다른 계정 정보나 존재 여부를 표시하지 않아요. |
-| 409 | `CHANNEL_EXISTS`, `RECIPIENT_EXISTS`, `RETRY_NOT_ALLOWED` | 기존 자원·현재 상태를 다시 읽어요. |
+| 409 | `CHANNEL_EXISTS`, `RECIPIENT_EXISTS`, `RETRY_NOT_ALLOWED`, `COLLECTION_EXISTS` | 기존 자원·현재 상태를 다시 읽어요. |
 | 413 | `PAYLOAD_TOO_LARGE` | 입력을 줄여요. |
 | 429 | `RATE_LIMITED`, `USAGE_LIMIT_REACHED` | 정수 초 `Retry-After` 이후에 재시도해요. |
 | 503 | `SUMMARY_UNAVAILABLE`, `AUTOMATION_UNAVAILABLE`, `SERVICE_UNAVAILABLE` | 새 분석을 반복하지 않고 나중에 다시 확인해요. |
@@ -284,7 +284,7 @@ HTTP는 키·모델 설정이 준비되지 않으면 새 분석을 접수하지 
 | 수신 주소 중 하나만 실패·채널 삭제 | 성공 이력 보존, 대기 발송 취소, 리포트 조회 가능 | #13·#15 |
 
 구현 순서는 계약 → 스키마 #8 → 인증 #9·실행 기반 #10 → 사용자 흐름 #11~#17이에요.
-공통 보고서·조회 권한·댓글 저장 기반은 #8에 포함해요. 공개·댓글 HTTP는 #23, 모음은 #24예요.
+공통 보고서·조회 권한·댓글 저장 기반은 #8에 포함해요. 공개·댓글 HTTP는 #23이에요. 모음 #24는 아래처럼 구현했고 경계는 [ADR-0029](decisions/0029-collections-http.md)에 남겨요.
 
 ## 공통 보고서 권한·댓글: #23
 
@@ -302,3 +302,28 @@ HTTP는 키·모델 설정이 준비되지 않으면 새 분석을 접수하지 
 - 공통 보고서는 시스템 생성물이므로 최초 요청자에게 전역 공개 변경 권한을 주지 않아요.
   공개 관리 주체와 철회 시 댓글 보존/삭제 정책은 #23의 미확정 gate예요. 공개 변경 API는 아직 확정하지 않아요.
   권한 FK·로컬 댓글 검사는 실제 로그인·공개·댓글 HTTP 구현을 증명하지 않아요.
+
+## 모음: #24
+
+| 메서드·경로 | 입력·필터 | 성공 응답 |
+| --- | --- | --- |
+| `GET /v1/collections` | `limit`, `cursor`, 선택 `reportId` | 내 모음 목록 `200` |
+| `POST /v1/collections` | `{"name":"AI 공부"}` | 새 모음 `201`, `Location` |
+| `PATCH /v1/collections/{id}` | `{"name":"새 이름"}` | 바뀐 모음 `200` |
+| `DELETE /v1/collections/{id}` | 본인 모음 ID | `204` |
+| `GET /v1/collections/{id}/reports` | `limit`, `cursor` | 모음 안 리포트 목록 `200` |
+| `PUT /v1/collections/{id}/reports/{reportId}` | 내 보관함의 report ID | `204`, 이미 담겨 있어도 `204` |
+| `DELETE /v1/collections/{id}/reports/{reportId}` | 내 보관함의 report ID | `204`, 담겨 있지 않아도 `204` |
+
+```json
+{"id":"<collection UUID>","name":"AI 공부","reportCount":3,"containsReport":true,"createdAt":"2026-11-05T10:00:00Z"}
+```
+
+- 이름은 NFC·앞뒤 공백 제거 후 1~30 code point이고 제어문자·줄바꿈은 거부해요. 대소문자는 구분해요.
+  빈 이름·길이 초과는 `400 INVALID_INPUT`과 `fields.name`, 같은 사용자의 같은 이름은 `409 COLLECTION_EXISTS`예요.
+- 모음 목록은 만든 시각, 모음 안 리포트는 담은 시각 최신순이에요. cursor의 `createdAt` 자리에 각각 그 시각을 담아요.
+- `containsReport`는 `reportId`를 보낼 때만 붙어요. "모음에 담기" 화면에서 이미 담긴 모음을 표시해요.
+- 모음 안 리포트 항목은 `GET /v1/reports` 목록 항목과 같고 `addedAt`이 더해져요.
+- 본인 보관함에 있는 리포트만 담아요. 다른 사용자의 모음, 없는 모음, 보관함에 없는 리포트는 모두 같은 `404`예요.
+- 모음을 지워도 보관함의 리포트는 남아요. 보관 관계가 사라진 리포트는 모음에서도 빠져요.
+- 모음 공개·공유, 중첩 모음, 태그, 수동 정렬, 보관함의 모음 필터는 제외해요.

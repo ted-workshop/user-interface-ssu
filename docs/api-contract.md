@@ -4,8 +4,8 @@
 [ADR-0020](decisions/0020-shared-analysis-and-report-permissions.md)·[인증 정책 ADR-0018](decisions/0018-api-contract-and-policies.md), 저장 모델은 [D1 가이드](database.md)예요.
 F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아래 `summary-requests`의
 접수·목록·상세·재시도 경로를 구현했어요. [ADR-0024](decisions/0024-direct-summary-http.md)에 구현 경계를 남겨요.
-`GET /v1/reports`의 `limit`·`cursor`와 `GET /v1/reports/{id}`도 구현했고 경계는 [ADR-0026](decisions/0026-report-read-http.md)에 남겨요.
-계정·인증 경로도 구현했고 경계는 [ADR-0028](decisions/0028-auth-http.md)에 남겨요. 리포트 검색·필터 #12·Android 연결은 후속 작업이에요.
+`GET /v1/reports`의 검색·필터·페이지와 `GET /v1/reports/{id}`도 구현했고 경계는 [ADR-0026](decisions/0026-report-read-http.md)에 남겨요.
+계정·인증 경로도 구현했고 경계는 [ADR-0028](decisions/0028-auth-http.md)에 남겨요. Android 연결은 후속 작업이에요.
 로컬 세션·공급자 fixture 검증을 실제 로그인·Gemini 생성 성공으로 보지 않아요.
 
 ## 공통 규칙
@@ -107,7 +107,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | `GET /v1/summary-requests` | `status`, `limit`, `cursor` | 본인 요청 목록 `200` |
 | `GET /v1/summary-requests/{id}` | 본인 요청 ID | 요청 객체 `200` |
 | `POST /v1/summary-requests/{id}/retry` | `{"attempt":1}`: 마지막으로 확인한 시도 번호 | 접수 `202`, 이미 접수한 같은 재시도 `200` |
-| `GET /v1/reports` | `limit`, `cursor` (`q`, `channelUrl`, `origin`, `deliveryStatus`는 #12 후속 PR 전까지 `400`) | 리포트 목록 `200` |
+| `GET /v1/reports` | `q`, `channelUrl`, `origin`, `deliveryStatus`, `limit`, `cursor` | 리포트 목록 `200` |
 | `GET /v1/reports/{id}` | 접근 가능한 공통 보고서 ID | 보고서 상세 `200` |
 
 ```json
@@ -156,9 +156,11 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
   시간 링크는 실제 원본 대조 전 `unverified`예요. 앱은 raw HTML·임의 스크립트를 실행하지 않아요.
 - `channelUrl`은 oEmbed `author_url`이 HTTPS YouTube 채널 주소일 때 그대로 저장하고,
   없거나 형식·출처를 확인할 수 없으면 `null`이에요. 채널명을 URL로 추측해 바꾸지 않아요.
-- `q`는 trim 후 1~100자의 제목 부분 검색, `channelUrl`은 저장된 채널 출처 URL의 정확한 일치예요.
-  검색의 `%`·`_`는 wildcard가 아닌 문자로 escape해 bind해요. 제목 인덱스가 부분 검색을
-  해결한다고 주장하지 않아요. 채널명만으로 다른 채널을 합치지 않아요.
+- `q`는 trim 후 1~100자의 제목 부분 검색, `channelUrl`은 저장된 채널 출처 URL(최대 2048자)의 정확한 일치예요.
+  검색의 `%`·`_`·`\`는 wildcard가 아닌 문자로 escape해 bind해요. 대소문자 무시는 ASCII 영문만이고
+  `É`와 `é` 같은 문자는 구분해요. 제목 인덱스가 부분 검색을 해결한다고 주장하지 않아요.
+  채널명만으로 다른 채널을 합치지 않아요.
+- 결과가 없으면 조건과 상관없이 빈 목록이에요. 앱은 보낸 검색·필터가 있는지로 "결과 없음"과 "조건에 맞는 결과 없음"을 구분해요.
 - `origin`은 `direct|channel`, `deliveryStatus`는 `not_applicable|pending|sent|failed`예요.
   직접 요약은 항상 `not_applicable`이에요. 채널 결과는 발송 대상 스냅샷 중 하나라도
   `failed|ambiguous`면 `failed`, 그 외 `queued|sending`이 있으면 `pending`, 전부 `sent`면 `sent`예요.

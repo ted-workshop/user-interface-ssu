@@ -70,6 +70,39 @@ export type ReportRow = {
 // 상세 조회에서만 읽는 보고서 본문이에요.
 export type ReportDetailRow = ReportRow & { bodyMarkdown: string };
 
+// 공개 상태와 현재 사용자가 공개 권한을 가졌는지예요.
+export type PublicationRow = {
+  saved: number;
+  publishedAt: number | null;
+  isPublisher: number;
+};
+
+// 공개 리포트 목록의 항목이에요. 공개한 사람의 정보는 담지 않아요.
+export type PublicReportRow = {
+  id: string;
+  videoId: string;
+  title: string;
+  channelName: string;
+  channelUrl: string | null;
+  model: string;
+  timestampVerification: string;
+  createdAt: number;
+  publishedAt: number;
+  commentCount: number;
+};
+
+// 공개 리포트 상세에서만 읽는 본문이에요.
+export type PublicReportDetailRow = PublicReportRow & { bodyMarkdown: string };
+
+// 화면에 보이는 댓글이에요. 작성자는 닉네임만 담아요.
+export type CommentRow = {
+  id: string;
+  body: string;
+  nickname: string;
+  createdAt: number;
+  canDelete: number;
+};
+
 // 메일 확인·비밀번호 재설정에 쓸 수 있는 토큰이에요.
 export type AccountTokenRow = { id: string; userId: string };
 

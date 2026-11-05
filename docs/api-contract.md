@@ -40,7 +40,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | --- | --- | --- |
 | 400 | `INVALID_INPUT`, `INVALID_TOKEN` | 입력 또는 확인 메일을 확인해요. |
 | 401 | `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS` | 로그인으로 이동하거나 입력을 고쳐요. |
-| 403 | `EMAIL_VERIFICATION_REQUIRED` | 비밀번호가 맞는 계정에만 이메일 확인을 안내해요. |
+| 403 | `EMAIL_VERIFICATION_REQUIRED`, `PUBLICATION_FORBIDDEN` | 비밀번호가 맞는 계정에만 이메일 확인을 안내해요. |
 | 404 | `NOT_FOUND` | 다른 계정 정보나 존재 여부를 표시하지 않아요. |
 | 409 | `CHANNEL_EXISTS`, `RECIPIENT_EXISTS`, `RETRY_NOT_ALLOWED`, `COLLECTION_EXISTS` | 기존 자원·현재 상태를 다시 읽어요. |
 | 413 | `PAYLOAD_TOO_LARGE` | 입력을 줄여요. |
@@ -302,9 +302,20 @@ HTTP는 키·모델 설정이 준비되지 않으면 새 분석을 접수하지 
 - 댓글 조회·작성은 로그인과 댓글을 허용한 공개 규칙이 필요해요. 개인 read 권한만으로 비공개 댓글을
   읽거나 쓰지 못해요. 본인 댓글만 삭제하며 댓글 수정·답글·좋아요는 제외해요.
 - A의 보관 관계 제거가 공통 보고서·B의 권한·댓글을 삭제하지 않아요. 공개 철회는 댓글 접근을 차단해요.
-- 공통 보고서는 시스템 생성물이므로 최초 요청자에게 전역 공개 변경 권한을 주지 않아요.
-  공개 관리 주체와 철회 시 댓글 보존/삭제 정책은 #23의 미확정 gate예요. 공개 변경 API는 아직 확정하지 않아요.
-  권한 FK·로컬 댓글 검사는 실제 로그인·공개·댓글 HTTP 구현을 증명하지 않아요.
+- 공개는 리포트 단위예요. `PUT /v1/reports/{id}/publication`은 보관함에 있는 리포트를 공개하고, 이미 공개돼 있으면
+  다음 순번으로 등록해요. 응답은 `{"published":true,"publishedAt":"…","isPublisher":false}`이고 공개한 사람의 ID·닉네임은 넣지 않아요.
+- `DELETE /v1/reports/{id}/publication`은 현재 공개한 사람만 할 수 있고 순번과 상관없이 공개 전체를 닫아요.
+  다른 사용자는 `403 PUBLICATION_FORBIDDEN`, 보관함에 없으면 `404`, 이미 닫혀 있으면 `204`예요. 철회한 공개의 댓글은 다시 공개하면 보여요.
+- 공개한 사람이 보관 관계를 지우면 가장 먼저 등록한 순번이 이어받고 공개 시각은 유지돼요. 순번이 없으면 공개가 사라지고,
+  다시 공개하면 이전 댓글 없이 새 공개 시각으로 시작해요. 댓글 삭제는 표시만 하고 DB에 남겨요. 경계는 [ADR-0031](decisions/0031-report-publication.md)이에요.
+- `GET /v1/reports/{id}/publication`은 보관한 사용자에게 같은 공개 상태를 돌려줘요. 보관함에 없으면 `404`예요.
+- `GET /v1/public-reports`는 공개 규칙이 있는 리포트를 공개 시각 최신순으로 돌려줘요. `q`는 보관함과 같은 규칙으로
+  제목 또는 채널명을 부분 검색하고, 공통 `limit`·`cursor`를 따르며 cursor의 `createdAt` 자리에 공개 시각을 담아요.
+  항목은 보고서 공통 필드와 `publishedAt`, `commentCount`이고 `viewerContext`·공개한 사람 정보는 없어요.
+  `GET /v1/public-reports/{id}`는 같은 항목에 `bodyMarkdown`을 더하고, 공개되지 않은 ID는 `404`예요.
+- 댓글 조회·작성·삭제는 공개 규칙이 없으면 `404`예요. 빈 댓글·2,000자 초과는 `400 INVALID_INPUT`과 `fields.body`예요.
+  댓글 목록은 작성 시각 최신순이고, 삭제 표시·보관 표시가 있는 댓글은 목록과 `commentCount`에서 빠져요.
+  다른 사람의 댓글이나 이미 지운 댓글 삭제는 `404`예요.
 
 ## 모음: #24
 

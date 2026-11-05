@@ -11,6 +11,7 @@ import {
   markDeliveryDispatched,
 } from "../src/jobs/delivery";
 import { runBackgroundJobs } from "../src/jobs/runner";
+import { hashPassword } from "../src/password";
 
 const now = 1_800_000_000;
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -80,6 +81,11 @@ const request = (path = "", secret: string | null = token) =>
   );
 
 // 공급자만 fixture로 바꾸고 접수·실행·저장은 실제 작업 흐름을 그대로 사용해요.
+// 영상별 제목·채널을 바꿔 검색과 필터를 검사해요.
+let metadataByVideo: Record<
+  string,
+  { title?: string; channel?: string; channelUrl?: string | null }
+> = {};
 const runJobs = (at: number) =>
   runBackgroundJobs(settings, {
     now: () => at,
@@ -90,6 +96,7 @@ const runJobs = (at: number) =>
       channel: "검사 채널",
       channelUrl: "https://www.youtube.com/@fixture",
       metadataSource: "https://www.youtube.com/oembed",
+      ...metadataByVideo[new URL(url).searchParams.get("v") ?? ""],
     }),
     generate: async () => ({
       markdown: "검사 보고서 본문",
@@ -202,6 +209,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  metadataByVideo = {};
   vi.spyOn(Date, "now").mockReturnValue(now * 1000);
   for (const table of [
     "delivery_attempts",
@@ -478,13 +486,191 @@ test.each([
   "?cursor=not-a-cursor",
   `?cursor=${btoa('{"createdAt":1}')}`,
   "?unknown=1",
-  // 검색·필터는 후속 PR에서 연결해요. 조용히 무시하면 전체 목록을 결과로 착각해요.
-  "?q=검색",
-  "?origin=direct",
+  "?q=",
+  "?q=%20%20",
+  `?q=${"가".repeat(101)}`,
+  "?q=a&q=b",
+  "?channelUrl=",
+  `?channelUrl=${"a".repeat(2049)}`,
+  "?origin=unknown",
+  "?deliveryStatus=cancelled",
 ])("잘못된 목록 입력 %s은 400이에요", async (query) => {
   const response = await request(query);
   expect(response.status).toBe(400);
   expect(await response.json()).toEqual({ error: { code: "INVALID_INPUT" } });
+});
+
+test("검색어 100자와 채널 URL 2048자는 받아들여요", async () => {
+  expect((await request(`?q=${"가".repeat(100)}`)).status).toBe(200);
+  expect((await request(`?channelUrl=${"a".repeat(2048)}`)).status).toBe(200);
+});
+
+async function saveTitled() {
+  metadataByVideo = {
+    [videoIds[0]]: {
+      title: "Gemini 100% 활용법",
+      channelUrl: "https://www.youtube.com/@one",
+    },
+    [videoIds[1]]: {
+      title: "under_score 정리",
+      channelUrl: "https://www.youtube.com/@two",
+    },
+    [videoIds[2]]: { title: "백슬래시 a\\b 설명", channelUrl: null },
+  };
+  await saveReport(owner, videoIds[0], now);
+  await saveReport(owner, videoIds[1], now + 10);
+  await saveReport(owner, videoIds[2], now + 20);
+}
+
+const found = async (query: string) =>
+  (await list(query)).items.map((item) => item.videoId);
+
+// SQLite LIKE는 ASCII 영문만 대소문자를 무시해요. É와 é 같은 문자는 구분해요.
+test("제목 부분 검색은 영문 대소문자를 가리지 않고 앞뒤 공백을 무시해요", async () => {
+  await saveTitled();
+  expect(await found("?q=gemini")).toEqual([videoIds[0]]);
+  expect(await found("?q=GEMINI")).toEqual([videoIds[0]]);
+  expect(await found("?q=%20%ED%99%9C%EC%9A%A9%20")).toEqual([videoIds[0]]);
+  expect(await found("?q=없는제목")).toEqual([]);
+});
+
+test("검색어의 %·_·역슬래시는 wildcard가 아닌 문자예요", async () => {
+  await saveTitled();
+  expect(await found("?q=100%25")).toEqual([videoIds[0]]);
+  expect(await found("?q=%25")).toEqual([videoIds[0]]);
+  expect(await found("?q=_")).toEqual([videoIds[1]]);
+  expect(await found("?q=a%5Cb")).toEqual([videoIds[2]]);
+});
+
+test("채널은 저장된 URL과 정확히 같을 때만 찾아요", async () => {
+  await saveTitled();
+  const one = encodeURIComponent("https://www.youtube.com/@one");
+  expect(await found(`?channelUrl=${one}`)).toEqual([videoIds[0]]);
+  const prefix = encodeURIComponent("https://www.youtube.com/@");
+  expect(await found(`?channelUrl=${prefix}`)).toEqual([]);
+});
+
+test("생성 경로로 직접 요약과 채널 자동을 나눠요", async () => {
+  await channelReport(1, 0);
+  await saveReport(owner, videoIds[1], now + 10);
+  expect(await found("?origin=direct")).toEqual([videoIds[1]]);
+  expect(await found("?origin=channel")).toEqual([videoIds[0]]);
+});
+
+test("발송 상태 필터는 응답의 상태 계산과 같아요", async () => {
+  // 다음 실행기가 대기 발송을 처리하지 않도록 직접 요약을 먼저 저장해요.
+  await saveReport(owner, videoIds[1], now);
+  await channelReport(1);
+  expect(await found("?deliveryStatus=pending")).toEqual([videoIds[0]]);
+  expect(await found("?deliveryStatus=not_applicable")).toEqual([videoIds[1]]);
+  await send("sent");
+  expect(await found("?deliveryStatus=sent")).toEqual([videoIds[0]]);
+  expect(await found("?deliveryStatus=pending")).toEqual([]);
+});
+
+test("발송이 실패하면 failed 필터로 찾아요", async () => {
+  await saveReport(owner, videoIds[1], now);
+  await channelReport(1);
+  await send("failed");
+  expect(await found("?deliveryStatus=failed")).toEqual([videoIds[0]]);
+  expect(await found("?deliveryStatus=pending")).toEqual([]);
+});
+
+test("여러 조건은 모두 만족해야 하고 페이지 사이에 누락과 중복이 없어요", async () => {
+  await saveTitled();
+  expect(await found("?q=gemini&origin=channel")).toEqual([]);
+  expect(await found("?q=gemini&origin=direct")).toEqual([videoIds[0]]);
+  const first = await list("?origin=direct&limit=2");
+  expect(first.items.map((item) => item.videoId)).toEqual([
+    videoIds[2],
+    videoIds[1],
+  ]);
+  const second = await list(
+    `?origin=direct&limit=2&cursor=${first.nextCursor}`,
+  );
+  expect(second.items.map((item) => item.videoId)).toEqual([videoIds[0]]);
+  expect(second.nextCursor).toBeNull();
+});
+
+test("검색은 내 보관함 안에서만 찾고 결과가 없어도 빈 목록이에요", async () => {
+  await saveTitled();
+  const response = await request("?q=gemini", otherToken);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ items: [], nextCursor: null });
+});
+
+test("검색과 필터는 새 작업이나 보관 관계를 만들지 않아요", async () => {
+  await saveTitled();
+  const counts = () =>
+    sql(
+      `SELECT (SELECT count(*) FROM analysis_jobs) AS jobs,
+      (SELECT count(*) FROM summary_requests) AS requests,
+      (SELECT count(*) FROM report_permissions) AS permissions`,
+    ).first();
+  const before = await counts();
+  await list("?q=gemini&origin=direct&deliveryStatus=not_applicable");
+  expect(await counts()).toEqual(before);
+});
+
+test("실제 로그인으로 받은 세션으로 다시 로그인해도 저장한 리포트를 읽어요", async () => {
+  const email = "relogin@example.com";
+  const password = "relogin password";
+  const userId = "44444444-4444-4444-8444-444444444444";
+  await sql(
+    "INSERT INTO users (id,email,nickname,password_hash,email_verified_at) VALUES (?,?,'독자',?,?)",
+    userId,
+    email,
+    await hashPassword(password),
+    now - 1,
+  ).run();
+  const login = async () => {
+    const response = await app.request(
+      "/v1/auth/sessions",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "cf-connecting-ip": "203.0.113.10",
+        },
+        body: JSON.stringify({ email, password }),
+      },
+      settings,
+    );
+    expect(response.status).toBe(201);
+    return (await response.json<{ sessionToken: string }>()).sessionToken;
+  };
+  metadataByVideo = { [videoIds[0]]: { title: "다시 읽을 리포트" } };
+  await saveReport(userId, videoIds[0], now);
+
+  const first = await login();
+  const [saved] = (await list("", first)).items;
+  expect(saved?.title).toBe("다시 읽을 리포트");
+  const out = await app.request(
+    "/v1/auth/session",
+    { method: "DELETE", headers: { authorization: `Bearer ${first}` } },
+    settings,
+  );
+  expect(out.status).toBe(204);
+  expect((await request("", first)).status).toBe(401);
+
+  const second = await login();
+  expect((await list("", second)).items.map((item) => item.id)).toEqual([
+    saved?.id,
+  ]);
+  const detail = await request(`/${saved?.id}`, second);
+  expect(detail.status).toBe(200);
+  expect((await detail.json<Report>()).bodyMarkdown).toBe("검사 보고서 본문");
+});
+
+test("채널을 삭제해도 그 채널에서 만든 리포트는 보관함에 남아요", async () => {
+  await channelReport(1);
+  const [before] = (await list()).items;
+  await sql(
+    "UPDATE channel_subscriptions SET status = 'deleted' WHERE id = 'sub'",
+  ).run();
+  const after = await list("?origin=channel");
+  expect(after.items.map((item) => item.id)).toEqual([before?.id]);
+  expect((await request(`/${before?.id}`)).status).toBe(200);
 });
 
 test("잘못된 상세 입력은 400이에요", async () => {

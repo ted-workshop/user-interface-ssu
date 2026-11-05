@@ -133,7 +133,7 @@ PRAGMA foreign_key_check;
 ```
 
 실제 구현은 prepare().bind()를 사용해요. 제목 부분 검색·채널·생성 경로 필터는 후보와 JOIN을
-읽을 수 있어요. 일반 제목 인덱스가 `%검색어%`를 해결한다고 하지 않고 #12 실측 뒤 FTS를 비교해요.
+읽을 수 있어요. 일반 제목 인덱스가 `%검색어%`를 해결한다고 하지 않아요. #12 측정 결과와 FTS를 추가하지 않은 이유는 [ADR-0026](decisions/0026-report-read-http.md)에 있어요.
 소유자 조건이 없는 글로벌 보고서 스캔으로 개인 보관함을 구현하지 않아요.
 
 binding 결과의 meta.rows_read·rows_written·size_after·duration을 기록해요. 읽은 행은 반환 건수와

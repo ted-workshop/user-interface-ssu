@@ -8,7 +8,9 @@ import {
   type TokenPurpose,
 } from "./auth-mail";
 import {
+  FieldError,
   InvalidInput,
+  invalidInputResponse,
   jsonBodyLimit,
   jsonInput,
   rejectQuery,
@@ -67,11 +69,6 @@ const FIELD_GUIDE: Record<string, string> = {
   token: "확인 코드를 확인해 주세요.",
 };
 
-class FieldError extends Error {
-  constructor(readonly fields: Record<string, string>) {
-    super("INVALID_INPUT");
-  }
-}
 class RateLimited extends Error {
   constructor(readonly retryAfter: number) {
     super("RATE_LIMITED");
@@ -365,18 +362,7 @@ accounts.post("/auth/password-resets/confirm", async (c) => {
 });
 
 accounts.onError((error, c) => {
-  if (error instanceof FieldError)
-    return c.json(
-      {
-        error: {
-          code: "INVALID_INPUT",
-          ...(Object.keys(error.fields).length ? { fields: error.fields } : {}),
-        },
-      },
-      400,
-    );
-  if (error instanceof InvalidInput)
-    return c.json({ error: { code: "INVALID_INPUT" } }, 400);
+  if (error instanceof InvalidInput) return invalidInputResponse(c, error);
   if (error instanceof InvalidToken)
     return c.json({ error: { code: "INVALID_TOKEN" } }, 400);
   if (error instanceof RateLimited) {

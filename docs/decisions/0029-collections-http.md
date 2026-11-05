@@ -46,14 +46,16 @@
 
 ## 검증과 재검토 조건
 
-2026-11-05 Windows 11 로컬, 기준 커밋 `65604d0` 위의 미커밋 변경으로 확인했어요.
-
 - `apps/api/test/collections.test.ts` 13개는 인증, 생성·이름 변경·삭제 후 재조회, 목록 정렬·페이지, 빈 이름·길이·NFC·대소문자·중복,
   여러 모음 담기·중복 담기·빼기, 담은 시각 정렬과 항목 형식, 모음 삭제 후 보관함 보존, 보관 해제 후 모음에서 제외,
   A/B 격리, DB trigger, 잘못된 입력, 새 작업·보관 관계를 만들지 않는 읽기를 다뤄요.
-- workerd 테스트 325개, Biome, 타입 검사, Worker dry-run 빌드를 통과했어요.
+- 2026-11-05 Windows 11 로컬에서 main `65604d0` 기준 첫 구현을 workerd 325개, Biome, 타입 검사, Worker dry-run 빌드로 확인했어요.
+  같은 날 WSL Ubuntu에서 커밋 `202135b`를 `mise run api:check`로 검사해 workerd 325개, `tools` 16개, `scripts` 50개가 통과했어요.
+- main `8a533eb`(#45)을 합친 뒤 Windows 11 로컬에서 workerd 343개, Biome, 타입 검사, Worker dry-run 빌드를 통과했어요.
+- 원격 CI는 PR에서 확인해요.
 - 모음이 커져 조회량이 문제가 되거나 화면이 다른 정렬·필드를 요구하면 정렬과 인덱스를 다시 검토해요.
 
 ## 반론과 변경 이력
 
 - 2026-11-05: #24 첫 구현으로 작성했어요.
+- 2026-11-05: #45 리뷰 의견을 이 PR에도 적용했어요. keyset 조건과 `containsReport` 조각을 bind 값과 함께 묶고, 필드 입력 오류 응답을 `http-input.ts`로 모아 계정 경로와 같이 써요.

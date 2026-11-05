@@ -6,6 +6,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 접수·목록·상세·재시도 경로를 구현했어요. [ADR-0024](decisions/0024-direct-summary-http.md)에 구현 경계를 남겨요.
 `GET /v1/reports`의 검색·필터·페이지와 `GET /v1/reports/{id}`도 구현했고 경계는 [ADR-0026](decisions/0026-report-read-http.md)에 남겨요.
 계정·인증 경로도 구현했고 경계는 [ADR-0028](decisions/0028-auth-http.md)에 남겨요. Android 연결은 후속 작업이에요.
+리포트 모음 경로도 구현했고 경계는 [ADR-0029](decisions/0029-collections-http.md)에 남겨요.
 로컬 세션·공급자 fixture 검증을 실제 로그인·Gemini 생성 성공으로 보지 않아요.
 
 ## 공통 규칙

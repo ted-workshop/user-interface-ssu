@@ -421,6 +421,7 @@ test("다른 사용자의 모음은 읽거나 바꿀 수 없고 남의 리포트
   // 내 모음이어도 내 보관함에 없는 리포트는 없는 ID와 같아요.
   expect((await add(study.id, theirs)).status).toBe(404);
   expect((await add(study.id, missingId)).status).toBe(404);
+  expect((await add(missingId, mine)).status).toBe(404);
   expect((await reportsIn(study.id)).items.map((item) => item.id)).toEqual([
     mine,
   ]);

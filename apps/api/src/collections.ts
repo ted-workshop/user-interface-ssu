@@ -3,9 +3,12 @@ import { z } from "zod";
 import { type AuthenticatedEnv, requireSession } from "./auth";
 import {
   encodeCursor,
+  FieldError,
   InvalidInput,
+  invalidInputResponse,
   jsonBodyLimit,
   jsonInput,
+  keysetAfter,
   pageQuery,
   parseCursor,
   parseIdParam,
@@ -32,12 +35,6 @@ const listQuery = z.strictObject({
   ...pageQuery,
   reportId: z.uuid().optional(),
 });
-
-class FieldError extends Error {
-  constructor(readonly fields: Record<string, string>) {
-    super("INVALID_INPUT");
-  }
-}
 
 async function nameInput(c: Context) {
   rejectQuery(c);
@@ -103,23 +100,24 @@ collections.use("*", requireSession, jsonBodyLimit);
 
 collections.get("/", async (c) => {
   const { limit, cursor, reportId } = parseQuery(c, listQuery);
-  const position = parseCursor(cursor);
+  // SQL 조각과 bind 값을 함께 두어 순서·개수가 어긋나지 않게 해요.
+  const contains = reportId
+    ? {
+        sql: `EXISTS (SELECT 1 FROM collection_items i JOIN report_permissions p ON p.id = i.permission_id
+      WHERE i.collection_id = c.id AND p.report_id = ?)`,
+        values: [reportId],
+      }
+    : { sql: "NULL", values: [] };
+  const after = keysetAfter("c.created_at, c.id", parseCursor(cursor));
   const rows = await statement(
     c.env.DB,
-    `SELECT ${collectionColumns},
-    ${
-      reportId
-        ? `EXISTS (SELECT 1 FROM collection_items i JOIN report_permissions p ON p.id = i.permission_id
-      WHERE i.collection_id = c.id AND p.report_id = ?)`
-        : "NULL"
-    } AS containsReport
+    `SELECT ${collectionColumns}, ${contains.sql} AS containsReport
     FROM collections c
-    WHERE c.user_id = ?
-    ${position ? "AND (c.created_at, c.id) < (?, ?)" : ""}
+    WHERE c.user_id = ? ${after.sql}
     ORDER BY c.created_at DESC, c.id DESC LIMIT ?`,
-    ...(reportId ? [reportId] : []),
+    ...contains.values,
     c.get("userId"),
-    ...(position ? [position.createdAt, position.id] : []),
+    ...after.values,
     limit + 1,
   ).all<CollectionRow>();
   const page = rows.results.slice(0, limit);
@@ -197,7 +195,7 @@ collections.delete("/:id", async (c) => {
 collections.get("/:id/reports", async (c) => {
   const id = parseIdParam(c);
   const { limit, cursor } = parseQuery(c, z.strictObject(pageQuery));
-  const position = parseCursor(cursor);
+  const after = keysetAfter("i.created_at, r.id", parseCursor(cursor));
   const userId = c.get("userId");
   const owned = await statement(
     c.env.DB,
@@ -216,12 +214,11 @@ collections.get("/:id/reports", async (c) => {
       JOIN analysis_jobs j ON j.id = r.analysis_job_id
       -- 보관 권한 행은 항상 본인 요청에서 만들어지므로 요청 행이 함께 있다고 가정해요.
       JOIN summary_requests q ON q.user_id = p.user_id AND q.analysis_job_id = r.analysis_job_id
-      WHERE c.id = ? AND c.user_id = ?
-      ${position ? "AND (i.created_at, r.id) < (?, ?)" : ""}
+      WHERE c.id = ? AND c.user_id = ? ${after.sql}
       ORDER BY i.created_at DESC, r.id DESC LIMIT ?`,
     id,
     userId,
-    ...(position ? [position.createdAt, position.id] : []),
+    ...after.values,
     limit + 1,
   ).all<CollectionReportRow>();
   const results = rows.results;
@@ -288,17 +285,6 @@ collections.delete("/:id/reports/:reportId", async (c) => {
 });
 
 collections.onError((error, c) => {
-  if (error instanceof FieldError)
-    return c.json(
-      {
-        error: {
-          code: "INVALID_INPUT",
-          ...(Object.keys(error.fields).length ? { fields: error.fields } : {}),
-        },
-      },
-      400,
-    );
-  if (error instanceof InvalidInput)
-    return c.json({ error: { code: "INVALID_INPUT" } }, 400);
+  if (error instanceof InvalidInput) return invalidInputResponse(c, error);
   return c.json({ error: { code: "INTERNAL_ERROR" } }, 500);
 });

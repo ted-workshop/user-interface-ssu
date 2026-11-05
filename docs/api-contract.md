@@ -157,8 +157,9 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 - `channelUrl`은 oEmbed `author_url`이 HTTPS YouTube 채널 주소일 때 그대로 저장하고,
   없거나 형식·출처를 확인할 수 없으면 `null`이에요. 채널명을 URL로 추측해 바꾸지 않아요.
 - `q`는 trim 후 1~100자의 제목 부분 검색, `channelUrl`은 저장된 채널 출처 URL(최대 2048자)의 정확한 일치예요.
-  검색의 `%`·`_`는 wildcard가 아닌 문자로 escape해 bind해요. 제목 인덱스가 부분 검색을
-  해결한다고 주장하지 않아요. 채널명만으로 다른 채널을 합치지 않아요.
+  검색의 `%`·`_`·`\`는 wildcard가 아닌 문자로 escape해 bind해요. 대소문자 무시는 ASCII 영문만이고
+  `É`와 `é` 같은 문자는 구분해요. 제목 인덱스가 부분 검색을 해결한다고 주장하지 않아요.
+  채널명만으로 다른 채널을 합치지 않아요.
 - 결과가 없으면 조건과 상관없이 빈 목록이에요. 앱은 보낸 검색·필터가 있는지로 "결과 없음"과 "조건에 맞는 결과 없음"을 구분해요.
 - `origin`은 `direct|channel`, `deliveryStatus`는 `not_applicable|pending|sent|failed`예요.
   직접 요약은 항상 `not_applicable`이에요. 채널 결과는 발송 대상 스냅샷 중 하나라도

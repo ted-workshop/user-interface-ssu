@@ -14,15 +14,18 @@ import { statement } from "./jobs/shared";
 import type { ReportDetailRow, ReportRow } from "./rows";
 
 // 취소된 발송은 상태 계산에서 빼요. 대상이 없으면 합계가 NULL이어도 ELSE로 떨어져 deliveryStatus는 NULL이 되지 않아요.
-const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
-  r.channel_url AS channelUrl, r.model, r.timestamp_verification AS timestampVerification,
-  r.created_at AS createdAt, q.id AS requestId, q.origin, p.created_at AS savedAt,
-  (SELECT CASE
+// 응답 값과 발송 상태 필터가 같은 식을 쓰도록 상수로 둬요.
+const deliveryStatusSql = `(SELECT CASE
     WHEN sum(d.status IN ('failed', 'ambiguous')) > 0 THEN 'failed'
     WHEN sum(d.status IN ('queued', 'sending')) > 0 THEN 'pending'
     WHEN sum(d.status = 'sent') > 0 THEN 'sent'
     ELSE 'not_applicable' END
-  FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id) AS deliveryStatus`;
+  FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id)`;
+
+const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
+  r.channel_url AS channelUrl, r.model, r.timestamp_verification AS timestampVerification,
+  r.created_at AS createdAt, q.id AS requestId, q.origin, p.created_at AS savedAt,
+  ${deliveryStatusSql} AS deliveryStatus`;
 
 const MAX_SEARCH_LENGTH = 100;
 const MAX_CHANNEL_URL_LENGTH = 2048;
@@ -82,29 +85,25 @@ reports.get("/", async (c) => {
     listQuery,
   );
   const position = parseCursor(cursor);
+  // 조건 SQL과 bind 값을 한 번에 넣어 순서·개수가 어긋나지 않게 해요.
   const conditions: string[] = [];
   const values: (string | number)[] = [];
-  if (q !== undefined) {
-    conditions.push("r.title LIKE ? ESCAPE '\\'");
-    values.push(likePattern(q));
-  }
-  if (channelUrl !== undefined) {
-    conditions.push("r.channel_url = ?");
-    values.push(channelUrl);
-  }
-  if (origin !== undefined) {
-    conditions.push("q.origin = ?");
-    values.push(origin);
-  }
-  if (deliveryStatus !== undefined) {
-    // SQLite는 WHERE에서 SELECT 별칭을 읽을 수 있어 계산식을 반복하지 않아요.
-    conditions.push("deliveryStatus = ?");
-    values.push(deliveryStatus);
-  }
-  if (position) {
-    conditions.push("(p.created_at, p.report_id) < (?, ?)");
-    values.push(position.createdAt, position.id);
-  }
+  const addCondition = (sql: string, ...bound: (string | number)[]) => {
+    conditions.push(sql);
+    values.push(...bound);
+  };
+  if (q !== undefined)
+    addCondition("r.title LIKE ? ESCAPE '\\'", likePattern(q));
+  if (channelUrl !== undefined) addCondition("r.channel_url = ?", channelUrl);
+  if (origin !== undefined) addCondition("q.origin = ?", origin);
+  if (deliveryStatus !== undefined)
+    addCondition(`${deliveryStatusSql} = ?`, deliveryStatus);
+  if (position)
+    addCondition(
+      "(p.created_at, p.report_id) < (?, ?)",
+      position.createdAt,
+      position.id,
+    );
   const rows = await statement(
     c.env.DB,
     `SELECT ${reportColumns}

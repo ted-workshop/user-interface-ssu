@@ -491,12 +491,18 @@ test.each([
   `?q=${"가".repeat(101)}`,
   "?q=a&q=b",
   "?channelUrl=",
+  `?channelUrl=${"a".repeat(2049)}`,
   "?origin=unknown",
   "?deliveryStatus=cancelled",
 ])("잘못된 목록 입력 %s은 400이에요", async (query) => {
   const response = await request(query);
   expect(response.status).toBe(400);
   expect(await response.json()).toEqual({ error: { code: "INVALID_INPUT" } });
+});
+
+test("검색어 100자와 채널 URL 2048자는 받아들여요", async () => {
+  expect((await request(`?q=${"가".repeat(100)}`)).status).toBe(200);
+  expect((await request(`?channelUrl=${"a".repeat(2048)}`)).status).toBe(200);
 });
 
 async function saveTitled() {
@@ -519,9 +525,11 @@ async function saveTitled() {
 const found = async (query: string) =>
   (await list(query)).items.map((item) => item.videoId);
 
-test("제목 부분 검색은 대소문자를 가리지 않고 앞뒤 공백을 무시해요", async () => {
+// SQLite LIKE는 ASCII 영문만 대소문자를 무시해요. É와 é 같은 문자는 구분해요.
+test("제목 부분 검색은 영문 대소문자를 가리지 않고 앞뒤 공백을 무시해요", async () => {
   await saveTitled();
   expect(await found("?q=gemini")).toEqual([videoIds[0]]);
+  expect(await found("?q=GEMINI")).toEqual([videoIds[0]]);
   expect(await found("?q=%20%ED%99%9C%EC%9A%A9%20")).toEqual([videoIds[0]]);
   expect(await found("?q=없는제목")).toEqual([]);
 });
@@ -557,6 +565,14 @@ test("발송 상태 필터는 응답의 상태 계산과 같아요", async () =>
   expect(await found("?deliveryStatus=not_applicable")).toEqual([videoIds[1]]);
   await send("sent");
   expect(await found("?deliveryStatus=sent")).toEqual([videoIds[0]]);
+  expect(await found("?deliveryStatus=pending")).toEqual([]);
+});
+
+test("발송이 실패하면 failed 필터로 찾아요", async () => {
+  await saveReport(owner, videoIds[1], now);
+  await channelReport(1);
+  await send("failed");
+  expect(await found("?deliveryStatus=failed")).toEqual([videoIds[0]]);
   expect(await found("?deliveryStatus=pending")).toEqual([]);
 });
 

@@ -165,12 +165,17 @@ collections.patch("/:id", async (c) => {
   const value = await nameInput(c);
   const userId = c.get("userId");
   // 같은 이름의 다른 모음이 있으면 바꾸지 않고, 남은 행으로 404와 409를 구분해요.
+  // OR IGNORE는 다른 제약 위반까지 숨기므로 중복만 조건으로 걸러요.
   const updated = await statement(
     c.env.DB,
-    "UPDATE OR IGNORE collections SET name = ? WHERE id = ? AND user_id = ?",
+    `UPDATE collections SET name = ? WHERE id = ? AND user_id = ?
+    AND NOT EXISTS (SELECT 1 FROM collections WHERE user_id = ? AND name = ? AND id != ?)`,
     value,
     id,
     userId,
+    userId,
+    value,
+    id,
   ).run();
   const row = await getCollection(c.env.DB, userId, id);
   if (!row) return notFound(c);

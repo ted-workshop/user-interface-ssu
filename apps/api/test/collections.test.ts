@@ -457,6 +457,8 @@ test("잘못된 ID·query·본문은 400이에요", async () => {
     ["GET", "/collections?reportId=not-a-uuid", undefined],
     ["GET", "/collections?unknown=1", undefined],
     ["GET", "/collections/not-a-uuid/reports", undefined],
+    ["GET", `/collections/${study.id}/reports?limit=0`, undefined],
+    ["GET", `/collections/${study.id}/reports?unknown=1`, undefined],
     ["PATCH", "/collections/not-a-uuid", { name: "이름" }],
     ["DELETE", `/collections/${study.id}?force=1`, undefined],
     ["PUT", `/collections/${study.id}/reports/not-a-uuid`, undefined],

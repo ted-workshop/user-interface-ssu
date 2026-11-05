@@ -310,8 +310,8 @@ reports.get("/:id/comments", async (c) => {
   const after = keysetAfter("cm.created_at, cm.id", parseCursor(cursor));
   const open = await statement(
     c.env.DB,
-    `SELECT ? AS id WHERE ${publicRule}`,
-    id,
+    `SELECT id FROM report_permissions
+    WHERE report_id = ? AND audience = 'authenticated' AND can_comment = 1`,
     id,
   ).first<IdRow>();
   if (!open) return c.json({ error: { code: "NOT_FOUND" } }, 404);

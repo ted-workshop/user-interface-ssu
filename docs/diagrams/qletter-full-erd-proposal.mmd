@@ -171,6 +171,7 @@ erDiagram
         integer can_read "0 / 1, 본문 조회"
         integer can_comment "0 / 1, 댓글 조회·작성"
         integer created_at "개인 보관·규칙 생성 시각"
+        integer publish_requested_at "개인 규칙에서 공개를 누른 시각, 가장 이른 값이 공개한 사람"
     }
     collections {
         text id PK "모음 ID"
@@ -189,6 +190,8 @@ erDiagram
         text user_id FK "users.id, 댓글 작성자"
         text body "댓글 본문"
         integer created_at "작성 시각"
+        integer deleted_at "작성자 삭제 표시"
+        integer archived_at "순번 없이 공개가 사라질 때 보관 표시"
     }
     recipients {
         text id PK "수신 주소 ID"

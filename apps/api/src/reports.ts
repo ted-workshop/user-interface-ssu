@@ -22,7 +22,7 @@ const deliveryStatusSql = `(SELECT CASE
     ELSE 'not_applicable' END
   FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id)`;
 
-const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
+export const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
   r.channel_url AS channelUrl, r.model, r.timestamp_verification AS timestampVerification,
   r.created_at AS createdAt, q.id AS requestId, q.origin, p.created_at AS savedAt,
   ${deliveryStatusSql} AS deliveryStatus`;
@@ -51,9 +51,10 @@ const listQuery = z.strictObject({
 const likePattern = (value: string) =>
   `%${value.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
 
-const toIso = (seconds: number) => new Date(seconds * 1000).toISOString();
+export const toIso = (seconds: number) =>
+  new Date(seconds * 1000).toISOString();
 
-function resource(row: ReportRow) {
+export function resource(row: ReportRow) {
   return {
     id: row.id,
     videoId: row.videoId,

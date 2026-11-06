@@ -1,4 +1,4 @@
-%% 공통 보고서 모델 · 전체 18개 테이블 · 확정 설계 · DB와 제품 HTTP 검증은 구분해요
+%% 공통 보고서 모델 · 전체 22개 테이블 · 확정 설계 · DB와 제품 HTTP 검증은 구분해요
 erDiagram
     users ||..o{ sessions : "세션"
     users ||--o| user_settings : "개인 설정"
@@ -23,6 +23,9 @@ erDiagram
     users |o..o{ report_permissions : "개인 규칙에만 사용자 연결"
     reports ||..o{ report_permissions : "보관·공개 규칙"
     reports ||..o{ comments : "하나의 댓글 목록"
+    users ||..o{ collections : "개인 모음"
+    collections ||--o{ collection_items : "담긴 리포트"
+    report_permissions ||--o{ collection_items : "본인 보관 관계만 담아요"
     users ||..o{ comments : "댓글 작성자"
     users ||..o{ deliveries : "개인 발송"
     summary_requests ||..o{ deliveries : "원래 개인 자동 요청"
@@ -168,6 +171,17 @@ erDiagram
         integer can_read "0 / 1, 본문 조회"
         integer can_comment "0 / 1, 댓글 조회·작성"
         integer created_at "개인 보관·규칙 생성 시각"
+    }
+    collections {
+        text id PK "모음 ID"
+        text user_id FK "users.id"
+        text name "NFC·trim 1~30자, 사용자별 unique"
+        integer created_at "생성 시각"
+    }
+    collection_items {
+        text collection_id PK, FK "collections.id, 모음 삭제 시 함께 삭제"
+        text permission_id PK, FK "report_permissions.id, 보관 해제 시 함께 삭제"
+        integer created_at "담은 시각"
     }
     comments {
         text id PK "댓글 ID"

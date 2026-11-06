@@ -12,6 +12,26 @@ export const jsonBodyLimit = bodyLimit({
 
 export class InvalidInput extends Error {}
 
+// 입력 오류에 필드별 안내를 붙여요. 안내가 없으면 일반 INVALID_INPUT과 같아요.
+export class FieldError extends InvalidInput {
+  constructor(readonly fields: Record<string, string>) {
+    super("INVALID_INPUT");
+  }
+}
+
+export function invalidInputResponse(c: Context, error: InvalidInput) {
+  const fields = error instanceof FieldError ? error.fields : {};
+  return c.json(
+    {
+      error: {
+        code: "INVALID_INPUT",
+        ...(Object.keys(fields).length ? { fields } : {}),
+      },
+    },
+    400,
+  );
+}
+
 // 9999-12-31T23:59:59Z의 Unix 초예요. toISOString으로 변환할 수 있는 네 자리 연도의 끝이에요.
 const maxCursorCreatedAt = 253402300799;
 
@@ -40,6 +60,19 @@ export function parseCursor(encoded: string | undefined) {
   } catch {
     throw new InvalidInput();
   }
+}
+
+// keyset 조건 SQL과 bind 값을 함께 돌려줘 순서·개수가 어긋나지 않게 해요.
+export function keysetAfter(
+  columns: string,
+  position: { createdAt: number; id: string } | undefined,
+): { sql: string; values: (string | number)[] } {
+  return position
+    ? {
+        sql: `AND (${columns}) < (?, ?)`,
+        values: [position.createdAt, position.id],
+      }
+    : { sql: "", values: [] };
 }
 
 export function encodeCursor(cursor: { createdAt: number; id: string } | null) {

@@ -3,6 +3,7 @@
 - 상태: 확정
 - 작성·확정일: 2026-10-27
 - 확정 근거: API 키와 모델을 GitHub 환경에서 관리하라는 사용자 요청과 승인 범위 안의 배포 연결 판단이에요.
+- 일부 대체: 2026-11-03, [ADR-0029](0029-gemini-3-8-flash.md). 시작 모델 값을 `gemini-3.8-flash`로 바꿔요.
 - 관련 기록: [ADR-0014](0014-gemini-video-verification.md), [ADR-0012](0012-gmail-smtp-email-foundation.md), [ADR-0009](0009-manual-deployment-ownership.md)
 - 구현·검증 상태: 수동 배포 전달·누락 차단·생성 환경 타입과 회귀 검사를 구현하고 전체 로컬 검사를 통과했어요.
   2026-10-27 GitHub `production`에 Secret·Variable을 등록하고 Secret 이름·갱신 시각과 모델 값을 다시 조회했어요.

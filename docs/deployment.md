@@ -63,7 +63,7 @@ mise exec -- terraform -chdir=infra/state state list
 | Variable | `TF_STATE_BUCKET` | 위에서 만든 R2 버킷 이름 |
 | Variable | `CLOUDFLARE_D1_DATABASE_ID` | 최초 인프라 적용 후 output의 `database_id` |
 | Variable | `QLETTER_API_URL` | 경로·query가 없는 HTTPS API origin |
-| Variable | `GEMINI_MODEL` | 사용할 Gemini 모델 이름, 현재 `gemini-3.6-flash` |
+| Variable | `GEMINI_MODEL` | 사용할 Gemini 모델 이름, 현재 `gemini-3.8-flash`(ADR-0029, 배포 전에 GitHub 값을 바꿔요) |
 | Secret | `CLOUDFLARE_API_TOKEN` | Worker·D1 관리용 Cloudflare API token |
 | Secret | `SMTP_USER` | 발신 Gmail 계정 주소 |
 | Secret | `SMTP_APP_PASSWORD` | 해당 Gmail 계정의 Google 앱 비밀번호 |

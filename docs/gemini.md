@@ -7,7 +7,7 @@
 
 ## 현재 설정
 
-검증 모델은 `gemini-3.6-flash`, 기본 시간 제한은 600초예요.
+운영·검증 모델은 `gemini-3.8-flash`(ADR-0029), 기본 시간 제한은 600초예요. 2026-11-03 이전 기록은 `gemini-3.6-flash`예요.
 로컬 검증 키는 Git에서 제외한 `credentials.json`에 `0600` 권한으로 보관해요.
 
 운영 원본은 GitHub `production` Environment에서 관리해요. API 키는 `GEMINI_API_KEY` Secret,
@@ -25,6 +25,61 @@ GitHub 설정을 바꾼 뒤의 실제 Worker 반영은 별도 수동 배포가 �
 아래 `generateContent` 성공은 다른 생성 조건에서 확인한 과거 실측이에요.
 당시 AI Studio에서 확인한 사용량이 로컬 키와 같은 프로젝트·모델인지 미확인이어서 일일 한도 소진으로 단정하지 않았어요.
 아래 교체 키의 403은 이전 실측 기록이에요.
+
+## 2026-11-03 재검증과 3.8 Flash 시험
+
+로컬 `credentials.json`의 키와 같은 Interactions·Agentic·600초 기한·SDK 기본 재시도로 다시 실행했어요.
+이 파일은 2026-10-30 이후 수정하지 않았어요. 같은 날 GitHub `production`의 `GEMINI_API_KEY`가 새로 등록됐지만
+이 실행들은 그 값을 쓰지 않았어요. 새 키가 로컬 파일과 같은지는 확인하지 못했어요.
+모델 조회(`models/<이름>`)는 키 인증과 모델 존재만 확인하며 생성 가능 여부의 증거가 아니에요.
+
+| 기록 ID | 모델 | UTC 시작 시간 | 전체 시간 | 결과 |
+| --- | --- | --- | --- | --- |
+| `video-2lv5x-1103a` | `gemini-3.6-flash` | 2026-11-03 02:07:13.884 | 34,466ms | HTTP 503, `temporary` |
+| `zoo-flash36-1103a` | `gemini-3.6-flash` | 2026-11-03 02:25:59.381 | 34,110ms | HTTP 503, `temporary` |
+| `zoo-flash38-1103a` | `gemini-3.8-flash` | 2026-11-03 02:26:43.193 | 600,187ms | 응답 없이 `timeout` |
+
+- `gemini-3.6-flash`·`gemini-3.7-flash`·`gemini-3.8-flash`의 모델 조회는 모두 HTTP 200이었고
+  `generateContent`를 지원한다고 표시됐어요. 기록 파일의 경과 시간이 34초 안팎이므로 앞선 재검증처럼
+  SDK 기본 재시도 5회가 모두 503이었을 가능성이 크지만, 이번 두 실행은 전송 관찰을 켜지 않아 요청 수를 확인하지 못했어요.
+### 새 키 재검증과 텍스트 대조
+
+같은 날 GitHub에 새로 등록한 키(로컬 `credentials.json`에 넣어 모델 조회 3.6·3.8 모두 HTTP 200 확인)로 같은 짧은 영상을
+Interactions·Agentic으로 요청하고, 영상 없는 텍스트 요청과 비교했어요. 새 키가 GitHub Secret과 같은 값인지는 확인하지 못했어요.
+
+| 기록 ID 또는 요청 | 모델 | 소요 | 결과 |
+| --- | --- | --- | --- |
+| `zoo-flash38-newkey-1103a` | `gemini-3.8-flash` | 47,168ms | 영상·Agentic, HTTP 503 |
+| `zoo-flash36-newkey-1103a` | `gemini-3.6-flash` | 37,854ms | 영상·Agentic, HTTP 503 |
+| `zoo-flashlite-newkey-1103a` | `gemini-3.5-flash-lite` | 36,114ms | 영상·Agentic, HTTP 500 |
+| 텍스트 한 줄 `generateContent` | `gemini-3.6-flash` | 3.1초 | HTTP 200 |
+| 텍스트 한 줄 `generateContent` | `gemini-3.5-flash-lite` | 1.6초 | HTTP 200 |
+| 텍스트 한 줄 `generateContent` | `gemini-3.8-flash` | 첫 시도 즉시 | HTTP 503 "high demand" |
+| 텍스트 한 줄 `generateContent` | `gemini-3.8-flash` | 1,310초 | 응답 없이 연결 종료(curl 코드 000) |
+
+- 영상·Agentic 요청은 세 모델 모두 실패했고 영상 없는 텍스트 요청은 3.6·3.5 flash-lite에서 성공했어요.
+  그래서 키·계정 문제보다 Interactions의 Agentic 영상 경로 쪽이 의심돼요. 다만 원인은 확인하지 못했어요.
+- 3.8은 텍스트 요청도 503과 21분 무응답이어서 이번 관찰에서는 가장 불안정했어요. 한 번씩의 관찰이에요.
+- 텍스트 요청은 한 번씩만 보냈고, 3.8의 두 텍스트 요청 사이에 몇 분의 간격이 있었어요. 전송 관찰(재시도 횟수)은 켜지 않았어요.
+
+### 동작하던 구현과의 대조
+
+`ted-workshop/summary-youtube-video`(gram-lab에서 운영하는 구현, 비공개)의 `generateReport` 요청은 이 저장소와 같아요.
+`interactions.create`·`type:"video"`·`processing:"agentic"`·`store:false`·같은 프롬프트이고 SDK는 2.20.0, 런타임은 Node 24예요.
+이 저장소의 SDK 2.31.0·Bun 1.4.4와 다른 점은 SDK 버전·런타임·키(프로젝트)뿐이에요.
+그 구현의 코드를 그대로, 이 저장소의 새 키와 같은 짧은 영상으로 실행했더니 `gemini-3.6-flash`가 38,569ms 뒤 HTTP 503이었어요.
+그래서 이번 실패는 이 저장소의 요청 코드·SDK 버전·런타임 때문이 아니에요. 키가 속한 프로젝트·요금제나 공급자 쪽 용량일 가능성이
+남지만 확인하지 못했어요. gram-lab 쪽이 지금도 성공하는지, 어떤 키·요금제를 쓰는지는 아직 확인하지 못했어요.
+
+- 시험 당시 3.8 Flash는 `agenticVideoModels` 허용 목록에 없어서 한 줄을 임시로 추가했다가 되돌렸어요.
+  사용자는 3.8이 Agentic을 지원하지 않는다고 판단해 3.6 고정을 정했다가, 2026-11-03 확인한
+  [영상 이해 문서](https://aistudio.google.com/docs/video-understanding)가 Agentic 지원 모델에 3.8 Flash를
+  포함하는 것을 보고("Gemini 4 Argon, 3.8 Flash, 3.6 Flash, 3.5 Flash Lite") 3.8로 가기로 바꿨어요.
+  이 변경은 [ADR-0029](decisions/0029-gemini-3-8-flash.md)에 있고 허용 목록과 개발용 기본 모델에 3.8을 추가했어요.
+  첫 시험의 600초 시간 초과는 원인을 알지 못한 채 남아 있어요.
+- 3.8의 600초 시간 초과는 3.6의 빠른 503과 다른 실패 방식이에요. 한 번의 실행이라 모델 특성이라고 단정하지 않아요.
+- 3.6과 3.8의 요금이 같다는 말은 사용자가 전달했어요. 공식 요금표로 확인하지 않았어요.
+- 생성 성공·원본 대조가 없으므로 #5는 미완료예요. 기록은 `.artifacts/gemini/`에 `0600`으로 보관해요.
 
 ## 2026-10-31 main 반영과 재검증
 
@@ -240,7 +295,7 @@ mkdir -p apps/api/.artifacts/gemini
 ```json
 {
   "apiKey": "개인 Gemini API 키",
-  "model": "gemini-3.6-flash",
+  "model": "gemini-3.8-flash",
   "timeoutMs": 600000
 }
 ```
@@ -250,7 +305,7 @@ chmod 600 apps/api/.artifacts/gemini/credentials.json
 mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=jNQXAC9IVRw' zoo-next
 ```
 
-모델은 명시한 값으로 고정하고 `gemini-3.5-flash-lite`·`gemini-3.6-flash`·`gemini-3.7-flash`만 받아요.
+모델은 명시한 값으로 고정하고 `gemini-3.5-flash-lite`·`gemini-3.6-flash`·`gemini-3.7-flash`·`gemini-3.8-flash`만 받아요.
 기본 시간 제한은 600초이며 허용 범위는 1~600초예요.
 Interactions의 Agentic 영상 처리를 사용하며 출력 상한·temperature·thinking·재시도 옵션은 명시하지 않아요.
 SDK 기본 재시도를 사용하므로 한 번의 명령에서 여러 HTTP 요청이 발생할 수 있어요.

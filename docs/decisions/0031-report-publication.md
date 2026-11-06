@@ -43,7 +43,8 @@
 - 2026-11-05 Windows 11 로컬에서 `apps/api/test/publication.test.ts` 13개를 포함한 workerd 356개, Biome, 타입 검사, dry-run 빌드를 통과했어요.
   공개·철회, 순번과 403, 승계와 공개 시각 유지, 순번 없는 소멸 후 초기화, 직접 철회 후 댓글 복구, 보관함 밖 404, DB trigger,
   공개 목록 정렬·페이지·검색·비공개 제외, 댓글 작성·조회·페이지·댓글 수, 본인 댓글만 삭제, 철회 중 댓글 차단, 입력 오류를 다뤄요.
-- WSL `api:check`와 원격 CI는 아직 확인하지 않았어요.
+- 같은 날 WSL Ubuntu에서 같은 코드를 `mise run api:check`로 검사해 workerd 356개, `tools` 16개, `scripts` 50개가 통과했어요.
+  main `d299fbd`(#47) 위로 옮긴 뒤 Windows 11 로컬에서 workerd 356개와 Biome을 다시 통과했어요. 원격 CI는 PR에서 확인해요.
 
 ## 반론과 변경 이력
 

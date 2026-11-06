@@ -4,7 +4,7 @@
 [전체 ERD](diagrams/qletter-full-erd-proposal.mmd)를 구현하는 저장 기반이에요.
 `0001`·`0002`의 이력을 보존하고 `0003_shared_reports.sql`이 공통 보고서 모델로 전환해요.
 `0004_job_leases.sql`은 실행권·호출 의도 열을, `0005_summary_admissions.sql`은 직접 요약의 접수 차감 기록을 추가해요.
-`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을, `0007_collections.sql`은 리포트 모음을 추가해요. 제품 테이블은 22개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
+`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을, `0007_collections.sql`은 리포트 모음을, `0008_report_publication.sql`은 공개 순번과 댓글 숨김 표시를 추가해요. 제품 테이블은 22개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
 실제 로그인·공급자 생성·원격 적용은 별도예요.
 
 ## 공통 데이터와 개인 관계
@@ -36,7 +36,8 @@ oEmbed에서 확인한 채널 URL은 reports.channel_url에 저장해요. 채널
   댓글 수정은 거부하고 본인 삭제 권한은 API의 세션 사용자 조건으로 검사해야 해요.
 - 본인의 개인 규칙 제거는 공통 보고서·타인 권한·댓글을 지우지 않고 본인의 대기 발송만 취소해요.
   공개 규칙 제거는 댓글 접근을 차단해요. 현재 저장 기반은 댓글 행을 자동 삭제하지 않아요.
-  공개 관리 주체·철회 후 댓글 보존/삭제 API 정책은 #23에서 확정해야 해요.
+  개인 규칙의 `publish_requested_at`이 공개 순번이고, 순번 없이 공개가 사라지면 trigger가 댓글에 `archived_at`을 남겨요.
+  댓글 삭제는 `deleted_at` 표시예요. 경계는 [ADR-0031](decisions/0031-report-publication.md)이에요.
 
 ## 모음
 

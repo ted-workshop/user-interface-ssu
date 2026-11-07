@@ -176,7 +176,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | `metadata_unavailable` | 제목·채널 출처 조회 실패. 접근 제한의 정확한 원인을 단정하지 않아요. |
 | `configuration` | 서버 자격증명·모델 등의 준비 문제. 운영 확인 전 retryable=false예요. |
 | `quota` | 공급자 제한 응답. 일일 소진으로 단정하지 않고 운영 확인 전 retryable=false예요. |
-| `temporary` | 명시적인 일시 거부. 미실행이 확인되고 총 3회 이내일 때만 retryable=true예요. |
+| `temporary` | 명시적인 일시 거부(한 번만 보낸 Gemini 503 포함). 미실행이 확인되고 총 3회 이내일 때만 retryable=true예요. |
 | `provider_rejected`, `invalid_response` | 입력 거부 또는 결과 검증 실패. 자동 재분석하지 않아요. |
 | `provider_outcome_unknown` | 분석 timeout·연결 종료·알 수 없는 공급자 실패로 실행 여부가 불명확해요. retryable=false예요. |
 | `invalid_input`, `permanent` | 메일 입력·영구 거부. 주소·정책을 확인하고 자동 재발송하지 않아요. |
@@ -259,7 +259,7 @@ Interactions·Agentic·동일 프롬프트의 10월 27일 요청은 HTTP 429였�
 지난 28일 최대값이며 현재 잔여량이 아니에요. 자세한 관찰 범위는 [검증 기록](gemini.md)에 있어요.
 요금제는 10월 30일 사용자가 직접 확인한 무료 플랜이에요.
 이 한도는 프로젝트의 모든 키가 공유하므로 Qletter 전용 또는 사용자별 허용량으로 쓰지 않아요.
-SDK 재시도를 포함한 실제 요청 수와 같은 프로젝트의 다른 사용을 함께 고려해야 해요.
+SDK 자동 재시도는 끄며 요약 1건은 Gemini 호출 1회예요. 같은 프로젝트의 다른 사용은 함께 고려해야 해요.
 
 다음은 아직 미확정이며 #5 결과 없이는 수치를 만들어 채우지 않아요.
 

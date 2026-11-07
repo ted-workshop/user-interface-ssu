@@ -103,7 +103,8 @@ export async function generateReport(
             ],
             store: false,
           },
-          { signal },
+          // SDK 자동 재시도는 무료 한도를 한 번에 최대 5회 쓰고, 503 뒤 미실행을 확인할 수 없게 해요.
+          { signal, retries: { strategy: "none" } },
         ),
       settings.timeoutMs,
     );

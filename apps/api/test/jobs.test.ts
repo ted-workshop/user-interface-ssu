@@ -664,6 +664,47 @@ describe("D1 영속 분석 실행", () => {
     },
   );
 
+  test("Gemini 503은 사용자가 다시 시도할 수 있고 다시 시도하면 새로 생성해요", async () => {
+    io.generate = vi
+      .fn()
+      .mockRejectedValueOnce(new SummaryError("temporary", 503))
+      .mockResolvedValue(result);
+    const request = await enqueue();
+    await run();
+    now += 3_600;
+    await run();
+    expect(io.generate).toHaveBeenCalledTimes(1);
+    expect(await readRequest(request.id)).toMatchObject({
+      status: "failed",
+      failureCode: "temporary",
+      retryable: true,
+      attempt: 1,
+    });
+    await retryAnalysis(env.DB, "a", request.id, 1, now);
+    await run();
+    expect(io.generate).toHaveBeenCalledTimes(2);
+    expect(await readRequest(request.id)).toMatchObject({
+      status: "completed",
+      attempt: 2,
+    });
+  });
+
+  test.each([500, 502, 504])(
+    "Gemini %i는 처리됐을 수 있어 결과 불명으로 남기고 재시도를 막아요",
+    async (status) => {
+      io.generate = vi.fn(async () => {
+        throw new SummaryError("temporary", status);
+      });
+      const request = await enqueue();
+      await run();
+      expect(await readRequest(request.id)).toMatchObject({
+        status: "failed",
+        failureCode: "provider_outcome_unknown",
+        retryable: false,
+      });
+    },
+  );
+
   test("명시적인 재시도 가능 실패도 사용자 요청 전에는 다시 호출하지 않아요", async () => {
     const request = await enqueue();
     const claim = requiredClaim(await claimAnalysis(env.DB, now));

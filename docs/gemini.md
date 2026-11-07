@@ -253,7 +253,7 @@ mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=jNQ
 모델은 명시한 값으로 고정하고 `gemini-3.5-flash-lite`·`gemini-3.6-flash`·`gemini-3.7-flash`만 받아요.
 기본 시간 제한은 600초이며 허용 범위는 1~600초예요.
 Interactions의 Agentic 영상 처리를 사용하며 출력 상한·temperature·thinking·재시도 옵션은 명시하지 않아요.
-SDK 기본 재시도를 사용하므로 한 번의 명령에서 여러 HTTP 요청이 발생할 수 있어요.
+2026-11-07부터 SDK 자동 재시도를 끄고 한 번만 호출해요([ADR-0032](decisions/0032-gemini-single-call.md)). 이전 기록의 재시도 횟수는 당시 설정 기준이에요.
 다른 모델·API 경로로 자동 전환하지 않아요.
 시점이 붙은 입력도 영상 전체를 처리해요.
 

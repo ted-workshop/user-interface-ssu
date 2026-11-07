@@ -39,6 +39,7 @@ const credentials = {
   SMTP_APP_PASSWORD: "fixture-smtp-password",
   GEMINI_API_KEY: "fixture-gemini-key",
   AUTH_TOKEN_KEY: "fixture-auth-token-key",
+  YOUTUBE_API_KEY: "fixture-youtube-key",
 };
 const model = "gemini-3.5-flash-lite";
 const directories: string[] = [];
@@ -86,6 +87,7 @@ if (operation === "deploy" && !call.dryRun && process.env.QLETTER_TEST_DEPLOY_FA
     "secrets.SMTP_APP_PASSWORD": credentials.SMTP_APP_PASSWORD,
     "secrets.GEMINI_API_KEY": credentials.GEMINI_API_KEY,
     "secrets.AUTH_TOKEN_KEY": credentials.AUTH_TOKEN_KEY,
+    "secrets.YOUTUBE_API_KEY": credentials.YOUTUBE_API_KEY,
     "secrets.CLOUDFLARE_API_TOKEN": "fixture-cloudflare-token",
     "vars.GEMINI_MODEL": model,
     "vars.CLOUDFLARE_ACCOUNT_ID": "a".repeat(32),
@@ -163,6 +165,7 @@ test.each([
   "SMTP_APP_PASSWORD",
   "GEMINI_API_KEY",
   "AUTH_TOKEN_KEY",
+  "YOUTUBE_API_KEY",
   "GEMINI_MODEL",
 ])(
   "필수 설정 %s가 없으면 D1 변경 전에 실패하고 임시 파일을 정리해요",

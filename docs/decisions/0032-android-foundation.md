@@ -2,7 +2,7 @@
 
 - 상태 · 확정. 2026-11-07 [#28](https://github.com/ted-workshop/user-interface-ssu/issues/28)의 공통 기반 범위에서 결정했어요.
 - 관련 기록 · [API 계약](../api-contract.md), [인증 서버의 ADR-0028](0028-auth-http.md), [화면 연결 방법](../development.md#android-화면에서-공통-기반-사용).
-- 구현·검증 · 로컬 구현, Spotless, 별도 JVM 테스트까지 확인했어요. 아래에 Android SDK·기기 검증 범위를 적어요.
+- 구현·검증 · 구현 커밋 `97c42d2`에서 WSL Android 검사와 앱·테스트 APK 빌드를 확인했어요. 실제 기기 검증은 남아 있어요.
 
 ## 문제와 현재 상태
 
@@ -26,7 +26,9 @@ release 주소는 ADR-0028에 기록된 HTTPS Worker예요. debug는 기존 에�
 
 2026-11-07 JDK 25에서 저장소 버전의 OkHttp·MockWebServer·JUnit과 실제 변경 소스로 JVM 테스트 10개를 별도 실행했어요. 현재·이전 세션의 401, 이전 계정 요청, 리디렉션, 서버 오류, 토큰 전달, 만료 시각 처리가 통과했어요. Gradle Spotless와 XML 리소스의 정적 대조도 확인했어요.
 
-이 환경에서는 Android SDK 37.0과 Build Tools 36.0.0의 라이선스 동의 기록이 없어 전체 Android 검사에 필요한 SDK 설치가 중단됐어요. 전체 lint·APK 빌드와 실제 기기 실행·스크린샷, 서버 계정 로그인은 미검증이에요. 정상 설치된 환경에서 Android 검사와 기기 테스트를 실행해요. 계정 전환 뒤 이전 화면이 복원되거나 기존 세션이 새 요청에 쓰인다면 세션·탐색 경계를 다시 검토해요.
+2026-11-07 작성자의 Ubuntu(WSL)에서 `97c42d2`로 `mise run android:check`(Spotless·lintDebug·testDebugUnitTest·assembleDebug)를 통과했어요. 이어서 `:app:assembleRelease :app:assembleDebugAndroidTest`도 성공했어요. 마지막 빌드 출력은 32초, Gradle 작업 94개 중 73개 실행·21개 최신 상태였어요.
+
+기기에서의 테스트 실행, 화면 캡처와 실제 계정 로그인은 남아 있어요. 탭 선택·화면 재생성 및 Keystore 저장·복원은 개발 가이드의 `connectedDebugAndroidTest`로 확인해요. 계정 전환 뒤 이전 화면이 복원되거나 기존 세션이 새 요청에 쓰인다면 세션·탐색 경계를 다시 검토해요.
 
 ## 반론과 변경 이력
 

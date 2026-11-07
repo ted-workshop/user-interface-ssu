@@ -74,7 +74,12 @@ curl http://127.0.0.1:3000/health
 Wrangler가 로컬 workerd에서 실행하며 Cloudflare 로그인은 필요하지 않아요. 인증 경로는 아래 `AUTH_TOKEN_KEY`가 있어야 동작해요.
 `X-Qletter-Revision` 헤더는 로컬에서 `local`, 배포 후에는 해당 커밋 SHA를 반환해요. health JSON은 그대로 유지해요.
 
-Android Studio에서 debug variant로 Run해요. 개발 연결 화면의 `연결 확인`을 눌러요. 에뮬레이터 기본 주소는 http://10.0.2.2:3000/예요. 이 화면은 제품 로그인·요약 기능과 별개인 개발 확인 도구예요.
+Android Studio에서 debug variant로 Run하면 홈 탭이 열려요. Android 7.1 이상에서 debug 앱 아이콘을 길게 눌러 **개발 서버 연결**을 선택하거나, 아래 명령으로 점검 화면을 열고 **연결 확인**을 눌러요.
+
+```sh
+adb shell am start -n kr.ac.ssu.qletter.debug/kr.ac.ssu.qletter.ConnectionActivity
+```
+ 에뮬레이터 기본 주소는 http://10.0.2.2:3000/예요. 이 화면은 제품 로그인·요약 기능과 별개인 개발 확인 도구예요.
 
 실제 기기에서는 USB debugging을 켜고 장치를 승인한 뒤 포트를 연결해요.
 
@@ -90,7 +95,16 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 2. 서버 종료 → 다시 확인 → 실패
 3. 서버 재시작 → 다시 시도 → 성공
 
-연결 화면·네트워크 권한·로컬 HTTP 예외는 debug에만 있어요. release는 가져온 XML 템플릿의 기본 화면을 표시하며, 아직 배포할 제품이 아니에요.
+네트워크 권한과 다섯 탭은 두 빌드에 공통이에요. 개발 연결 화면과 로컬 HTTP 예외는 debug에만 있어요. release는 [ADR-0028](decisions/0028-auth-http.md)에 기록한 HTTPS Worker 주소를 사용해요.
+
+### Android 화면에서 공통 기반 사용
+
+- **화면 연결.** `MainActivity.showTab`에서 선택한 메뉴 ID를 화면 Fragment로 연결해요. `TabFragment.create`에는 현재 다섯 탭의 제목이 있어요. #27은 채널·계정, #28은 홈·요약·리포트, #29는 리포트 안의 모음·둘러보기를 연결해요. Fragment의 작업은 화면 생명주기에 맞춰 취소해요.
+- **색상.** Figma `bg/default`는 `@color/q_bg_default`, `ink/on-ink`는 `@color/q_ink_on_ink`예요. 전체 값은 [색상 리소스](../apps/android/app/src/main/res/values/qletter_colors.xml)에 있어요. 앱을 다시 빌드하면 리소스 변경이 반영돼요.
+- **로그인 성공.** #27의 인증 화면에서 서버 응답을 받은 뒤 `app.sessions().signIn(session.token, session.expiresAt)`을 호출해요. `app`은 `(QletterApplication) requireActivity().getApplication()`이에요. 디스크·Keystore 접근은 작업 스레드에서 수행하고 저장 오류가 나면 화면에 재시도를 제공해요. 토큰을 화면 인자나 로그에 넣지 않아요.
+- **개인 API.** `app.api().endpoint("reports").addQueryParameter("limit", "20").build()`로 URL을 만들고 `app.api().newCall(new Request.Builder().url(url).build())`을 실행해요. `execute()`는 작업 스레드에서 사용하고 `Response`는 닫아요. 앱 진입 시 저장된 세션이 있으면 `GET /v1/me`로 확인해요.
+- **세션 변경.** `app.sessions().changes().observe(getViewLifecycleOwner(), ...)`에서 `isSignedIn()`을 읽어요. 새 로그인·만료·현재 세션의 401·로컬 로그아웃 시 이전 계정의 화면 데이터를 비워요. 명시적 로그아웃은 #27에서 `DELETE /v1/auth/session`을 처리한 뒤 `clear()`를 호출해요. 요청 실패 시 사용자에게 서버 폐기 결과를 알려야 해요.
+- **검증.** 기본 검사는 `mise run android:check`예요. 기기를 연결하고 `mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest`로 탭 복원과 Android Keystore 저장·복원을 확인해요. 로그인 화면 통합 뒤에는 로그인 → 앱 재시작 → 로그아웃을 실제 계정으로 확인해요.
 
 ## 로컬 D1과 환경 타입
 

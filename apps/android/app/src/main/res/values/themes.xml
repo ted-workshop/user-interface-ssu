@@ -1,9 +1,23 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- 앱의 기본 테마예요. -->
-    <style name="Base.Theme.Qletter" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- 라이트 모드 테마를 설정해요. -->
-        <!-- 색상 설정 예시: <item name="colorPrimary">@color/my_light_primary</item> -->
+<resources>
+    <style name="Theme.Qletter" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/q_ink_strong</item>
+        <item name="colorOnPrimary">@color/q_ink_on_ink</item>
+        <item name="colorSecondary">@color/q_ink_default</item>
+        <item name="colorSurface">@color/q_bg_default</item>
+        <item name="colorOnSurface">@color/q_ink_strong</item>
+        <item name="colorOnSurfaceVariant">@color/q_ink_subtle</item>
+        <item name="colorOutline">@color/q_line_strong</item>
+        <item name="colorOutlineVariant">@color/q_line_default</item>
+        <item name="colorError">@color/q_state_danger</item>
+        <item name="android:windowBackground">@color/q_bg_default</item>
+        <item name="android:textColorPrimary">@color/q_ink_strong</item>
+        <item name="android:textColorSecondary">@color/q_ink_subtle</item>
     </style>
-
-    <style name="Theme.Qletter" parent="Base.Theme.Qletter" />
+    <style name="QletterTabLabel" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">normal</item>
+    </style>
+    <style name="QletterTabLabel.Active">
+        <item name="android:textStyle">bold</item>
+    </style>
 </resources>

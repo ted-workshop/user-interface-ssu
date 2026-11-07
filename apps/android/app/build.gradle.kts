@@ -38,7 +38,14 @@ android {
             applicationIdSuffix = ".debug"
             buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         }
-        release { optimization { enable = false } }
+        release {
+            buildConfigField(
+                "String",
+                "API_BASE_URL",
+                "\"https://qletter-api.qletter.workers.dev/\"",
+            )
+            optimization { enable = false }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -69,8 +76,8 @@ dependencies {
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.ext.junit)
     debugImplementation(libs.lifecycle.viewmodel)
-    debugImplementation(libs.lifecycle.livedata)
-    debugImplementation(libs.okhttp)
+    implementation(libs.lifecycle.livedata)
+    implementation(libs.okhttp)
     debugImplementation(libs.moshi)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.arch.core.testing)

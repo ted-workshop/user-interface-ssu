@@ -4,7 +4,9 @@ import { type AuthenticatedEnv, requireSession, sha256Hex } from "./auth";
 import { AuthConfigError, issueRecipientTokenStatements } from "./auth-mail";
 import {
   encodeCursor,
+  FieldError,
   InvalidInput,
+  invalidInputResponse,
   jsonBodyLimit,
   jsonInput,
   pageQuery,
@@ -51,12 +53,7 @@ const recipientResource = (row: RecipientRow) => ({
   createdAt: iso(row.createdAt),
 });
 
-class FieldError extends InvalidInput {
-  constructor(readonly fields: Record<string, string>) {
-    super();
-  }
-}
-const guides: Record<string, string> = {
+const guides = {
   input:
     "@핸들 또는 https://www.youtube.com/channel/…, /@…, /user/… 주소를 입력해 주세요.",
   youtubeChannelId: "채널 확인에서 받은 YouTube 채널 ID를 입력해 주세요.",
@@ -70,15 +67,14 @@ async function body<T>(c: Context, schema: z.ZodType<T>) {
   const parsed = schema.safeParse(await jsonInput(c, z.unknown()));
   if (parsed.success) return parsed.data;
   const fields: Record<string, string> = {};
-  for (const issue of parsed.error.issues) {
-    const field = String(issue.path[0]);
-    if (guides[field]) fields[field] = guides[field];
+  for (const [field, guide] of Object.entries(guides)) {
+    if (parsed.error.issues.some((issue) => issue.path[0] === field))
+      fields[field] = guide;
   }
   throw new FieldError(fields);
 }
 
 export const channelSettings = new Hono<AuthenticatedEnv>();
-// 인증 미들웨어를 설정 경로에만 적용해 가입·공개 404 동작을 유지해요.
 for (const path of [
   "/channel-previews",
   "/channels",
@@ -100,6 +96,16 @@ channelSettings.post("/channel-previews", async (c) => {
 
 channelSettings.post("/channels", async (c) => {
   const input = await body(c, z.strictObject({ youtubeChannelId }));
+  const duplicate = await statement(
+    c.env.DB,
+    `SELECT s.id FROM channel_subscriptions s
+    JOIN channels c ON c.id = s.channel_id
+    WHERE s.user_id = ? AND c.youtube_channel_id = ? AND s.status != 'deleted'
+    LIMIT 1`,
+    c.get("userId"),
+    input.youtubeChannelId,
+  ).first<string>("id");
+  if (duplicate) return c.json({ error: { code: "CHANNEL_EXISTS" } }, 409);
   const found = await lookupChannel(c.env, {
     name: "id",
     value: input.youtubeChannelId,
@@ -328,7 +334,6 @@ channelSettings.post("/recipients/:id/verifications", async (c) => {
   const rows = await c.env.DB.batch(
     await issueRecipientTokenStatements(c.env, c.get("userId"), id, now),
   );
-  // 조회 뒤 삭제·확인된 주소에는 발송을 접수했다고 응답하지 않아요.
   if (rows[2]?.meta.changes !== 1)
     return c.json({ error: { code: "NOT_FOUND" } }, 404);
   return c.json({ status: "accepted" }, 202);
@@ -340,6 +345,22 @@ channelSettings.post("/recipient-verifications/confirm", async (c) => {
     z.strictObject({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }),
   );
   const now = unixNow();
+  const retryAfter = await consumeRateLimits(
+    c.env,
+    [
+      {
+        scope: "confirm-ip",
+        value: c.req.header("cf-connecting-ip") ?? "unknown",
+        limit: 5,
+        window: 60,
+      },
+    ],
+    now,
+  );
+  if (retryAfter) {
+    c.header("Retry-After", String(retryAfter));
+    return c.json({ error: { code: "RATE_LIMITED" } }, 429);
+  }
   const row = await statement(
     c.env.DB,
     `SELECT t.id, t.recipient_id AS recipientId FROM account_tokens t JOIN recipients r ON r.id = t.recipient_id AND r.user_id = t.user_id
@@ -382,7 +403,6 @@ channelSettings.delete("/recipients/:id", async (c) => {
   rejectQuery(c);
   const id = parseIdParam(c);
   const rows = await c.env.DB.batch([
-    // recipient_stop이 토큰을 지우기 전에 FK로 묶인 암호화 메일을 먼저 지워요.
     statement(
       c.env.DB,
       "DELETE FROM auth_mail_outbox WHERE token_id IN (SELECT id FROM account_tokens WHERE recipient_id = ? AND user_id = ?)",
@@ -403,22 +423,13 @@ channelSettings.delete("/recipients/:id", async (c) => {
 });
 
 channelSettings.onError((error, c) => {
-  if (error instanceof FieldError)
-    return c.json(
-      { error: { code: "INVALID_INPUT", fields: error.fields } },
-      400,
-    );
   if (error instanceof ChannelInputError) {
     const field = c.req.path.endsWith("channel-previews")
       ? "input"
       : "youtubeChannelId";
-    return c.json(
-      { error: { code: "INVALID_INPUT", fields: { [field]: guides[field] } } },
-      400,
-    );
+    return invalidInputResponse(c, new FieldError({ [field]: guides[field] }));
   }
-  if (error instanceof InvalidInput)
-    return c.json({ error: { code: "INVALID_INPUT" } }, 400);
+  if (error instanceof InvalidInput) return invalidInputResponse(c, error);
   if (error instanceof ChannelLookupError || error instanceof AuthConfigError)
     return c.json({ error: { code: "SERVICE_UNAVAILABLE" } }, 503);
   return c.json({ error: { code: "INTERNAL_ERROR" } }, 500);

@@ -212,6 +212,29 @@ test("재발급은 이전 코드만 폐기하고 60초 간격·시간당 세 번
   ).toBe(204);
 });
 
+test("수신 주소 확인은 계정 확인과 IP당 분당 다섯 번의 제한을 공유해요", async () => {
+  const path = "/recipient-verifications/confirm";
+  const missing = { token: "z".repeat(43) };
+  const account = await call("POST", "/auth/email-verifications/confirm", {
+    ...missing,
+    password: "fixture-password",
+  });
+  expect(await account.json()).toEqual({ error: { code: "INVALID_TOKEN" } });
+  for (let attempt = 0; attempt < 4; attempt++) {
+    expect(await (await call("POST", path, missing)).json()).toEqual({
+      error: { code: "INVALID_TOKEN" },
+    });
+  }
+  const limited = await call("POST", path, missing);
+  expect(limited.status).toBe(429);
+  expect(limited.headers.get("retry-after")).toBe("60");
+  expect(await limited.json()).toEqual({ error: { code: "RATE_LIMITED" } });
+  clock += 60;
+  expect(await (await call("POST", path, missing)).json()).toEqual({
+    error: { code: "INVALID_TOKEN" },
+  });
+});
+
 test("24시간 만료·다른 목적의 토큰은 수신 주소를 확인하지 못해요", async () => {
   const recipient = await addRecipient();
   await call("POST", `/recipients/${recipient.id}/verifications`);
@@ -348,8 +371,11 @@ test("모든 설정 경로는 인증을 요구하고 알 수 없는 입력을 �
     ["/channel-previews", { input: "@fixture", userId: other }],
     ["/channels", { youtubeChannelId: youtubeId, title: "가짜" }],
     ["/recipients", { email: "test@example.com", verifiedAt: now }],
-  ] as const)
-    expect((await call("POST", path, value)).status).toBe(400);
+  ] as const) {
+    const invalid = await call("POST", path, value);
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toEqual({ error: { code: "INVALID_INPUT" } });
+  }
   expect((await call("DELETE", "/channels/not-a-uuid")).status).toBe(400);
   expect((await call("DELETE", "/recipients/not-a-uuid")).status).toBe(400);
   expect((await call("GET", "/settings?userId=other")).status).toBe(400);
@@ -570,9 +596,11 @@ test("채널 확인·등록·중복 거부·중지·재개·삭제·새 등록�
   }>();
   expect(channel.baselineInitializedAt).toBeNull();
   expect(added.headers.get("location")).toBe(`/v1/channels/${channel.id}`);
+  vi.mocked(globalThis.fetch).mockClear();
   expect(
     (await call("POST", "/channels", { youtubeChannelId: youtubeId })).status,
   ).toBe(409);
+  expect(globalThis.fetch).not.toHaveBeenCalled();
   expect(
     (
       await call(

@@ -63,12 +63,15 @@ test.each([
   expect(fetch).not.toHaveBeenCalled();
 });
 
-test("실제 조회 결과가 비어 있으면 입력 오류예요", async () => {
-  vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json({ items: [] }));
-  await expect(
-    lookupChannel(env, parseChannelInput("@missing")),
-  ).rejects.toThrow(ChannelInputError);
-});
+test.each([{ items: [] }, {}])(
+  "조회 결과에서 채널이 없으면 입력 오류예요: %j",
+  async (body) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(Response.json(body));
+    await expect(
+      lookupChannel(env, parseChannelInput("@missing")),
+    ).rejects.toThrow(ChannelInputError);
+  },
+);
 
 test.each([403, 429, 500, 503])(
   "공급자 %s는 채널이 없다고 단정하지 않고 재시도 없이 실패해요",
@@ -84,7 +87,7 @@ test.each([403, 429, 500, 503])(
 );
 
 test.each([
-  {},
+  { items: null },
   { items: [{}] },
   { items: [{ id, snippet: { title: " " } }] },
   { items: [{ id: `UC${"b".repeat(22)}`, snippet: { title: "다른 채널" } }] },

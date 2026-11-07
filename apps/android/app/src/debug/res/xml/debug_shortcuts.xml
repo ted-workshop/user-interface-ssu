@@ -1,0 +1,7 @@
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="connection" android:shortcutShortLabel="@string/connection_title">
+        <intent android:action="android.intent.action.VIEW"
+            android:targetPackage="kr.ac.ssu.qletter.debug"
+            android:targetClass="kr.ac.ssu.qletter.ConnectionActivity" />
+    </shortcut>
+</shortcuts>

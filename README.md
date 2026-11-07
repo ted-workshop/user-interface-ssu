@@ -2,7 +2,7 @@
 
 YouTube 영상을 읽기 쉬운 한국어 리포트로 만드는 Android 팀프로젝트예요.
 
-현재는 **팀 개발 환경과 Android debug 앱 ↔ 로컬 API 연결**을 제공해요. 서버에는 회원가입·로그인·직접 요약·리포트 조회 API가 있고, Android 제품 화면은 다음 기능 단계예요. 제품 로그인은 이메일·비밀번호 방식이에요.
+현재는 **팀 개발 환경과 Android debug 앱 ↔ 로컬 API 연결**을 제공해요. 서버에는 회원가입·로그인·직접 요약·리포트 조회 API가 있고, Android는 공통 탭과 세션 보관을 제공하며 개별 제품 화면을 연결하는 단계예요. 제품 로그인은 이메일·비밀번호 방식이에요.
 
 서버에는 [직접 요약 접수·조회·재시도 API](docs/decisions/0024-direct-summary-http.md)와 영속 실행기를 연결했어요.
 로컬 D1과 공급자·메일 fixture로 검증하며, 배포 환경의 로그인·Gemini 성공·Android 제품 화면의 연결은 남아 있어요.
@@ -27,7 +27,7 @@ mise run setup
 mise run api:dev
 ```
 
-Android SDK를 준비하고 Android Studio에서 **apps/android**를 열어요. debug 앱의 연결 확인 버튼으로 로컬 API를 확인할 수 있어요. 자세한 JDK·SDK·에뮬레이터 설정은 [개발 가이드](docs/development.md)를 따라요.
+Android SDK를 준비하고 Android Studio에서 **apps/android**를 열어요. debug 앱의 개발 서버 연결 화면에서 로컬 API를 확인할 수 있어요. 자세한 JDK·SDK·에뮬레이터 설정은 [개발 가이드](docs/development.md)를 따라요.
 
 ```sh
 mise run api:check

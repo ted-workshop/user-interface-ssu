@@ -60,7 +60,8 @@ const channelList = z.object({
         snippet: z.object({ title: z.string().trim().min(1).max(1000) }),
       }),
     )
-    .max(1),
+    .max(1)
+    .default([]),
 });
 
 export async function lookupChannel(env: Env, filter: ChannelFilter) {

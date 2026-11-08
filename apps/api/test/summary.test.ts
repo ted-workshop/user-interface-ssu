@@ -472,7 +472,7 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     [404, "provider_rejected"],
     [403, "configuration"],
   ])(
-    "HTTP %i는 SDK 재시도 뒤에도 실패하면 %s로 기록해요",
+    "HTTP %i는 SDK가 다시 보내지 않고 %s로 기록해요",
     async (status, reason) => {
       network.mockResolvedValue(
         Response.json(
@@ -490,12 +490,12 @@ describe("공식 SDK의 영상 리포트 생성", () => {
       expect(error).toMatchObject({ reason, httpStatus: status });
       expect(String(error)).not.toContain("private");
       expect(JSON.stringify(error)).not.toContain(settings.apiKey);
-      expect(network.mock.calls.length).toBeGreaterThanOrEqual(1);
-      for (const call of network.mock.calls) {
-        expect(await new Request(...call).json()).toMatchObject({
-          model: settings.model,
-        });
-      }
+      expect(network).toHaveBeenCalledTimes(1);
+      const [call] = network.mock.calls;
+      if (!call) throw new Error("SDK 요청을 확인하지 못했어요.");
+      expect(await new Request(...call).json()).toMatchObject({
+        model: settings.model,
+      });
     },
   );
 
@@ -595,7 +595,7 @@ describe("리포트 생성 설정과 시간 링크", () => {
     },
   );
 
-  test("SDK의 기본 재시도로 일시 오류 뒤 같은 요청이 성공해요", async () => {
+  test("일시 오류 뒤 다음 응답이 성공이어도 SDK가 같은 요청을 다시 보내지 않아요", async () => {
     vi.useFakeTimers();
     network
       .mockResolvedValueOnce(
@@ -611,13 +611,10 @@ describe("리포트 생성 설정과 시간 링크", () => {
     ).catch((error: unknown) => error);
     await vi.runAllTimersAsync();
     expect(await pending).toMatchObject({
-      markdown: expect.stringContaining("## 본론"),
+      reason: "temporary",
+      httpStatus: 503,
     });
-    expect(network).toHaveBeenCalledTimes(2);
-    const requests = await Promise.all(
-      network.mock.calls.map((call) => new Request(...call).json()),
-    );
-    expect(requests[1]).toEqual(requests[0]);
+    expect(network).toHaveBeenCalledTimes(1);
   });
 
   test("완료된 본문은 제목 구조 대신 200자 기준으로 검사해요", async () => {

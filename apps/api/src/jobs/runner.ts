@@ -112,10 +112,14 @@ function generationFailure(error: unknown) {
     return { code: "provider_outcome_unknown", usage: null };
 
   switch (error.reason) {
+    case "temporary":
+      // 한 번만 호출하므로 503은 처리되지 않은 요청이에요. 사용자가 다시 시도할 수 있어요.
+      if (error.httpStatus === 503)
+        return { code: "temporary", usage: error.usage };
+      // 다른 5xx는 공급자가 처리하다 실패했을 수 있어 결과 불명으로 남겨요.
+      return { code: "provider_outcome_unknown", usage: error.usage };
     case "timeout":
     case "unknown":
-    case "temporary":
-      // SDK 재시도의 마지막 5xx만으로 앞선 호출이 모두 미실행이었다고 확인할 수 없어요.
       return { code: "provider_outcome_unknown", usage: error.usage };
     default:
       return { code: error.reason, usage: error.usage };

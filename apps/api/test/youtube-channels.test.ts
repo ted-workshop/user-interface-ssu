@@ -35,7 +35,7 @@ test.each([
   expect(new URL(String(url)).searchParams.get(filter)).toBe(value);
   expect(String(url)).not.toContain(env.YOUTUBE_API_KEY);
   expect(options?.headers).toEqual({ "x-goog-api-key": env.YOUTUBE_API_KEY });
-  expect(options?.redirect).toBe("error");
+  expect(new Request(String(url), options).redirect).toBe("manual");
   expect(options?.signal).toBeInstanceOf(AbortSignal);
 });
 
@@ -73,7 +73,7 @@ test.each([{ items: [] }, {}])(
   },
 );
 
-test.each([403, 429, 500, 503])(
+test.each([302, 403, 429, 500, 503])(
   "공급자 %s는 채널이 없다고 단정하지 않고 재시도 없이 실패해요",
   async (status) => {
     const fetch = vi

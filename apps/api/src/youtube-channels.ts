@@ -74,7 +74,7 @@ export async function lookupChannel(env: Env, filter: ChannelFilter) {
   try {
     const response = await fetch(url, {
       headers: { "x-goog-api-key": env.YOUTUBE_API_KEY },
-      redirect: "error",
+      redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) throw new ChannelLookupError();

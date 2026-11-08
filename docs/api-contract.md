@@ -312,7 +312,7 @@ HTTP는 키·모델 설정이 준비되지 않으면 새 분석을 접수하지 
 - `GET /v1/public-reports`는 공개 규칙이 있는 리포트를 공개 시각 최신순으로 돌려줘요. `q`는 보관함과 같은 규칙으로
   제목 또는 채널명을 부분 검색하고, 공통 `limit`·`cursor`를 따르며 cursor의 `createdAt` 자리에 공개 시각을 담아요.
   항목은 보고서 공통 필드와 `publishedAt`, `commentCount`이고 `viewerContext`·공개한 사람 정보는 없어요.
-  `GET /v1/public-reports/{id}`는 같은 항목에 `bodyMarkdown`을 더하고, 공개되지 않은 ID는 `404`예요.
+  공개 리포트 상세는 따로 두지 않고 `GET /v1/reports/{id}`로 읽어요. 보관하지 않은 사용자에게는 `viewerContext`가 `null`이에요.
 - 댓글 조회·작성·삭제는 공개 규칙이 없으면 `404`예요. 빈 댓글·2,000자 초과는 `400 INVALID_INPUT`과 `fields.body`예요.
   댓글 목록은 작성 시각 최신순이고, 삭제 표시·보관 표시가 있는 댓글은 목록과 `commentCount`에서 빠져요.
   다른 사람의 댓글이나 이미 지운 댓글 삭제는 `404`예요.

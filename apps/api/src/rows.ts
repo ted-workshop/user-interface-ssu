@@ -91,9 +91,6 @@ export type PublicReportRow = {
   commentCount: number;
 };
 
-// 공개 리포트 상세에서만 읽는 본문이에요.
-export type PublicReportDetailRow = PublicReportRow & { bodyMarkdown: string };
-
 // 화면에 보이는 댓글이에요. 작성자는 닉네임만 담아요.
 export type CommentRow = {
   id: string;

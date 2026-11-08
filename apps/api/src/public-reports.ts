@@ -8,13 +8,11 @@ import {
   keysetAfter,
   pageQuery,
   parseCursor,
-  parseIdParam,
   parseQuery,
-  rejectQuery,
 } from "./http-input";
 import { statement } from "./jobs/shared";
 import { likePattern, searchText, toIso } from "./reports";
-import type { PublicReportDetailRow, PublicReportRow } from "./rows";
+import type { PublicReportRow } from "./rows";
 
 // 삭제 표시나 보관 표시가 있는 댓글은 세지 않아요.
 const publicColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
@@ -80,21 +78,6 @@ publicReports.get("/", async (c) => {
         : null,
     ),
   });
-});
-
-publicReports.get("/:id", async (c) => {
-  rejectQuery(c);
-  const row = await statement(
-    c.env.DB,
-    `SELECT ${publicColumns}, r.body_markdown AS bodyMarkdown
-    FROM report_permissions pub
-    JOIN reports r ON r.id = pub.report_id
-    JOIN analysis_jobs j ON j.id = r.analysis_job_id
-    WHERE pub.audience = 'authenticated' AND pub.report_id = ?`,
-    parseIdParam(c),
-  ).first<PublicReportDetailRow>();
-  if (!row) return c.json({ error: { code: "NOT_FOUND" } }, 404);
-  return c.json({ ...resource(row), bodyMarkdown: row.bodyMarkdown });
 });
 
 publicReports.onError((error, c) =>

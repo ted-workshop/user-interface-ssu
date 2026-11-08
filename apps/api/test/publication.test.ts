@@ -306,7 +306,6 @@ type PublicReport = {
   title: string;
   publishedAt: string;
   commentCount: number;
-  bodyMarkdown?: string;
 };
 type CommentItem = {
   id: string;
@@ -350,20 +349,16 @@ test("공개 목록은 공개 시각 최신순이고 비공개 리포트는 나�
   expect(next.items.map((item) => item.id)).toEqual([second]);
   expect(next.nextCursor).toBeNull();
   expect(Object.keys(page.items[0] ?? {})).not.toContain("viewerContext");
-  const detail = await api(
-    "GET",
-    `/public-reports/${first}`,
-    undefined,
-    otherToken,
-  );
+  // 공개 리포트 상세는 보관함과 같은 리포트 상세 경로로 읽어요.
+  const detail = await api("GET", `/reports/${first}`, undefined, otherToken);
   expect(detail.status).toBe(200);
-  expect((await detail.json<PublicReport>()).bodyMarkdown).toBe(
-    "검사 보고서 본문",
-  );
+  expect(await detail.json()).toMatchObject({
+    bodyMarkdown: "검사 보고서 본문",
+    viewerContext: null,
+  });
   await revoke(first);
   expect(
-    (await api("GET", `/public-reports/${first}`, undefined, otherToken))
-      .status,
+    (await api("GET", `/reports/${first}`, undefined, otherToken)).status,
   ).toBe(404);
   expect((await publicList()).items.map((item) => item.id)).toEqual([second]);
 });

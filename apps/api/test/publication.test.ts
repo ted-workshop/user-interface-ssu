@@ -319,7 +319,7 @@ type CommentItem = {
 async function publicList(query = "", secret = otherToken) {
   const response = await api(
     "GET",
-    `/public-reports${query}`,
+    `/reports/public${query}`,
     undefined,
     secret,
   );
@@ -373,7 +373,7 @@ test("공개 목록은 제목이나 채널명으로 찾아요", async () => {
   expect((await publicList("?q=검사%20채널")).items).toHaveLength(1);
   expect((await publicList(`?q=${videoIds[1]}`)).items).toEqual([]);
   expect(
-    (await api("GET", "/public-reports?q=%20", undefined, otherToken)).status,
+    (await api("GET", "/reports/public?q=%20", undefined, otherToken)).status,
   ).toBe(400);
 });
 

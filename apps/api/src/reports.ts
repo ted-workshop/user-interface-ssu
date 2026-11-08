@@ -20,6 +20,7 @@ import type {
   CommentRow,
   IdRow,
   PublicationRow,
+  PublicReportRow,
   ReportDetailRow,
   ReportRow,
 } from "./rows";
@@ -42,7 +43,7 @@ const MAX_SEARCH_LENGTH = 100;
 const MAX_CHANNEL_URL_LENGTH = 2048;
 
 // 보관함과 공개 목록이 같은 검색어 규칙을 써요.
-export const searchText = z
+const searchText = z
   .string()
   .transform((value) => value.trim())
   .refine((value) => {
@@ -61,7 +62,7 @@ const listQuery = z.strictObject({
 });
 
 // LIKE의 wildcard를 일반 문자로 검색하도록 escape해요.
-export const likePattern = (value: string) =>
+const likePattern = (value: string) =>
   `%${value.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
 
 export const toIso = (seconds: number) =>
@@ -140,6 +141,73 @@ reports.get("/", async (c) => {
     nextCursor: encodeCursor(
       rows.results.length > limit && last?.savedAt != null
         ? { createdAt: last.savedAt, id: last.id }
+        : null,
+    ),
+  });
+});
+
+// 삭제 표시나 보관 표시가 있는 댓글은 세지 않아요.
+const publicColumns = `r.id, j.video_id AS videoId, r.title, r.channel_name AS channelName,
+  r.channel_url AS channelUrl, r.model, r.timestamp_verification AS timestampVerification,
+  r.created_at AS createdAt, pub.created_at AS publishedAt,
+  (SELECT count(*) FROM comments cm
+    WHERE cm.report_id = r.id AND cm.deleted_at IS NULL AND cm.archived_at IS NULL) AS commentCount`;
+
+const publicListQuery = z.strictObject({
+  ...pageQuery,
+  q: searchText.optional(),
+});
+
+function publicResource(row: PublicReportRow) {
+  return {
+    id: row.id,
+    videoId: row.videoId,
+    url: `https://www.youtube.com/watch?v=${row.videoId}`,
+    title: row.title,
+    channelName: row.channelName,
+    channelUrl: row.channelUrl,
+    model: row.model,
+    timestampVerification: row.timestampVerification,
+    createdAt: toIso(row.createdAt),
+    publishedAt: toIso(row.publishedAt),
+    commentCount: row.commentCount,
+  };
+}
+
+// 공개 규칙이 있는 리포트를 공개 시각 최신순으로 읽어요. 검색어는 제목이나 채널명에 들어 있으면 찾아요.
+// `/:id`보다 먼저 등록해 `public`을 리포트 ID로 읽지 않게 해요.
+reports.get("/public", async (c) => {
+  const { limit, cursor, q } = parseQuery(c, publicListQuery);
+  const search =
+    q === undefined
+      ? { sql: "", values: [] }
+      : {
+          sql: "AND (r.title LIKE ? ESCAPE '\\' OR r.channel_name LIKE ? ESCAPE '\\')",
+          values: [likePattern(q), likePattern(q)],
+        };
+  const after = keysetAfter(
+    "pub.created_at, pub.report_id",
+    parseCursor(cursor),
+  );
+  const rows = await statement(
+    c.env.DB,
+    `SELECT ${publicColumns}
+    FROM report_permissions pub
+    JOIN reports r ON r.id = pub.report_id
+    JOIN analysis_jobs j ON j.id = r.analysis_job_id
+    WHERE pub.audience = 'authenticated' ${search.sql} ${after.sql}
+    ORDER BY pub.created_at DESC, pub.report_id DESC LIMIT ?`,
+    ...search.values,
+    ...after.values,
+    limit + 1,
+  ).all<PublicReportRow>();
+  const page = rows.results.slice(0, limit);
+  const last = page.at(-1);
+  return c.json({
+    items: page.map(publicResource),
+    nextCursor: encodeCursor(
+      rows.results.length > limit && last
+        ? { createdAt: last.publishedAt, id: last.id }
         : null,
     ),
   });

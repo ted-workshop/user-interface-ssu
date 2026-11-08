@@ -309,7 +309,7 @@ HTTP는 키·모델 설정이 준비되지 않으면 새 분석을 접수하지 
 - 공개한 사람이 보관 관계를 지우면 가장 먼저 등록한 순번이 이어받고 공개 시각은 유지돼요. 순번이 없으면 공개가 사라지고,
   다시 공개하면 이전 댓글 없이 새 공개 시각으로 시작해요. 댓글 삭제는 표시만 하고 DB에 남겨요. 경계는 [ADR-0031](decisions/0031-report-publication.md)이에요.
 - `GET /v1/reports/{id}/publication`은 보관한 사용자에게 같은 공개 상태를 돌려줘요. 보관함에 없으면 `404`예요.
-- `GET /v1/public-reports`는 공개 규칙이 있는 리포트를 공개 시각 최신순으로 돌려줘요. `q`는 보관함과 같은 규칙으로
+- `GET /v1/reports/public`은 공개 규칙이 있는 리포트를 공개 시각 최신순으로 돌려줘요. `q`는 보관함과 같은 규칙으로
   제목 또는 채널명을 부분 검색하고, 공통 `limit`·`cursor`를 따르며 cursor의 `createdAt` 자리에 공개 시각을 담아요.
   항목은 보고서 공통 필드와 `publishedAt`, `commentCount`이고 `viewerContext`·공개한 사람 정보는 없어요.
   공개 리포트 상세는 따로 두지 않고 `GET /v1/reports/{id}`로 읽어요. 보관하지 않은 사용자에게는 `viewerContext`가 `null`이에요.

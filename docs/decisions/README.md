@@ -18,7 +18,7 @@
 | [ADR-0006](0006-pre-push-repository-isolation.md) | push 검사 전에 상속된 Git 저장소 환경을 정리해요 | 확정 | 2026-10-23 |
 | [ADR-0008](0008-workers-d1-local-and-terraform.md) | 로컬 Workers·D1을 검증하고 원격 인프라는 Terraform으로 정의해요 | 대체 | 2026-10-24 |
 | [ADR-0009](0009-manual-deployment-ownership.md) | API 수동 배포와 Terraform 인프라 적용을 분리해요 | 확정 | 2026-10-24 |
-| [ADR-0010](0010-commit-title-format.md) | 변경 영역과 PR 번호를 커밋 제목에 표시해요 | 확정 | 2026-10-24 |
+| [ADR-0010](0010-commit-title-format.md) | 변경 영역과 PR 번호를 커밋 제목에 표시해요 | 대체 | 2026-10-24 |
 | [ADR-0011](0011-scoped-quality-checks.md) | 변경 파일에 따라 CI와 로컬 검사 범위를 선택해요 | 확정 | 2026-10-24 |
 | [ADR-0012](0012-gmail-smtp-email-foundation.md) | Gmail SMTP로 공통 메일 발송 기반을 만들어요 | 확정 | 2026-10-25 |
 | [ADR-0013](0013-korean-comments-and-tests.md) | 주석과 테스트 이름은 한국어로 작성해요 | 확정 | 2026-10-25 |
@@ -38,6 +38,7 @@
 | [ADR-0028](0028-auth-http.md) | 인증 HTTP를 scrypt·암호화 메일 대기열·D1 요청 제한으로 구현해요 | 확정 | 2026-11-02 |
 | [ADR-0029](0029-collections-http.md) | 모음 항목은 본인의 보관 권한 행을 가리켜요 | 확정 | 2026-11-05 |
 | [ADR-0032](0032-gemini-single-call.md) | Gemini는 한 번만 호출하고 503은 사용자가 다시 시도하게 해요 | 확정 | 2026-11-07 |
+| [ADR-0033](0033-commit-week-prefix.md) | 커밋 제목 앞에 강의 주차를 표시해요 | 확정 | 2026-11-09 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

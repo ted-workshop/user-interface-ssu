@@ -4,7 +4,7 @@
 [전체 ERD](diagrams/qletter-full-erd-proposal.mmd)를 구현하는 저장 기반이에요.
 `0001`·`0002`의 이력을 보존하고 `0003_shared_reports.sql`이 공통 보고서 모델로 전환해요.
 `0004_job_leases.sql`은 실행권·호출 의도 열을, `0005_summary_admissions.sql`은 직접 요약의 접수 차감 기록을 추가해요.
-`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을, `0007_collections.sql`은 리포트 모음을 추가해요. 제품 테이블은 22개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
+`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을, `0007_collections.sql`은 리포트 모음을, `0008_report_comments.sql`은 댓글 삭제 표시와 개인 권한 기준 댓글 규칙을 추가해요. 제품 테이블은 22개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
 실제 로그인·공급자 생성·원격 적용은 별도예요.
 
 ## 공통 데이터와 개인 관계
@@ -27,16 +27,12 @@ oEmbed에서 확인한 채널 URL은 reports.channel_url에 저장해요. 채널
 
 - 개인 규칙은 audience=user, user_id 필수, read=1/comment=0이에요.
   `(report_id, user_id)` partial unique가 중복 보관을 막아요.
-- 공개 규칙은 audience=authenticated, user_id=NULL, read=1/comment=1이에요.
-  report_id partial unique로 공개 규칙을 하나만 둬요. 사용자 수만큼 복제하지 않아요.
-- 보관함은 본인의 개인 규칙만 조회해요. 공개 보고서를 읽는 행동은 보관 관계를 만들지 않아요.
-- 본문은 본인의 read 규칙 또는 로그인 사용자 전체 공개 규칙을 검사해요. 댓글 조회·작성은 로그인과
-  공개 댓글 규칙을 검사해요. 개인 read 권한만으로 비공개 댓글을 읽거나 쓰지 못해요.
-- comments.report_id는 공통 보고서예요. 공개 전환 전 댓글 INSERT는 DB도 거부해요.
-  댓글 수정은 거부하고 본인 삭제 권한은 API의 세션 사용자 조건으로 검사해야 해요.
+- `audience=authenticated` 공개 규칙 값은 0003 스키마에 남지만 0008에서 행을 지웠고 API와 trigger는 쓰지 않아요.
+- 보관함과 본문·댓글 조회는 본인의 개인 규칙만 검사해요. 채널 구독은 조회 권한을 주지 않아요.
+- comments.report_id는 공통 보고서예요. 개인 규칙이 없는 사용자의 댓글 INSERT는 `comment_reader` trigger가 거부해요.
+  댓글 수정은 거부하고, 삭제는 `deleted_at` 표시이며 되돌릴 수 없어요. 본인 삭제 권한은 API의 세션 사용자 조건으로 검사해요.
 - 본인의 개인 규칙 제거는 공통 보고서·타인 권한·댓글을 지우지 않고 본인의 대기 발송만 취소해요.
-  공개 규칙 제거는 댓글 접근을 차단해요. 현재 저장 기반은 댓글 행을 자동 삭제하지 않아요.
-  공개 관리 주체·철회 후 댓글 보존/삭제 API 정책은 #23에서 확정해야 해요.
+  권한이 사라진 사용자는 리포트·댓글을 읽거나 자기 댓글을 지우지 못하고, 댓글 행은 남아요. 경계는 [ADR-0034](decisions/0034-report-comments.md)이에요.
 
 ## 모음
 
@@ -114,7 +110,7 @@ delivery_attempts 중 하나라도 행이 있으면 CHECK 실패로 파일 전�
 
 회귀 검사는 실제 workerd·로컬 D1에서 빈 환경 반복 적용, 기존 본문이 있을 때 rollback·이력 보존,
 계정·토큰 유지, A/B 공유·권한·댓글·개인 중지·발송과 batch 오류 rollback을 확인해요.
-fixture와 공개 규칙 직접 INSERT는 실제 로그인·공개 관리 기능·공급자 성공의 증거가 아니에요.
+fixture와 권한 행 직접 INSERT는 실제 로그인·공급자 성공의 증거가 아니에요.
 
 ## 조회 계획·계측
 

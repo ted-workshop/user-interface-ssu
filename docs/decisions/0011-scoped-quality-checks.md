@@ -22,6 +22,8 @@ PR #19는 Android 코드·Gradle·JDK를 바꾸지 않았지만 Android CI를 �
 - 최초 push는 전체 tracked 파일로 분류해요. 잘못된 SHA·비교 실패를 검사 대상 없음으로 바꾸지 않아요.
 - workflow는 항상 시작하고 `changes`가 job별 실행 조건을 출력해요. `quality`는 판정 성공과 선택된 job의 성공을 요구하고, 선택하지 않은 job의 생략만 허용해요.
 - Android job은 Bun·Java만 설치해 API용 Node.js·Terraform 설치와 분리해요.
+- API·changes·Infra job은 `mise` 전체 toolset 설치 대신 설치된 Bun과 Terraform을 직접 호출해,
+  API 변경이 Android용 JDK 설치에 막히지 않게 해요.
 
 ## 근거와 대안
 
@@ -48,3 +50,5 @@ PR base의 독립 변경, 여러 커밋 push, 영역 간 이동, 파일명 줄�
 ## 반론과 변경 이력
 
 - 2026-10-24: API·Infra PR에서 Android CI가 실행되는 원인을 확인하고, 조건 없는 전체 실행을 파일별 job 조건으로 바꿔요. 공통 파일은 보수적으로 전체 검사해요.
+- 2026-11-09: `mise exec`·`mise run`이 전체 toolset을 설치해 API 검사가 Adoptium JDK 504에 막히는 문제를 확인하고,
+  API·changes·Infra job을 Bun 직접 호출로 바꿔 필요한 도구만 사용하게 해요.

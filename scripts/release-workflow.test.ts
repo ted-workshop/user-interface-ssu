@@ -60,13 +60,13 @@ function runWorkflow(
   const trace = join(directory, "calls.jsonl");
   writeFileSync(trace, "");
   writeFileSync(
-    join(directory, "bin/mise"),
+    join(directory, "bin/bun"),
     `#!${process.execPath}
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 const args = process.argv.slice(2);
 const marker = args.indexOf("wrangler");
 if (marker < 0) {
-  const result = Bun.spawnSync([process.execPath, ...args.slice(3)], { env: process.env, stdout: "inherit", stderr: "inherit" });
+  const result = Bun.spawnSync([process.execPath, ...args], { env: process.env, stdout: "inherit", stderr: "inherit" });
   process.exit(result.exitCode);
 }
 const operation = args[marker + 1];

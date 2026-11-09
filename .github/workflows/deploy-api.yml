@@ -49,7 +49,7 @@ jobs:
           git merge-base --is-ancestor "$RELEASE_SHA" origin/main
           export RELEASE_SHA
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/quality.yml/runs?branch=main&event=push&head_sha=$RELEASE_SHA&per_page=1" > "$RUNNER_TEMP/quality-runs.json"
-          mise exec -- bun scripts/release.ts check "$RUNNER_TEMP/quality-runs.json"
+          bun scripts/release.ts check "$RUNNER_TEMP/quality-runs.json"
           printf 'sha=%s\n' "$RELEASE_SHA" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -59,14 +59,14 @@ jobs:
         with:
           install_args: bun node
       - run: bun install --frozen-lockfile
-      - run: mise run api:check
+      - run: bun run api:check
       - name: Prepare Worker secrets
         env:
           SMTP_USER: ${{ secrets.SMTP_USER }}
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           AUTH_TOKEN_KEY: ${{ secrets.AUTH_TOKEN_KEY }}
-        run: mise exec -- bun scripts/release.ts secrets "$RUNNER_TEMP/qletter-worker-secrets.json"
+        run: bun scripts/release.ts secrets "$RUNNER_TEMP/qletter-worker-secrets.json"
       - name: Prepare and validate deployment configuration
         env:
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
@@ -75,21 +75,21 @@ jobs:
         run: |
           # Cloudflare 계정 ID는 32자리 소문자 16진수인지 확인해요.
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[a-f0-9]{32}$ ]]
-          mise exec -- bun scripts/release.ts config
-          mise exec -- bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --dry-run
+          bun scripts/release.ts config
+          bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --dry-run
       - name: Apply D1 migrations and deploy Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
         run: |
-          mise exec -- bun run --cwd apps/api wrangler d1 migrations apply DB --remote --config wrangler.deploy.json
-          mise exec -- bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --secrets-file "$RUNNER_TEMP/qletter-worker-secrets.json" --tag "$RELEASE_SHA" --message "$RELEASE_SHA" --no-autoconfig
+          bun run --cwd apps/api wrangler d1 migrations apply DB --remote --config wrangler.deploy.json
+          bun run --cwd apps/api wrangler deploy --config wrangler.deploy.json --secrets-file "$RUNNER_TEMP/qletter-worker-secrets.json" --tag "$RELEASE_SHA" --message "$RELEASE_SHA" --no-autoconfig
       - name: Verify the deployed revision and HTTP contracts
         env:
           RELEASE_SHA: ${{ steps.release.outputs.sha }}
         run: |
           for attempt in 1 2 3 4 5 6; do
-            if mise exec -- bun scripts/release.ts verify; then
+            if bun scripts/release.ts verify; then
               printf 'API deployment verified\n\nCommit: `%s`\n\nURL: %s\n' "$RELEASE_SHA" "$QLETTER_API_URL" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi

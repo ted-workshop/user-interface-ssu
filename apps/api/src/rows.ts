@@ -70,6 +70,15 @@ export type ReportRow = {
 // 상세 조회에서만 읽는 보고서 본문이에요.
 export type ReportDetailRow = ReportRow & { bodyMarkdown: string };
 
+// 화면에 보이는 댓글이에요. 작성자는 닉네임만 담아요.
+export type CommentRow = {
+  id: string;
+  body: string;
+  nickname: string;
+  createdAt: number;
+  canDelete: number;
+};
+
 // 메일 확인·비밀번호 재설정에 쓸 수 있는 토큰이에요.
 export type AccountTokenRow = { id: string; userId: string };
 

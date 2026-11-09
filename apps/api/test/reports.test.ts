@@ -334,23 +334,16 @@ test("같은 영상을 요약한 두 사용자는 같은 보고서와 각자의 
   );
 });
 
-test("공개 규칙으로 읽은 리포트는 내 정보 없이 보이고 보관함에 들어가지 않아요", async () => {
-  await saveReport(owner, videoIds[0], now);
+test("같은 영상을 요청하지 않은 사용자는 채널을 구독해도 리포트를 읽을 수 없어요", async () => {
+  await channelReport(1, 0);
   const [item] = (await list()).items;
   await sql(
-    "INSERT INTO report_permissions (id,report_id,audience,user_id,can_read,can_comment) VALUES (?,?,'authenticated',NULL,1,1)",
-    crypto.randomUUID(),
-    item?.id ?? "",
+    "INSERT INTO channel_subscriptions (id,user_id,channel_id,baseline_initialized_at) VALUES ('other-sub',?,'channel',?)",
+    other,
+    now - 1,
   ).run();
-  const response = await request(`/${item?.id}`, otherToken);
-  expect(response.status).toBe(200);
-  const detail = await response.json<Report>();
-  expect(detail.viewerContext).toBeNull();
-  expect(detail.bodyMarkdown).toBe("검사 보고서 본문");
+  expect((await request(`/${item?.id}`, otherToken)).status).toBe(404);
   expect((await list("", otherToken)).items).toEqual([]);
-  // 공개 규칙이 있어도 소유자의 보관 정보는 그대로예요.
-  const mine = await (await request(`/${item?.id}`)).json<Report>();
-  expect(mine.viewerContext?.origin).toBe("direct");
 });
 
 test("본인 보관 관계를 지우면 공개되지 않은 리포트는 더 읽을 수 없어요", async () => {
@@ -362,26 +355,6 @@ test("본인 보관 관계를 지우면 공개되지 않은 리포트는 더 읽
   ).run();
   expect((await list()).items).toEqual([]);
   expect((await request(`/${item?.id}`)).status).toBe(404);
-});
-
-test("본인 보관 관계를 지워도 공개 리포트는 내 정보 없이 읽어요", async () => {
-  await saveReport(owner, videoIds[0], now);
-  const [item] = (await list()).items;
-  await env.DB.batch([
-    sql(
-      "INSERT INTO report_permissions (id,report_id,audience,user_id,can_read,can_comment) VALUES (?,?,'authenticated',NULL,1,1)",
-      crypto.randomUUID(),
-      item?.id ?? "",
-    ),
-    sql(
-      "DELETE FROM report_permissions WHERE user_id = ? AND audience = 'user'",
-      owner,
-    ),
-  ]);
-  const response = await request(`/${item?.id}`);
-  expect(response.status).toBe(200);
-  expect((await response.json<Report>()).viewerContext).toBeNull();
-  expect((await list()).items).toEqual([]);
 });
 
 test("목록은 보관 시각 최신순이고 페이지 사이에 누락과 중복이 없어요", async () => {
@@ -679,4 +652,138 @@ test("잘못된 상세 입력은 400이에요", async () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: { code: "INVALID_INPUT" } });
   }
+});
+
+type CommentItem = {
+  id: string;
+  body: string;
+  author: { nickname: string };
+  canDelete: boolean;
+};
+
+const comment = (reportId: string, body: string, secret = token) =>
+  app.request(
+    `/v1/reports/${reportId}/comments`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${secret}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ body }),
+    },
+    settings,
+  );
+
+const removeComment = (reportId: string, id: string, secret = token) =>
+  app.request(
+    `/v1/reports/${reportId}/comments/${id}`,
+    { method: "DELETE", headers: { authorization: `Bearer ${secret}` } },
+    settings,
+  );
+
+const comments = async (reportId: string, query = "", secret = token) => {
+  const response = await request(`/${reportId}/comments${query}`, secret);
+  expect(response.status).toBe(200);
+  return response.json<{ items: CommentItem[]; nextCursor: string | null }>();
+};
+
+test("같은 영상을 요청한 두 사용자는 같은 리포트에서 댓글을 주고받아요", async () => {
+  await saveReport(owner, videoIds[0], now);
+  await saveReport(other, videoIds[0], now + 1);
+  const [item] = (await list()).items;
+  const id = item?.id ?? "";
+  const created = await comment(id, "  좋은 정리예요 ");
+  expect(created.status).toBe(201);
+  const mine = await created.json<CommentItem>();
+  expect(created.headers.get("location")).toBe(
+    `/v1/reports/${id}/comments/${mine.id}`,
+  );
+  expect(mine).toMatchObject({
+    body: "좋은 정리예요",
+    author: { nickname: "독자" },
+    canDelete: true,
+  });
+  expect(JSON.stringify(mine)).not.toContain("@example.com");
+  vi.spyOn(Date, "now").mockReturnValue((now + 5) * 1000);
+  expect((await comment(id, "저도 봤어요", otherToken)).status).toBe(201);
+
+  const page = await comments(id, "?limit=1", otherToken);
+  expect(page.items.map((item) => [item.body, item.canDelete])).toEqual([
+    ["저도 봤어요", true],
+  ]);
+  const rest = await comments(
+    id,
+    `?limit=1&cursor=${page.nextCursor}`,
+    otherToken,
+  );
+  expect(rest.items.map((item) => [item.body, item.canDelete])).toEqual([
+    ["좋은 정리예요", false],
+  ]);
+  expect(rest.nextCursor).toBeNull();
+});
+
+test("리포트 권한이 없는 사용자는 댓글을 읽거나 쓸 수 없어요", async () => {
+  await saveReport(owner, videoIds[0], now);
+  const [item] = (await list()).items;
+  const id = item?.id ?? "";
+  expect((await request(`/${id}/comments`, otherToken)).status).toBe(404);
+  expect((await comment(id, "몰래 쓴 댓글", otherToken)).status).toBe(404);
+  expect((await comment(missingId, "없는 리포트")).status).toBe(404);
+  expect(await sql("SELECT count(*) AS n FROM comments").first("n")).toBe(0);
+});
+
+test("본인 댓글만 지우고 지운 댓글은 목록에서 빠지되 DB에 남아요", async () => {
+  await saveReport(owner, videoIds[0], now);
+  await saveReport(other, videoIds[0], now + 1);
+  const [item] = (await list()).items;
+  const id = item?.id ?? "";
+  const mine = await (
+    await comment(id, "지울 댓글", otherToken)
+  ).json<CommentItem>();
+  expect((await removeComment(id, mine.id)).status).toBe(404);
+  expect((await removeComment(id, mine.id, otherToken)).status).toBe(204);
+  expect((await removeComment(id, mine.id, otherToken)).status).toBe(404);
+  expect((await comments(id)).items).toEqual([]);
+  expect(
+    await sql(
+      "SELECT count(*) AS n FROM comments WHERE id = ? AND deleted_at IS NOT NULL",
+      mine.id,
+    ).first("n"),
+  ).toBe(1);
+  await expect(
+    sql("UPDATE comments SET deleted_at = NULL WHERE id = ?", mine.id).run(),
+  ).rejects.toThrow(/comment_deleted_final/);
+});
+
+test("권한 행이 사라진 작성자는 자기 댓글도 지울 수 없어요", async () => {
+  await saveReport(owner, videoIds[0], now);
+  await saveReport(other, videoIds[0], now + 1);
+  const [item] = (await list()).items;
+  const id = item?.id ?? "";
+  const mine = await (
+    await comment(id, "남을 댓글", otherToken)
+  ).json<CommentItem>();
+  await sql(
+    "DELETE FROM report_permissions WHERE user_id = ? AND audience = 'user'",
+    other,
+  ).run();
+  expect((await removeComment(id, mine.id, otherToken)).status).toBe(404);
+  expect((await comments(id)).items.map((item) => item.id)).toEqual([mine.id]);
+});
+
+test("잘못된 댓글 입력은 400이에요", async () => {
+  await saveReport(owner, videoIds[0], now);
+  const [item] = (await list()).items;
+  const id = item?.id ?? "";
+  for (const body of ["", "   ", "가".repeat(2001)])
+    expect(await (await comment(id, body)).json()).toEqual({
+      error: {
+        code: "INVALID_INPUT",
+        fields: { body: "댓글은 1~2000자로 입력해 주세요." },
+      },
+    });
+  expect((await comment(id, "가".repeat(2000))).status).toBe(201);
+  expect((await removeComment(id, "not-a-uuid")).status).toBe(400);
+  expect((await request(`/${id}/comments?limit=0`)).status).toBe(400);
 });

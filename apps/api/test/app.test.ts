@@ -62,6 +62,7 @@ describe("Worker API 응답 규약", () => {
       { name: "0005_summary_admissions.sql" },
       { name: "0006_auth_mail_rate_limits.sql" },
       { name: "0007_collections.sql" },
+      { name: "0008_report_comments.sql" },
     ]);
   });
 

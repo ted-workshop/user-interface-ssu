@@ -175,13 +175,13 @@ async function automaticBoth() {
 }
 function readReport(owner: string) {
   return sql(
-    "SELECT r.id FROM reports r WHERE r.id = 'report' AND EXISTS (SELECT 1 FROM report_permissions p WHERE p.report_id = r.id AND (p.user_id = ? OR p.audience = 'authenticated') AND p.can_read = 1)",
+    "SELECT r.id FROM reports r WHERE r.id = 'report' AND EXISTS (SELECT 1 FROM report_permissions p WHERE p.report_id = r.id AND p.audience = 'user' AND p.user_id = ? AND p.can_read = 1)",
     owner,
   ).all();
 }
 function readComments() {
   return sql(
-    "SELECT c.id, u.nickname FROM comments c JOIN users u ON u.id = c.user_id WHERE c.report_id = 'report' AND EXISTS (SELECT 1 FROM report_permissions p WHERE p.report_id = c.report_id AND p.audience = 'authenticated' AND p.can_comment = 1) ORDER BY c.created_at, c.id",
+    "SELECT c.id, u.nickname FROM comments c JOIN users u ON u.id = c.user_id WHERE c.report_id = 'report' AND c.deleted_at IS NULL ORDER BY c.created_at, c.id",
   ).all();
 }
 
@@ -205,7 +205,7 @@ beforeEach(async () => {
 });
 
 describe("공통 보고서 D1 저장 규칙", () => {
-  test("일곱 마이그레이션을 반복 적용하고 22개 제품 테이블과 FK를 재현해요", async () => {
+  test("여덟 마이그레이션을 반복 적용하고 22개 제품 테이블과 FK를 재현해요", async () => {
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     expect(
       (
@@ -221,6 +221,7 @@ describe("공통 보고서 D1 저장 규칙", () => {
       "0005_summary_admissions.sql",
       "0006_auth_mail_rate_limits.sql",
       "0007_collections.sql",
+      "0008_report_comments.sql",
     ]);
     expect((await sql("PRAGMA foreign_key_check").all()).results).toEqual([]);
     const names = await sql(
@@ -550,7 +551,7 @@ describe("공통 보고서 D1 저장 규칙", () => {
   });
   test("A와 B가 보고서 하나의 댓글 목록을 보고 본인 댓글만 삭제해요", async () => {
     await report();
-    await publish();
+    await grant("b");
     for (const owner of ["a", "b"])
       await sql(
         "INSERT INTO comments (id, report_id, user_id, body, created_at) VALUES (?, 'report', ?, '같은 보고서의 댓글', ?)",
@@ -593,29 +594,28 @@ describe("공통 보고서 D1 저장 규칙", () => {
       ).run(),
     ).rejects.toThrow();
   });
-  test("공개 열람은 보관 관계를 만들지 않고 공개 철회는 댓글 접근을 차단해요", async () => {
+  test("개인 권한 행이 없으면 공개 규칙이 있어도 댓글을 쓰지 못하고 권한이 사라져도 댓글은 남아요", async () => {
     await report();
     await publish();
-    expect((await readReport("b")).results).toEqual([{ id: "report" }]);
-    expect(
-      (await sql("SELECT id FROM report_permissions WHERE user_id = 'b'").all())
-        .results,
-    ).toEqual([]);
+    await expect(
+      sql(
+        "INSERT INTO comments (id, report_id, user_id, body) VALUES ('public', 'report', 'b', '의견')",
+      ).run(),
+    ).rejects.toThrow(/comment_reader_required/);
+    await grant("b");
     await sql(
       "INSERT INTO comments (id, report_id, user_id, body) VALUES ('comment', 'report', 'b', '의견')",
     ).run();
-    await sql(
-      "DELETE FROM report_permissions WHERE audience = 'authenticated'",
-    ).run();
-    expect((await readComments()).results).toEqual([]);
+    await sql("DELETE FROM report_permissions WHERE user_id = 'b'").run();
+    expect((await readReport("b")).results).toEqual([]);
     expect((await sql("SELECT id FROM comments").all()).results).toHaveLength(
       1,
     );
     await expect(
       sql(
-        "INSERT INTO comments (id, report_id, user_id, body) VALUES ('new', 'report', 'a', '의견')",
+        "INSERT INTO comments (id, report_id, user_id, body) VALUES ('new', 'report', 'b', '의견')",
       ).run(),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/comment_reader_required/);
   });
   test("직접 요청 A와 자동 요청 B는 같은 보고서를 쓰고 B에게만 발송해요", async () => {
     await subscription("b");
@@ -679,7 +679,6 @@ describe("공통 보고서 D1 저장 규칙", () => {
     await automaticBoth();
     await delivery("a");
     await delivery("b");
-    await publish();
     await sql(
       "INSERT INTO comments (id,report_id,user_id,body) VALUES ('c','report','b','보존')",
     ).run();

@@ -189,6 +189,7 @@ erDiagram
         text user_id FK "users.id, 댓글 작성자"
         text body "댓글 본문"
         integer created_at "작성 시각"
+        integer deleted_at "작성자 삭제 표시"
     }
     recipients {
         text id PK "수신 주소 ID"

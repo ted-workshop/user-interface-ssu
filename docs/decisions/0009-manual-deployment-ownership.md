@@ -84,3 +84,5 @@ state 저장·잠금에 호환 문제가 있거나 팀이 다른 backend를 채�
   두 Terraform root에 macOS arm64·amd64, Linux amd64, Windows amd64 체크섬을 `terraform providers lock`으로 생성하고 `readonly` 검사는 유지했어요.
 - 2026-10-24: 매 API 배포마다 Terraform plan/apply를 실행할 필요가 있는지 재검토했어요.
   API 배포와 인프라 적용의 실행·관리 범위를 분리하는 방향을 승인받아 ADR-0008의 해당 부분을 대체했어요.
+- 2026-11-09: 배포 job이 `mise exec` 대신 Bun을 직접 호출해, API 배포에 필요 없는 Java·Terraform 설치를 하지 않아요.
+  Adoptium JDK 504가 배포를 막은 원인을 제거했어요.

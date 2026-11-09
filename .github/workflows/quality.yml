@@ -46,7 +46,7 @@ jobs:
           else
             git diff --name-only --no-renames -z "$BASE_SHA" "$HEAD_SHA" > "$RUNNER_TEMP/changed-files"
           fi
-          mise exec -- bun scripts/checks.ts < "$RUNNER_TEMP/changed-files"
+          bun scripts/checks.ts < "$RUNNER_TEMP/changed-files"
 
   api:
     needs: changes
@@ -59,8 +59,8 @@ jobs:
         with:
           install_args: bun node
       - run: bun install --frozen-lockfile
-      - run: mise run api:db:migrate
-      - run: mise run api:check
+      - run: bun run api:db:migrate
+      - run: bun run api:check
 
   android:
     needs: changes
@@ -92,7 +92,7 @@ jobs:
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
         with:
           install_args: bun terraform
-      - run: mise run infra:check
+      - run: bun run infra:check
 
   quality:
     if: always()

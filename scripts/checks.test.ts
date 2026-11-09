@@ -110,7 +110,7 @@ describe("워크플로의 변경 범위 선택", () => {
     git(dir, "config", "user.email", "test@example.invalid");
     mkdirSync(join(dir, ".git", "bin"));
     writeFileSync(
-      join(dir, ".git", "bin", "mise"),
+      join(dir, ".git", "bin", "bun"),
       '#!/bin/sh\nexec "$QLETTER_TEST_BUN" "$QLETTER_CHECKS_SCRIPT"\n',
       { mode: 0o755 },
     );

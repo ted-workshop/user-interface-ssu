@@ -3,7 +3,8 @@
 공식 SDK의 `interactions.create`에 공개 YouTube URL을 Agentic 입력으로 전달해 한국어 리포트를 요청해요.
 프롬프트·생성 설정·후처리 복원은 [ADR-0017](decisions/0017-report-generation-parity.md)에 있어요.
 직접 요약 HTTP API와 영속 실행기는 [ADR-0024](decisions/0024-direct-summary-http.md)에 따라 연결했어요.
-현재 설정의 실제 생성 성공·원본 대조와 Android 화면 연결은 아직 검증하지 못했어요.
+2026-11-07 로컬 CLI에서 현재 Interactions·Agentic 설정으로 공개 영상 한 편의 한국어 리포트 생성이 한 번의 요청으로 성공했어요.
+배포된 Worker의 공급자 호출, 영상 전체의 시간 링크 대조, Shorts·종료 라이브·긴 영상과 Android 화면 연결은 아직 검증하지 못했어요.
 
 ## 현재 설정
 
@@ -70,7 +71,7 @@ Gemini 3.6 Flash의 Agentic 영상 처리를 지원하며, `background` 없이 �
 
 결과와 응답 관찰은 `.artifacts/gemini/zoo-recheck-1031a.json`과
 `zoo-recheck-1031a-transport.json`에 `0600`으로 보관해요. 기존 키·관찰 스크립트·실행 기록을
-그대로 보존했어요. 현재 설정의 생성 성공·원본 주장·시간 링크 대조가 없어 #5는 미완료예요.
+그대로 보존했어요. 이 실행 시점에는 현재 설정의 생성 성공·원본 주장·시간 링크 대조가 없어 #5를 미완료로 남겼어요.
 로컬 회귀·전체 검사 결과와 최초 검사 실패의 원인은 [ADR-0017](decisions/0017-report-generation-parity.md)에 남겨요.
 
 ## 2026-10-30 재검증
@@ -305,9 +306,8 @@ Interactions의 Agentic 영상 처리를 사용하며 출력 상한·temperature
 | `invalid_response` | 응답이 미완료·빈 본문·200자 미만이에요. 반환된 사용량이 있으면 보존해요. |
 
 정규화·입력 거부와 가짜 응답의 성공/실패는 CI에서 검사해요. 실제 지원 범위와 달라요.
-이전 `generateContent` 설정에서 짧은 공개 영상의 한국어 리포트 생성을 확인했어요. 현재 복원한 설정의 실제 생성,
-Shorts·종료 라이브·긴 영상,
-영상에 근거한 시간 링크와 Workers에서의 실제 공급자 호출은 아직 미검증이에요.
+2026-11-07 현재 복원한 Interactions·Agentic 설정의 실제 생성도 확인했어요. 이 결과는 로컬 CLI이며,
+Shorts·종료 라이브·긴 영상, 영상 전체의 시간 링크 대조와 Workers에서의 실제 공급자 호출은 아직 미검증이에요.
 비공개·삭제·로그인 필요·진행 중인 생방송은 [초기 제품 범위](qletter/02-functional-spec.md)에서 제외해요.
 
 2026-10-27 확인한 [Google 영상 입력 문서](https://ai.google.dev/gemini-api/docs/video-understanding)는

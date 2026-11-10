@@ -26,6 +26,19 @@ GitHub 설정을 바꾼 뒤의 실제 Worker 반영은 별도 수동 배포가 �
 당시 AI Studio에서 확인한 사용량이 로컬 키와 같은 프로젝트·모델인지 미확인이어서 일일 한도 소진으로 단정하지 않았어요.
 아래 교체 키의 403은 이전 실측 기록이에요.
 
+## 2026-11-10 Workers 제품 경로 수정
+
+로컬 Worker에서 #11의 실제 경로를 실행하며 두 런타임 오류를 확인했어요.
+
+- oEmbed의 `redirect: "error"`는 Workers가 거부해 모든 메타데이터 조회가 `metadata_unavailable`이 됐어요.
+  `"manual"`로 바꾸고 3xx 응답을 실패로 처리해요.
+- SDK의 Interactions 경로가 v1로 가면 `text` 입력이 거부돼요. 생성 함수에서 `apiVersion: "v1beta"`를 명시해요.
+
+수정 뒤 같은 표본 `Me at the zoo`로 공통 함수 생성이 66.6초, 10,300토큰, 4,057자로 성공했어요.
+로컬 Worker의 임시 진단 경로에서도 77초, 10,664토큰으로 성공했어요.
+전체 HTTP 접수→상태 조회→리포트 읽기는 공급자 503과 시간 초과가 반복돼 아직 완료하지 못했어요.
+결정과 미검증 범위는 [ADR-0035](decisions/0035-worker-provider-call-paths.md)에 있어요.
+
 ## 2026-11-07 SDK 자동 재시도를 끈 단일 호출 생성
 
 [ADR-0032](decisions/0032-gemini-single-call.md)의 커밋 `d088dbf`에서 SDK 자동 재시도를 끄고 같은 표본을 WSL Ubuntu의 CLI로 실행했어요.

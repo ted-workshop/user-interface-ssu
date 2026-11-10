@@ -61,7 +61,8 @@ export async function getVideoMetadata(raw: string) {
   try {
     const response = await fetch(source, {
       signal: AbortSignal.timeout(15_000),
-      redirect: "error",
+      // Workers 런타임은 redirect: "error"를 거부해요. 수동 모드로 두고 3xx를 실패로 처리해요.
+      redirect: "manual",
     });
     httpStatus = response.status;
     if (!response.ok)
@@ -87,7 +88,11 @@ export async function generateReport(
   if (!parsed.success) throw new SummaryError("configuration");
   const settings = parsed.data;
   const { url } = parseYouTubeUrl(video.url);
-  const ai = new GoogleGenAI({ apiKey: settings.apiKey });
+  // interactions의 text 입력은 v1beta에만 있어요. SDK 기본 경로(v1)로는 요청이 거부돼요.
+  const ai = new GoogleGenAI({
+    apiKey: settings.apiKey,
+    apiVersion: "v1beta",
+  });
   const start = performance.now();
   const userPrompt = `다음 유튜브 영상을 분석하여 지정된 형식의 한국어 리포트를 작성해 주세요.\n\n영상 제목: ${video.title}\n영상 URL: ${url}\n타임스탬프 링크는 반드시 이 URL을 사용하세요. 예: [03:42](${url}&t=222s)`;
   let response: Interactions.Interaction;

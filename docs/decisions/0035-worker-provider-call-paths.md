@@ -5,7 +5,8 @@
 - 확정 근거: #11의 실제 공급자 경로 검증 중 확인한 두 런타임 오류를 사용자가 준비한 키와 로컬 Worker로 재현하고 수정했어요.
 - 관련 기록: [ADR-0017](0017-report-generation-parity.md), [ADR-0024](0024-direct-summary-http.md), [ADR-0032](0032-gemini-single-call.md), [이슈 #11](https://github.com/ted-workshop/user-interface-ssu/issues/11)
 - 구현·검증 상태: 코드와 workerd 회귀 검사를 반영했어요. 로컬 Worker에서 실제 oEmbed 조회와 Gemini 생성 1건을 확인했어요.
-  전체 HTTP 접수→상태 조회→리포트 읽기는 공급자 503·시간 초과로 아직 완료하지 못했어요.
+  전체 HTTP 접수→상태 조회→리포트 읽기는 공급자 503으로 아직 완료하지 못했어요.
+  2026-11-10 `gemini-3.6-flash` 3회와 `gemini-3.8-flash` 1회가 모두 503 `high demand`를 반환했어요.
 
 ## 문제와 현재 상태
 
@@ -51,6 +52,8 @@ SDK 버전만 올리는 방법은 이 버전에서 확인한 원인을 없앤다
 
 - `mise run api:check`에서 workerd 회귀 검사와 타입·포맷·Worker dry-run을 통과했어요.
 - 실제 oEmbed·Gemini 호출은 `Me at the zoo` 표본으로 확인했고, 전체 제품 경로는 #11에서 이어서 확인해요.
+- 2026-11-10 전체 HTTP 경로를 계정 3개·영상 3편으로 시도했어요. `gemini-3.6-flash`는 세 번 모두 503이었고,
+  같은 키로 `gemini-3.8-flash`도 503 `high demand`를 반환해 모델·키 문제가 아닌 공급자 가용성으로 구분했어요.
 - 공급자가 계속 503을 반환하거나 600초 제한을 넘기면 모델·요청 방식·시간 제한을 다시 검토해요.
 - SDK 업그레이드, Interactions의 v1 지원, oEmbed 리디렉트 정책 변경이 확인되면 이 결정을 다시 검토해요.
 

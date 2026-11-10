@@ -215,6 +215,15 @@ describe("YouTube 영상 입력과 출처", () => {
 });
 
 describe("공식 SDK의 영상 리포트 생성", () => {
+  test("응답에 interaction id가 없으면 null로 남겨요", async () => {
+    network.mockResolvedValue(interaction({ id: undefined }));
+    const result = await generateReport(
+      { apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL },
+      video,
+    );
+    expect(result.interactionId).toBeNull();
+  });
+
   test("Worker의 키 Secret과 모델 Variable을 SDK 요청에 전달해요", async () => {
     network.mockResolvedValue(interaction({ model: env.GEMINI_MODEL }));
     await generateReport(

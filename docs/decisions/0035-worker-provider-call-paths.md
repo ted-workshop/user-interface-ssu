@@ -5,8 +5,8 @@
 - 확정 근거: #11의 실제 공급자 경로 검증 중 확인한 두 런타임 오류를 사용자가 준비한 키와 로컬 Worker로 재현하고 수정했어요.
 - 관련 기록: [ADR-0017](0017-report-generation-parity.md), [ADR-0024](0024-direct-summary-http.md), [ADR-0032](0032-gemini-single-call.md), [이슈 #11](https://github.com/ted-workshop/user-interface-ssu/issues/11)
 - 구현·검증 상태: 코드와 workerd 회귀 검사를 반영했어요. 로컬 Worker에서 실제 oEmbed 조회와 Gemini 생성 1건을 확인했어요.
-  전체 HTTP 접수→상태 조회→리포트 읽기는 공급자 503으로 아직 완료하지 못했어요.
-  2026-11-10 `gemini-3.6-flash` 3회와 `gemini-3.8-flash` 1회가 모두 503 `high demand`를 반환했어요.
+  2026-11-10 `gemini-3.5-flash-lite`로 전체 HTTP 접수→상태 조회→리포트 읽기를 완료했어요.
+  같은 시각 `gemini-3.6-flash` 3회와 `gemini-3.8-flash` 1회는 503 `high demand`였어요.
 
 ## 문제와 현재 상태
 
@@ -45,19 +45,22 @@ SDK 버전만 올리는 방법은 이 버전에서 확인한 원인을 없앤다
 
 - 이 결정은 `@google/genai` 2.31.0에서 확인했어요. SDK가 기본 버전이나 Interactions 경로를 바꾸면 다시 확인해요.
 - `"manual"`은 3xx 응답을 반환하므로 2xx만 성공으로 처리해요. 리디렉트를 따라가는 동작은 추가하지 않았어요.
-- 실제 전체 HTTP 경로는 공급자 503과 시간 초과가 반복돼 아직 성공하지 못했어요. 수정한 함수 단위의 실제 생성과 구분해요.
+- 전체 HTTP 경로는 `gemini-3.5-flash-lite`로 확인했어요. `gemini-3.6-flash`·`gemini-3.8-flash`의 가용성은 아직 확인하지 못했어요.
 - 장시간 실행 중 작업이 660초 실행권을 넘기면 다음 예약 실행이 결과 불명으로 복구해요. 이 동작은 기존 ADR-0022·0023을 따라요.
 
 ## 검증과 재검토 조건
 
 - `mise run api:check`에서 workerd 회귀 검사와 타입·포맷·Worker dry-run을 통과했어요.
-- 실제 oEmbed·Gemini 호출은 `Me at the zoo` 표본으로 확인했고, 전체 제품 경로는 #11에서 이어서 확인해요.
-- 2026-11-10 전체 HTTP 경로를 계정 3개·영상 3편으로 시도했어요. `gemini-3.6-flash`는 세 번 모두 503이었고,
-  같은 키로 `gemini-3.8-flash`도 503 `high demand`를 반환해 모델·키 문제가 아닌 공급자 가용성으로 구분했어요.
+- 실제 oEmbed·Gemini 호출은 `Me at the zoo` 표본으로 확인했어요.
+- 2026-11-10 `gemini-3.5-flash-lite`로 `Keyboard Cat!` 영상의 전체 HTTP 경로를 완료했어요.
+  접수→예약 실행 17.3초·6,991토큰→보고서 2,040자 저장→`GET /v1/reports/:id` 읽기를 확인했어요.
+- 같은 날 `gemini-3.6-flash`는 세 번 모두 503이었고, `gemini-3.8-flash`도 503 `high demand`를 반환해
+  모델·키 문제가 아닌 공급자 가용성으로 구분했어요.
 - 공급자가 계속 503을 반환하거나 600초 제한을 넘기면 모델·요청 방식·시간 제한을 다시 검토해요.
 - SDK 업그레이드, Interactions의 v1 지원, oEmbed 리디렉트 정책 변경이 확인되면 이 결정을 다시 검토해요.
 
 ## 반론과 변경 이력
 
+- 2026-11-10: `gemini-3.5-flash-lite`로 전체 HTTP 경로를 완료했어요. 저장 단계에서 누락된 `id`를 null로 정규화하는 문제는 [ADR-0036](0036-null-provider-fields.md)으로 분리했어요.
 - 2026-11-10: 로컬 Worker 실제 호출에서 두 런타임 오류를 확인하고 수정했어요.
   문서만으로는 드러나지 않던 문제라 테스트에 런타임에서 유효한 옵션과 URL 경로를 고정했어요.

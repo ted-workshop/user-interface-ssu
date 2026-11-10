@@ -124,7 +124,8 @@ export async function generateReport(
   return {
     markdown: linkifyYoutubeTimestamps(stripThinkingBlock(text), url),
     model: response.model ?? null,
-    interactionId: response.id,
+    // 실제 Interactions 응답은 id를 생략할 수 있어요. D1에 undefined를 bind하지 않도록 null로 맞춰요.
+    interactionId: response.id ?? null,
     generationMs: Math.round(performance.now() - start),
     usage,
     timestampVerification: "unverified" as const,

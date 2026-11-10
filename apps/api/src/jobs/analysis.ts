@@ -285,7 +285,7 @@ export type AnalysisResult = {
   channelUrl: string | null;
   markdown: string;
   model: string;
-  interactionId: string;
+  interactionId: string | null;
   usage: unknown;
 };
 

@@ -33,12 +33,14 @@ GitHub 설정을 바꾼 뒤의 실제 Worker 반영은 별도 수동 배포가 �
 - oEmbed의 `redirect: "error"`는 Workers가 거부해 모든 메타데이터 조회가 `metadata_unavailable`이 됐어요.
   `"manual"`로 바꾸고 3xx 응답을 실패로 처리해요.
 - SDK의 Interactions 경로가 v1로 가면 `text` 입력이 거부돼요. 생성 함수에서 `apiVersion: "v1beta"`를 명시해요.
+- 실제 응답이 `id`를 생략하면 D1에 `undefined`를 bind할 수 없어 저장이 실패해요. `interactionId`를 `null`로 정규화해요.
 
 수정 뒤 같은 표본 `Me at the zoo`로 공통 함수 생성이 66.6초, 10,300토큰, 4,057자로 성공했어요.
 로컬 Worker의 임시 진단 경로에서도 77초, 10,664토큰으로 성공했어요.
-전체 HTTP 접수→상태 조회→리포트 읽기는 계정 3개·영상 3편으로 시도했지만
-`gemini-3.6-flash`가 세 번 모두 503이었고 `gemini-3.8-flash`도 503 `high demand`를 반환해 아직 완료하지 못했어요.
-결정과 미검증 범위는 [ADR-0035](decisions/0035-worker-provider-call-paths.md)에 있어요.
+전체 HTTP 접수→상태 조회→리포트 읽기는 `gemini-3.5-flash-lite`로 완료했어요.
+`Keyboard Cat!` 영상이 17.3초·6,991토큰으로 저장됐고 2,040자 보고서를 `GET /v1/reports/:id`로 읽었어요.
+같은 시각 `gemini-3.6-flash` 3회와 `gemini-3.8-flash` 1회는 503 `high demand`였어요.
+결정과 미검증 범위는 [ADR-0035](decisions/0035-worker-provider-call-paths.md)와 [ADR-0036](decisions/0036-null-provider-fields.md)에 있어요.
 
 ## 2026-11-07 SDK 자동 재시도를 끈 단일 호출 생성
 

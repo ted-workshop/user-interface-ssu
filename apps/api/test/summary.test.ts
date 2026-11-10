@@ -172,8 +172,26 @@ describe("YouTube 영상 입력과 출처", () => {
       "https://www.youtube.com/oembed",
     );
     expect(source.searchParams.get("url")).toBe(url);
-    expect(network.mock.calls[0]?.[1]?.redirect).toBe("error");
+    // Workers 런타임이 거부하는 "error" 대신 수동 모드를 사용해요.
+    expect(network.mock.calls[0]?.[1]?.redirect).toBe("manual");
   });
+
+  test.each([301, 302, 307])(
+    "메타데이터 리다이렉트 HTTP %i는 따라가지 않고 실패로 처리해요",
+    async (status) => {
+      network.mockResolvedValue(
+        new Response(null, {
+          status,
+          headers: { location: "https://example.com/redirected" },
+        }),
+      );
+      await expect(getVideoMetadata(url)).rejects.toMatchObject({
+        reason: "metadata_unavailable",
+        httpStatus: status,
+      });
+      expect(network.mock.calls).toHaveLength(1);
+    },
+  );
 
   test.each([404, 403, 500])(
     "메타데이터 HTTP %i는 영상 비공개나 삭제로 단정하지 않아요",
@@ -197,6 +215,15 @@ describe("YouTube 영상 입력과 출처", () => {
 });
 
 describe("공식 SDK의 영상 리포트 생성", () => {
+  test("응답에 interaction id가 없으면 null로 남겨요", async () => {
+    network.mockResolvedValue(interaction({ id: undefined }));
+    const result = await generateReport(
+      { apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL },
+      video,
+    );
+    expect(result.interactionId).toBeNull();
+  });
+
   test("Worker의 키 Secret과 모델 Variable을 SDK 요청에 전달해요", async () => {
     network.mockResolvedValue(interaction({ model: env.GEMINI_MODEL }));
     await generateReport(
@@ -206,6 +233,7 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     const call = network.mock.calls[0];
     if (!call) throw new Error("SDK 요청을 확인하지 못했어요.");
     const request = new Request(...call);
+    expect(request.url).toContain("/v1beta/interactions");
     expect(request.headers.get("x-goog-api-key")).toBe("fixture-binding-key");
     expect(await request.json()).toMatchObject({
       model: "gemini-3.5-flash-lite",

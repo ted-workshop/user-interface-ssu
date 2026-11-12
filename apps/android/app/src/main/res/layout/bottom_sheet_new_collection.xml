@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical"
+  android:padding="24dp">
+
+  <TextView
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="새 모음"
+    android:textSize="20sp"
+    android:textStyle="bold" />
+
+  <EditText
+    android:id="@+id/collection_name_input"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:hint="모음 이름 (1~30자)"
+    android:inputType="text"
+    android:maxLength="30" />
+
+  <Button
+    android:id="@+id/create_collection_button"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:text="만들기" />
+</LinearLayout>

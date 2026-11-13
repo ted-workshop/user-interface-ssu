@@ -34,7 +34,7 @@ public class CollectionsFragment extends Fragment {
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     binding.collectionsList.setLayoutManager(new LinearLayoutManager(requireContext()));
-    adapter = new CollectionAdapter(items, this::confirmDelete);
+    adapter = new CollectionAdapter(items, this::showCollectionActions);
     binding.collectionsList.setAdapter(adapter);
     // 서버 연결 전까지 쓰는 더미 데이터예요.
     if (items.isEmpty()) {
@@ -42,7 +42,7 @@ public class CollectionsFragment extends Fragment {
       items.add(new ReportCollection("수학", 4));
       items.add(new ReportCollection("과학", 2));
     }
-    binding.newCollectionButton.setOnClickListener(v -> showNewCollectionSheet());
+    binding.newCollectionButton.setOnClickListener(v -> showNewCollectionSheet(-1));
   }
 
   @Override
@@ -51,11 +51,18 @@ public class CollectionsFragment extends Fragment {
     binding = null;
   }
 
-  private void showNewCollectionSheet() {
+  private void showNewCollectionSheet(int position) {
     BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
     BottomSheetNewCollectionBinding sheet =
         BottomSheetNewCollectionBinding.inflate(getLayoutInflater());
     bottomSheetDialog.setContentView(sheet.getRoot());
+    if (position != -1) {
+      String oldName = items.get(position).getName();
+      sheet.sheetTitle.setText("이름 바꾸기");
+      sheet.createCollectionButton.setText("저장");
+      sheet.collectionNameInput.setText(oldName);
+      sheet.collectionNameInput.setSelection(oldName.length());
+    }
     sheet.createCollectionButton.setOnClickListener(
         view -> {
           String name = sheet.collectionNameInput.getText().toString().trim();
@@ -64,8 +71,14 @@ public class CollectionsFragment extends Fragment {
             return;
           }
 
-          items.add(new ReportCollection(name, 0));
-          adapter.notifyItemInserted(items.size() - 1);
+          if (position == -1) {
+            items.add(new ReportCollection(name, 0));
+            adapter.notifyItemInserted(items.size() - 1);
+          } else {
+            ReportCollection old = items.get(position);
+            items.set(position, new ReportCollection(name, old.getReportCount()));
+            adapter.notifyItemChanged(position);
+          }
           bottomSheetDialog.dismiss();
         });
     bottomSheetDialog.show();
@@ -82,6 +95,21 @@ public class CollectionsFragment extends Fragment {
               adapter.notifyItemRemoved(position);
             }))
         .setNegativeButton("취소", null)
+        .show();
+  }
+
+  private void showCollectionActions(int position) {
+    new AlertDialog.Builder(requireContext())
+        .setTitle(items.get(position).getName())
+        .setItems(
+            new String[] {"이름 바꾸기", "삭제"},
+            ((dialog, which) -> {
+              if (which == 0) {
+                showNewCollectionSheet(position);
+              } else if (which == 1) {
+                confirmDelete(position);
+              }
+            }))
         .show();
   }
 }

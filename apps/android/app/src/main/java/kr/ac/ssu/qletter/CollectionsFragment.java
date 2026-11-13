@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -33,7 +34,7 @@ public class CollectionsFragment extends Fragment {
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     binding.collectionsList.setLayoutManager(new LinearLayoutManager(requireContext()));
-    adapter = new CollectionAdapter(items);
+    adapter = new CollectionAdapter(items, this::confirmDelete);
     binding.collectionsList.setAdapter(adapter);
     // 서버 연결 전까지 쓰는 더미 데이터예요.
     if (items.isEmpty()) {
@@ -68,5 +69,19 @@ public class CollectionsFragment extends Fragment {
           bottomSheetDialog.dismiss();
         });
     bottomSheetDialog.show();
+  }
+
+  private void confirmDelete(int position) {
+    new AlertDialog.Builder(requireContext())
+        .setTitle("모음 삭제")
+        .setMessage(items.get(position).getName() + " 모음을 삭제할까요?")
+        .setPositiveButton(
+            "삭제",
+            ((dialog, which) -> {
+              items.remove(position);
+              adapter.notifyItemRemoved(position);
+            }))
+        .setNegativeButton("취소", null)
+        .show();
   }
 }

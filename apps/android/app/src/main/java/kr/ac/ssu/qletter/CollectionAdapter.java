@@ -9,10 +9,17 @@ import kr.ac.ssu.qletter.databinding.ItemCollectionBinding;
 
 public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.ViewHolder> {
 
+  public interface OnItemLongClickListener {
+    void onItemLongClick(int position);
+  }
+
   private final List<ReportCollection> items;
 
-  public CollectionAdapter(List<ReportCollection> items) {
+  private final OnItemLongClickListener listener;
+
+  public CollectionAdapter(List<ReportCollection> items, OnItemLongClickListener listener) {
     this.items = items;
+    this.listener = listener;
   }
 
   @NonNull
@@ -20,7 +27,21 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Vi
   public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
     ItemCollectionBinding binding =
         ItemCollectionBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false);
-    return new ViewHolder(binding);
+    ViewHolder holder = new ViewHolder(binding);
+    binding
+        .getRoot()
+        .setOnLongClickListener(
+            view -> {
+              // listener.onItemLongClick(holder.getBindingAdapterPosition()); 과거 코드
+              int position =
+                  holder.getBindingAdapterPosition(); // 누른 순간의 현재 위치를 가져와요. 삭제로 위치가 당겨질 수 있어서
+              // position 대신 이걸 써요.
+              if (position == RecyclerView.NO_POSITION)
+                return false; // 삭제 애니메이션 중처럼 위치를 모르면 -1(NO_POSITION)이 와요. 그때는 무시해요.
+              listener.onItemLongClick(position);
+              return true;
+            });
+    return holder;
   }
 
   @Override
@@ -36,7 +57,7 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Vi
   }
 
   static class ViewHolder extends RecyclerView.ViewHolder {
-    private ItemCollectionBinding binding;
+    private final ItemCollectionBinding binding;
 
     ViewHolder(@NonNull ItemCollectionBinding binding) {
       super(binding.getRoot());

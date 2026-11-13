@@ -44,11 +44,13 @@ export type RequestRow = {
 // 개인 메일 발송 상태예요.
 export type DeliveryRow = {
   id: string;
+  email: string;
   status: string;
   attempt: number;
   failureCode: string | null;
   eligible: number;
   availableAt: number;
+  createdAt: number;
 };
 
 // 공통 보고서와 현재 사용자의 보관 정보예요. 보관 관계가 없는 공개 열람은 요청·보관 값이 NULL이에요.

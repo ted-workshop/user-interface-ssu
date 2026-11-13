@@ -173,6 +173,12 @@ async function channelReport(recipients: number, deliveries = recipients) {
     now,
   );
   await runJobs(now);
+  // 이 검사는 발송 상태 계산만 보므로 자동 접수된 발송을 지우고 원하는 수만 다시 만들어요.
+  await sql(
+    "DELETE FROM delivery_attempts WHERE delivery_id IN (SELECT id FROM deliveries WHERE user_id = ?)",
+    owner,
+  ).run();
+  await sql("DELETE FROM deliveries WHERE user_id = ?", owner).run();
   for (let index = 0; index < deliveries; index += 1)
     await enqueueDelivery(
       env.DB,

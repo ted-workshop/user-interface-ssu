@@ -8,6 +8,7 @@ import {
   MAX_ATTEMPTS,
   statement,
   unixNow,
+  uuidSql,
 } from "./shared";
 
 const generationSettingsSchema = summaryConfigSchema.omit({ apiKey: true });
@@ -345,6 +346,22 @@ export async function completeAnalysis(
       claim.attemptId,
     ),
     ...completeRequests(db, claim.id, now),
+    // 채널 자동 요청은 리포트 저장 시점에 확인된 주소를 발송 대상으로 고정해 발송 행을 함께 만들어요.
+    sql(
+      `INSERT INTO deliveries (id, user_id, request_id, report_id, subscription_id, recipient_id, recipient_email, available_at, created_at)
+      SELECT ${uuidSql}, q.user_id, q.id, r.id, q.subscription_id, a.id, a.email, ?, ?
+      FROM summary_requests q
+      JOIN reports r ON r.analysis_job_id = q.analysis_job_id
+      JOIN recipients a ON a.user_id = q.user_id
+      WHERE q.analysis_job_id = ? AND q.origin = 'channel' AND q.status = 'completed'
+      AND a.verified_at IS NOT NULL AND a.verified_at <= r.created_at AND a.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM channel_subscriptions s WHERE s.id = q.subscription_id AND s.status = 'active')
+      AND EXISTS (SELECT 1 FROM report_permissions p WHERE p.report_id = r.id AND p.audience = 'user' AND p.user_id = q.user_id)
+      AND NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id AND (d.recipient_id = a.id OR d.recipient_email = a.email))`,
+      now,
+      now,
+      claim.id,
+    ),
   ]);
   const completed = rows[0]?.meta.changes === 1;
   if (completed) jobLog("analysis", claim.id, "completed", claim.attempt);

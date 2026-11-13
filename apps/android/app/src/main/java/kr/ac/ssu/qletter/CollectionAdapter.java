@@ -1,12 +1,11 @@
 package kr.ac.ssu.qletter;
 
 import android.view.LayoutInflater;
-import android.view.View;
 import android.view.ViewGroup;
-import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
+import kr.ac.ssu.qletter.databinding.ItemCollectionBinding;
 
 public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.ViewHolder> {
 
@@ -19,16 +18,16 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Vi
   @NonNull
   @Override
   public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-    View view =
-        LayoutInflater.from(parent.getContext()).inflate(R.layout.item_collection, parent, false);
-    return new ViewHolder(view);
+    ItemCollectionBinding binding =
+        ItemCollectionBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false);
+    return new ViewHolder(binding);
   }
 
   @Override
   public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
     ReportCollection item = items.get(position);
-    holder.nameText.setText(item.getName());
-    holder.countText.setText("리포트" + item.getReportCount() + "개");
+    holder.binding.collectionName.setText(item.getName());
+    holder.binding.collectionCount.setText("리포트" + item.getReportCount() + "개");
   }
 
   @Override
@@ -37,13 +36,11 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Vi
   }
 
   static class ViewHolder extends RecyclerView.ViewHolder {
-    final TextView nameText;
-    final TextView countText;
+    private ItemCollectionBinding binding;
 
-    ViewHolder(@NonNull View itemView) {
-      super(itemView);
-      nameText = itemView.findViewById(R.id.collection_name);
-      countText = itemView.findViewById(R.id.collection_count);
+    ViewHolder(@NonNull ItemCollectionBinding binding) {
+      super(binding.getRoot());
+      this.binding = binding;
     }
   }
 }

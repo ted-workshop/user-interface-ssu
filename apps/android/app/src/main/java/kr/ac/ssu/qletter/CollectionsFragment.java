@@ -4,18 +4,18 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import java.util.ArrayList;
 import java.util.List;
+import kr.ac.ssu.qletter.databinding.BottomSheetNewCollectionBinding;
+import kr.ac.ssu.qletter.databinding.FragmentCollectionsBinding;
 
 public class CollectionsFragment extends Fragment {
+  private FragmentCollectionsBinding binding;
   private final List<ReportCollection> items = new ArrayList<>();
   private CollectionAdapter adapter;
 
@@ -25,36 +25,41 @@ public class CollectionsFragment extends Fragment {
       @NonNull LayoutInflater inflater,
       @Nullable ViewGroup container,
       @Nullable Bundle savedInstanceState) {
-    return inflater.inflate(R.layout.fragment_collections, container, false);
+    binding = FragmentCollectionsBinding.inflate(inflater, container, false);
+    return binding.getRoot();
   }
 
   @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
-    RecyclerView recyclerView = view.findViewById(R.id.collections_list);
-    recyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+    binding.collectionsList.setLayoutManager(new LinearLayoutManager(requireContext()));
     adapter = new CollectionAdapter(items);
-    recyclerView.setAdapter(adapter);
+    binding.collectionsList.setAdapter(adapter);
     // 서버 연결 전까지 쓰는 더미 데이터예요.
     if (items.isEmpty()) {
       items.add(new ReportCollection("면접준비", 3));
       items.add(new ReportCollection("수학", 4));
       items.add(new ReportCollection("과학", 2));
     }
-    Button button = view.findViewById(R.id.new_collection_button);
-    button.setOnClickListener(view1 -> showNewCollectionSheet());
+    binding.newCollectionButton.setOnClickListener(v -> showNewCollectionSheet());
+  }
+
+  @Override
+  public void onDestroyView() {
+    super.onDestroyView();
+    binding = null;
   }
 
   private void showNewCollectionSheet() {
     BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
-    bottomSheetDialog.setContentView(R.layout.bottom_sheet_new_collection);
-    EditText editText = bottomSheetDialog.findViewById(R.id.collection_name_input);
-    Button button = bottomSheetDialog.findViewById(R.id.create_collection_button);
-    button.setOnClickListener(
+    BottomSheetNewCollectionBinding sheet =
+        BottomSheetNewCollectionBinding.inflate(getLayoutInflater());
+    bottomSheetDialog.setContentView(sheet.getRoot());
+    sheet.createCollectionButton.setOnClickListener(
         view -> {
-          String name = editText.getText().toString().trim();
+          String name = sheet.collectionNameInput.getText().toString().trim();
           if (name.isEmpty()) {
-            editText.setError("모음 이름을 입력해 주세요");
+            sheet.collectionNameInput.setError("모음 이름을 입력해 주세요");
             return;
           }
 

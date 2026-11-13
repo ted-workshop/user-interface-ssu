@@ -44,7 +44,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    buildFeatures { buildConfig = true }
+    buildFeatures {
+        buildConfig = true
+        viewBinding = true
+    }
 }
 
 java { toolchain { languageVersion.set(JavaLanguageVersion.of(25)) } }

@@ -118,7 +118,10 @@ export async function enqueueAnalysis(
     sql(
       `INSERT INTO summary_requests (id, user_id, analysis_job_id, origin, subscription_id, created_at, updated_at)
       SELECT ?, ?, j.id, ?, ?, ?, ? FROM analysis_jobs j WHERE j.video_id = ? AND j.generation_key = ?
-      AND NOT EXISTS (SELECT 1 FROM summary_requests WHERE user_id = ? AND analysis_job_id = j.id)`,
+      AND NOT EXISTS (SELECT 1 FROM summary_requests WHERE user_id = ? AND analysis_job_id = j.id)
+      AND (? IS NULL OR EXISTS (
+        SELECT 1 FROM channel_subscriptions s WHERE s.id = ? AND s.user_id = ? AND s.status = 'active'
+        AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = s.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL)))`,
       crypto.randomUUID(),
       input.userId,
       input.subscriptionId ? "channel" : "direct",
@@ -127,6 +130,10 @@ export async function enqueueAnalysis(
       now,
       videoId,
       key,
+      input.userId,
+      // 채널 자동 접수는 활성 구독과 확인된 수신 주소를 같은 statement에서 다시 확인해요.
+      input.subscriptionId ?? null,
+      input.subscriptionId ?? null,
       input.userId,
     ),
     sql(

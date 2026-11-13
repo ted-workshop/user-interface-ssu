@@ -3,6 +3,7 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { createApp } from "../src/app";
 import { sha256Hex } from "../src/auth";
+import { enqueueAnalysis } from "../src/jobs/analysis";
 import { claimChannelCheck } from "../src/jobs/channels";
 import { type JobProviders, runBackgroundJobs } from "../src/jobs/runner";
 import type { ChannelCheckTargetRow } from "../src/rows";
@@ -129,6 +130,27 @@ function subscriptionRow() {
   return sql(
     "SELECT baseline_initialized_at AS baselineInitializedAt, last_checked_at AS lastCheckedAt, next_check_at AS nextCheckAt, status FROM channel_subscriptions WHERE id = 'sub'",
   ).first<ChannelCheckTargetRow & { status: string }>();
+}
+
+// 기준이 이미 있는 구독에 기준 영상과 다음 확인 시각을 만들어요.
+async function seedBaseline(videoIds: string[] = []) {
+  await seedAutomation();
+  const statements = videoIds.flatMap((videoId) => [
+    sql("INSERT INTO videos (id, channel_id) VALUES (?, ?)", videoId, channel),
+    sql(
+      "INSERT INTO subscription_videos (subscription_id, video_id, is_baseline) VALUES ('sub', ?, 1)",
+      videoId,
+    ),
+  ]);
+  statements.push(
+    sql(
+      "UPDATE channel_subscriptions SET baseline_initialized_at = ?, last_checked_at = ?, next_check_at = ? WHERE id = 'sub'",
+      now - 100,
+      now - 100,
+      now - 1,
+    ),
+  );
+  await env.DB.batch(statements);
 }
 
 async function latestCheck() {
@@ -414,6 +436,107 @@ test("기준 이후 새 영상만 채널 요청으로 한 번 접수해요", asy
     { video_id: "aaaaaaaaaaa", is_baseline: 1 },
     { video_id: "bbbbbbbbbbb", is_baseline: 0 },
   ]);
+});
+
+test("관측만 저장되고 중단된 영상은 다음 확인에서 한 번만 접수해요", async () => {
+  await seedAutomation();
+  // 이전 실행이 관측만 저장하고 요청 접수 전에 종료된 상태를 만들어요.
+  await env.DB.batch([
+    sql(
+      "INSERT INTO videos (id, channel_id) VALUES ('aaaaaaaaaaa', ?)",
+      channel,
+    ),
+    sql(
+      "INSERT INTO subscription_videos (subscription_id, video_id, is_baseline) VALUES ('sub', 'aaaaaaaaaaa', 0)",
+    ),
+    sql(
+      "UPDATE channel_subscriptions SET baseline_initialized_at = ?, last_checked_at = ?, next_check_at = ? WHERE id = 'sub'",
+      now - 100,
+      now - 100,
+      now - 1,
+    ),
+  ]);
+  await runBackgroundJobs(settings, providers([video("aaaaaaaaaaa")]));
+  expect(
+    (
+      await sql(
+        "SELECT q.origin, q.subscription_id, j.video_id FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id",
+      ).all()
+    ).results,
+  ).toEqual([
+    { origin: "channel", subscription_id: "sub", video_id: "aaaaaaaaaaa" },
+  ]);
+  expect(await count("analysis_jobs")).toBe(1);
+
+  clock += interval;
+  await runBackgroundJobs(settings, providers([video("aaaaaaaaaaa")]));
+  expect(await count("summary_requests")).toBe(1);
+  expect(await count("analysis_jobs")).toBe(1);
+});
+
+test("직접 요청이 먼저 있는 영상은 관측만 남아도 채널 요청을 만들지 않아요", async () => {
+  await seedBaseline();
+  await env.DB.batch([
+    sql(
+      "INSERT INTO videos (id, channel_id) VALUES ('aaaaaaaaaaa', ?)",
+      channel,
+    ),
+    sql(
+      "INSERT INTO subscription_videos (subscription_id, video_id, is_baseline) VALUES ('sub', 'aaaaaaaaaaa', 0)",
+    ),
+  ]);
+  await enqueueAnalysis(
+    env.DB,
+    {
+      userId: owner,
+      url: "https://www.youtube.com/watch?v=aaaaaaaaaaa",
+      model: settings.GEMINI_MODEL,
+    },
+    now,
+  );
+  await runBackgroundJobs(settings, providers([video("aaaaaaaaaaa")]));
+  expect(
+    (
+      await sql(
+        "SELECT q.origin, j.video_id FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id",
+      ).all()
+    ).results,
+  ).toEqual([{ origin: "direct", video_id: "aaaaaaaaaaa" }]);
+  expect(await count("summary_requests")).toBe(1);
+});
+
+test("공급자 응답 전에 마지막 수신 주소가 삭제되면 새 분석을 접수하지 않아요", async () => {
+  await seedBaseline();
+  const io = providers(async () => {
+    await sql("UPDATE recipients SET deleted_at = ?", clock).run();
+    return [video("bbbbbbbbbbb")];
+  });
+  await runBackgroundJobs(settings, io);
+  expect(await count("summary_requests")).toBe(0);
+  expect(await count("subscription_videos")).toBe(0);
+  expect(await count("channel_check_results")).toBe(0);
+  expect(await subscriptionRow()).toMatchObject({
+    baselineInitializedAt: now - 100,
+    lastCheckedAt: now - 100,
+    nextCheckAt: now - 1,
+  });
+});
+
+test("첫 확인 중 마지막 수신 주소가 삭제되면 기준도 만들지 않아요", async () => {
+  await seedAutomation();
+  const io = providers(async () => {
+    await sql("UPDATE recipients SET deleted_at = ?", clock).run();
+    return [video("aaaaaaaaaaa")];
+  });
+  await runBackgroundJobs(settings, io);
+  expect(await count("summary_requests")).toBe(0);
+  expect(await count("subscription_videos")).toBe(0);
+  expect(await count("channel_check_results")).toBe(0);
+  expect(await subscriptionRow()).toMatchObject({
+    baselineInitializedAt: null,
+    lastCheckedAt: null,
+    nextCheckAt: null,
+  });
 });
 
 test("확인 중 중지한 채널은 공급자를 호출하지 않고 결과도 남기지 않아요", async () => {

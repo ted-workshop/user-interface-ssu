@@ -8,7 +8,7 @@ import type {
 import { summaryConfigSchema } from "../summary";
 import type { ChannelVideo } from "../youtube-videos";
 import { enqueueAnalysis } from "./analysis";
-import { checkLog, statement, unixNow } from "./shared";
+import { checkLog, JobError, statement, unixNow } from "./shared";
 
 // 확인 주기와 지금 확인의 최소 간격이에요.
 export const MANUAL_CHECK_INTERVAL_SECONDS = 60;
@@ -217,6 +217,24 @@ export async function createManualCheck(
   };
 }
 
+// 실행 직전 조건이 유지되는지 확인해요. 관측·접수 시점에도 같은 조건을 다시 봐요.
+async function automationActive(
+  db: D1Database,
+  claim: ChannelCheckClaim,
+  subscriptionId: string,
+  baseline: "pending" | "initialized",
+) {
+  return statement(
+    db,
+    `SELECT 1 AS found FROM channel_subscriptions s
+    WHERE s.id = ? AND s.user_id = ? AND s.status = 'active'
+    AND s.baseline_initialized_at IS ${baseline === "pending" ? "NULL" : "NOT NULL"}
+    AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = s.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL)`,
+    subscriptionId,
+    claim.userId,
+  ).first<IdRow>();
+}
+
 // 첫 성공 확인은 현재 영상 목록 전체를 기준으로 저장하고 분석을 시작하지 않아요.
 export async function storeBaseline(
   db: D1Database,
@@ -225,6 +243,7 @@ export async function storeBaseline(
   videos: ChannelVideo[],
   now = unixNow(),
 ) {
+  if (!(await automationActive(db, claim, target.id, "pending"))) return;
   await runChunks(
     db,
     videos.map((video) => videoStatement(db, target, video, now)),
@@ -240,6 +259,7 @@ export async function storeBaseline(
     `UPDATE channel_subscriptions SET baseline_initialized_at = ?, last_checked_at = ?,
     next_check_at = ? + ${intervalSql}
     WHERE id = ? AND user_id = ? AND status = 'active' AND baseline_initialized_at IS NULL
+    AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = channel_subscriptions.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL)
     AND EXISTS (SELECT 1 FROM channel_checks c WHERE c.id = ? AND c.status = 'running' AND c.lease_token = ?)`,
     now,
     now,
@@ -255,7 +275,7 @@ export async function storeBaseline(
   checkLog(claim.id, "channel_completed");
 }
 
-// 두 번째 확인부터는 처음 본 영상만 기존 분석 흐름에 연결해요.
+// 두 번째 확인부터는 처음 본 영상과 접수 전에 중단된 관측만 기존 분석 흐름에 연결해요.
 export async function storeNewVideos(
   db: D1Database,
   claim: ChannelCheckClaim,
@@ -264,6 +284,19 @@ export async function storeNewVideos(
   model: string,
   now = unixNow(),
 ) {
+  if (!(await automationActive(db, claim, target.id, "initialized"))) return;
+  // 관측만 저장되고 요청 접수 전에 중단된 영상은 다음 확인에서 이어서 접수해요.
+  const pending = await statement(
+    db,
+    `SELECT o.video_id AS videoId FROM subscription_videos o
+    WHERE o.subscription_id = ? AND o.is_baseline = 0
+    AND NOT EXISTS (
+      SELECT 1 FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id
+      WHERE q.user_id = ? AND j.video_id = o.video_id)
+    ORDER BY o.discovered_at, o.video_id`,
+    target.id,
+    claim.userId,
+  ).all<{ videoId: string }>();
   const observed = await statement(
     db,
     "SELECT video_id AS videoId FROM subscription_videos WHERE subscription_id = ?",
@@ -276,44 +309,55 @@ export async function storeNewVideos(
       db,
       fresh.map((video) => videoStatement(db, target, video, now)),
     );
-    for (const video of fresh) {
-      // 채널 요청은 관측 기록과 활성 구독이 있어야 접수할 수 있어요(스키마 트리거).
-      const observedRow = await observationStatement(
+  }
+  const pendingIds = pending.results.map((row) => row.videoId);
+  const freshIds: string[] = [];
+  for (const video of fresh) {
+    // 채널 요청은 관측 기록과 활성 구독·수신 주소가 있어야 접수할 수 있어요(스키마 트리거).
+    const observedRow = await observationStatement(
+      db,
+      claim,
+      target,
+      video,
+      false,
+      now,
+    ).run();
+    if (observedRow.meta.changes !== 1) continue;
+    freshIds.push(video.videoId);
+  }
+  const admit = async (videoId: string, freshObservation: boolean) => {
+    try {
+      await enqueueAnalysis(
         db,
-        claim,
-        target,
-        video,
-        false,
+        {
+          userId: claim.userId,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          model,
+          subscriptionId: target.id,
+        },
         now,
-      ).run();
-      if (observedRow.meta.changes !== 1) continue;
-      try {
-        await enqueueAnalysis(
-          db,
-          {
-            userId: claim.userId,
-            url: `https://www.youtube.com/watch?v=${video.videoId}`,
-            model,
-            subscriptionId: target.id,
-          },
-          now,
-        );
-      } catch (error) {
-        // 요청 없이 관측만 남겨 영상을 영영 건너뛰지 않게 되돌려요.
+      );
+    } catch (error) {
+      // 확인 중 조건이 바뀌어 접수하지 못한 관측은 다음 확인에서 다시 시도해요.
+      if (error instanceof JobError && error.code === "INELIGIBLE") return;
+      // 접수 전에 중단된 관측은 다음 확인에서 이어가고, 저장 실패로 끝난 이번 관측은 되돌려요.
+      if (freshObservation)
         await statement(
           db,
           "DELETE FROM subscription_videos WHERE subscription_id = ? AND video_id = ? AND is_baseline = 0",
           target.id,
-          video.videoId,
+          videoId,
         ).run();
-        throw error;
-      }
+      throw error;
     }
-  }
+  };
+  for (const videoId of pendingIds) await admit(videoId, false);
+  for (const videoId of freshIds) await admit(videoId, true);
   const applied = await statement(
     db,
     `UPDATE channel_subscriptions SET last_checked_at = ?, next_check_at = ? + ${intervalSql}
     WHERE id = ? AND user_id = ? AND status = 'active' AND baseline_initialized_at IS NOT NULL
+    AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = channel_subscriptions.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL)
     AND EXISTS (SELECT 1 FROM channel_checks c WHERE c.id = ? AND c.status = 'running' AND c.lease_token = ?)`,
     now,
     now,
@@ -447,7 +491,7 @@ function videoStatement(
   );
 }
 
-// 확인 중 중지·삭제된 구독에는 관측 기록을 추가하지 않아요.
+// 확인 중 중지·삭제된 구독이나 삭제된 마지막 수신 주소에는 관측 기록을 추가하지 않아요.
 function observationStatement(
   db: D1Database,
   claim: ChannelCheckClaim,
@@ -461,7 +505,8 @@ function observationStatement(
     `INSERT INTO subscription_videos (subscription_id, video_id, is_baseline, discovered_at)
     SELECT ?, ?, ?, ? WHERE EXISTS (
       SELECT 1 FROM channel_subscriptions s WHERE s.id = ? AND s.user_id = ? AND s.status = 'active'
-      AND s.baseline_initialized_at IS ${baseline ? "NULL" : "NOT NULL"})
+      AND s.baseline_initialized_at IS ${baseline ? "NULL" : "NOT NULL"}
+      AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = s.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL))
     ON CONFLICT DO NOTHING`,
     target.id,
     video.videoId,

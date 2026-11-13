@@ -24,6 +24,7 @@ import {
   getCheckTarget,
   listCheckTargets,
   MAX_NEW_VIDEOS_PER_CHECK,
+  queueFollowUpCheck,
   recordCheckFailure,
   scheduleDueCheck,
   storeBaseline,
@@ -249,6 +250,8 @@ async function runChannelCheck(env: Env, io: JobProviders) {
       );
     }
   }
+  // 지금 확인은 구독이 상한보다 많으면 남은 구독을 확인할 후속 작업을 대기시켜요.
+  if (claim.manual) await queueFollowUpCheck(env.DB, claim, io.now());
   await completeChannelCheck(env.DB, claim, io.now());
 }
 

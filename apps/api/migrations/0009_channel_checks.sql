@@ -6,6 +6,8 @@ CREATE TABLE channel_checks (
   status TEXT NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'running', 'completed', 'failed')),
   failure_code TEXT CHECK (failure_code IN ('configuration', 'interrupted')),
   lease_token TEXT,
+  -- 구독이 많을 때 지금 확인을 이어가는 후속 작업이 가리키는 첫 작업이에요. 예약 확인은 NULL이에요.
+  continued_from_id TEXT REFERENCES channel_checks(id) ON DELETE RESTRICT,
   created_at INTEGER NOT NULL DEFAULT (unixepoch()),
   started_at INTEGER,
   finished_at INTEGER,
@@ -15,6 +17,7 @@ CREATE TABLE channel_checks (
     (status = 'running' AND started_at IS NOT NULL AND finished_at IS NULL AND lease_token IS NOT NULL) OR
     (status IN ('completed', 'failed') AND started_at IS NOT NULL AND finished_at IS NOT NULL AND finished_at >= started_at)
   ),
+  CHECK (continued_from_id IS NULL OR continued_from_id != id),
   UNIQUE (id, user_id)
 ) STRICT;
 CREATE INDEX channel_checks_owner_created ON channel_checks(user_id, created_at DESC, id DESC);
@@ -22,6 +25,7 @@ CREATE INDEX channel_checks_queued ON channel_checks(created_at, id) WHERE statu
 -- 계정당 대기 하나·실행 하나를 허용해, 예약 확인이 실행 중이어도 지금 확인을 대기시킬 수 있어요.
 CREATE UNIQUE INDEX channel_checks_one_queued ON channel_checks(user_id) WHERE status = 'queued';
 CREATE UNIQUE INDEX channel_checks_one_running ON channel_checks(user_id) WHERE status = 'running';
+CREATE INDEX channel_checks_continued ON channel_checks(continued_from_id) WHERE continued_from_id IS NOT NULL;
 
 -- 확인을 시도한 채널별 결과예요. 확인 완료와 개별 영상 분석 완료는 다른 상태예요.
 CREATE TABLE channel_check_results (
@@ -34,7 +38,7 @@ CREATE TABLE channel_check_results (
   PRIMARY KEY (check_id, subscription_id)
 ) STRICT;
 
-CREATE TRIGGER channel_check_identity BEFORE UPDATE OF id, user_id, manual, created_at ON channel_checks
+CREATE TRIGGER channel_check_identity BEFORE UPDATE OF id, user_id, manual, continued_from_id, created_at ON channel_checks
 BEGIN SELECT RAISE(ABORT, 'channel_check_identity_immutable'); END;
 CREATE TRIGGER channel_check_transition BEFORE UPDATE OF status ON channel_checks
 WHEN NEW.status != OLD.status AND NOT (

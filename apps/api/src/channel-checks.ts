@@ -11,6 +11,7 @@ import {
   automationConfigured,
   createManualCheck,
   getChannelCheck,
+  getNextCheckId,
   listCheckResults,
 } from "./jobs/channels";
 import { unixNow } from "./jobs/shared";
@@ -19,11 +20,16 @@ import type { ChannelCheckResultRow, ChannelCheckRow } from "./rows";
 const iso = (time: number | null) =>
   time === null ? null : new Date(time * 1000).toISOString();
 
-function resource(check: ChannelCheckRow, results: ChannelCheckResultRow[]) {
+function resource(
+  check: ChannelCheckRow,
+  results: ChannelCheckResultRow[],
+  nextCheckId: string | null,
+) {
   return {
     id: check.id,
     status: check.status,
     failureCode: check.failureCode,
+    nextCheckId,
     createdAt: iso(check.createdAt),
     finishedAt: iso(check.finishedAt),
     channels: results.map((result) => ({
@@ -80,7 +86,11 @@ channelChecks.post("/channel-checks", async (c) => {
   if (result.status === "created")
     c.header("Location", `/v1/channel-checks/${result.check.id}`);
   return c.json(
-    resource(result.check, results),
+    resource(
+      result.check,
+      results,
+      await getNextCheckId(c.env.DB, c.get("userId"), result.check),
+    ),
     result.status === "created" ? 202 : 200,
   );
 });
@@ -93,7 +103,13 @@ channelChecks.get("/channel-checks/:id", async (c) => {
     parseIdParam(c),
   );
   if (!check) return c.json({ error: { code: "NOT_FOUND" } }, 404);
-  return c.json(resource(check, await listCheckResults(c.env.DB, check.id)));
+  return c.json(
+    resource(
+      check,
+      await listCheckResults(c.env.DB, check.id),
+      await getNextCheckId(c.env.DB, c.get("userId"), check),
+    ),
+  );
 });
 
 channelChecks.onError((error, c) =>

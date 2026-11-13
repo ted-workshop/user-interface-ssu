@@ -144,6 +144,7 @@ export type ChannelCheckRow = {
   status: "queued" | "running" | "completed" | "failed";
   manual: number;
   failureCode: string | null;
+  continuedFromId: string | null;
   createdAt: number;
   finishedAt: number | null;
 };
@@ -152,6 +153,8 @@ export type ChannelCheckClaim = {
   userId: string;
   token: string;
   manual: number;
+  // 지금 확인이 구독 상한으로 이어질 때 같은 확인 묶음을 식별하는 첫 작업이에요.
+  rootCheckId: string;
 };
 
 // 확인할 활성 구독과 공식 채널 정보예요.

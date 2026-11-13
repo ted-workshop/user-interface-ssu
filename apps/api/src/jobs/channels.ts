@@ -21,7 +21,7 @@ export const MAX_CHANNELS_PER_CHECK = 2;
 export const MAX_NEW_VIDEOS_PER_CHECK = 2;
 
 const checkColumns = `id, status, manual, failure_code AS failureCode,
-  created_at AS createdAt, finished_at AS finishedAt`;
+  continued_from_id AS continuedFromId, created_at AS createdAt, finished_at AS finishedAt`;
 const intervalSql =
   "60 * coalesce((SELECT check_interval_minutes FROM user_settings WHERE user_id = ?), 360)";
 // 자동화는 활성 구독과 확인된 살아 있는 수신 주소가 모두 있을 때만 실행해요.
@@ -87,7 +87,8 @@ export async function claimChannelCheck(
     ),
     statement(
       db,
-      `SELECT id, user_id AS userId, manual, lease_token AS token FROM channel_checks
+      `SELECT id, user_id AS userId, manual, lease_token AS token,
+        coalesce(continued_from_id, id) AS rootCheckId FROM channel_checks
       WHERE lease_token = ? AND status = 'running'`,
       token,
     ),
@@ -106,14 +107,19 @@ export async function listCheckTargets(
   const due = claim.manual
     ? ""
     : "AND (s.next_check_at IS NULL OR s.next_check_at <= ?)";
-  // 오래 확인하지 않은 구독부터 처리해 한 번의 상한 때문에 뒤쪽 구독이 계속 밀리지 않게 해요.
+  // 오래 확인하지 않은 구독부터 처리하고, 같은 지금 확인 묶음에서 이미 시도한 구독은 다시 보지 않아요.
   const rows = await statement(
     db,
     `${checkedTarget}
     WHERE s.user_id = ? AND ${activeForAutomation} ${due}
+    AND NOT EXISTS (
+      SELECT 1 FROM channel_check_results r JOIN channel_checks c ON c.id = r.check_id
+      WHERE r.subscription_id = s.id AND (c.id = ? OR c.continued_from_id = ?))
     ORDER BY coalesce(s.last_checked_at, 0), s.created_at, s.id LIMIT ?`,
     claim.userId,
     ...(claim.manual ? [] : [now]),
+    claim.rootCheckId,
+    claim.rootCheckId,
     MAX_CHANNELS_PER_CHECK,
   ).all<ChannelCheckTargetRow>();
   return rows.results;
@@ -239,6 +245,54 @@ export async function createManualCheck(
   return active
     ? { status: "existing", check: active }
     : { status: "not_ready" };
+}
+
+// 지금 확인 묶음에서 다음에 실행할 작업이 있으면 앱이 이어서 조회할 수 있게 알려줘요.
+export async function getNextCheckId(
+  db: D1Database,
+  userId: string,
+  check: ChannelCheckRow,
+) {
+  const root = check.continuedFromId ?? check.id;
+  return statement(
+    db,
+    `SELECT id FROM channel_checks
+    WHERE user_id = ? AND id != ? AND status IN ('queued', 'running')
+    AND coalesce(continued_from_id, id) = ? ORDER BY created_at, id LIMIT 1`,
+    userId,
+    check.id,
+    root,
+  ).first<string>("id");
+}
+
+// 구독이 한 확인의 상한보다 많으면 남은 활성 구독을 위한 지금 확인을 대기시켜요.
+export async function queueFollowUpCheck(
+  db: D1Database,
+  claim: ChannelCheckClaim,
+  now = unixNow(),
+) {
+  const result = await statement(
+    db,
+    `INSERT INTO channel_checks (id, user_id, manual, continued_from_id, created_at)
+    SELECT ?, ?, 1, ?, ?
+    WHERE NOT EXISTS (SELECT 1 FROM channel_checks WHERE user_id = ? AND status = 'queued')
+    AND EXISTS (
+      SELECT 1 FROM channel_subscriptions s
+      WHERE s.user_id = ? AND s.status = 'active'
+      AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = s.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL)
+      AND NOT EXISTS (
+        SELECT 1 FROM channel_check_results r JOIN channel_checks c ON c.id = r.check_id
+        WHERE r.subscription_id = s.id AND (c.id = ? OR c.continued_from_id = ?)))`,
+    crypto.randomUUID(),
+    claim.userId,
+    claim.rootCheckId,
+    now,
+    claim.userId,
+    claim.userId,
+    claim.rootCheckId,
+    claim.rootCheckId,
+  ).run();
+  return result.meta.changes === 1;
 }
 
 // 실행 직전 조건이 유지되는지 확인해요. 관측·접수 시점에도 같은 조건을 다시 봐요.

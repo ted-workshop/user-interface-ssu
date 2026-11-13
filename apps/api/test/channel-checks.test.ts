@@ -197,8 +197,14 @@ beforeEach(async () => {
     "user_settings",
     "sessions",
     "users",
-  ])
+  ]) {
+    // 후속 확인이 첫 작업을 참조하므로 자식 행을 먼저 지워요.
+    if (table === "channel_checks")
+      await env.DB.prepare(
+        "DELETE FROM channel_checks WHERE continued_from_id IS NOT NULL",
+      ).run();
     await env.DB.prepare(`DELETE FROM ${table}`).run();
+  }
   for (const [id, secret] of [
     [owner, token],
     [other, otherToken],
@@ -244,6 +250,7 @@ test("지금 확인은 60초 간격을 지키고 진행 중인 확인을 재사�
     id: queued.id,
     status: "queued",
     failureCode: null,
+    nextCheckId: null,
     createdAt: iso(now),
     finishedAt: null,
     channels: [],
@@ -265,6 +272,7 @@ test("지금 확인은 60초 간격을 지키고 진행 중인 확인을 재사�
     id: queued.id,
     status: "completed",
     failureCode: null,
+    nextCheckId: null,
     createdAt: iso(now),
     finishedAt: iso(now),
     channels: [
@@ -648,6 +656,57 @@ test("한 확인의 채널 수 상한 뒤에도 다음 확인이 남은 채널�
 
   clock += 60;
   await runBackgroundJobs(settings, providers([]));
+  expect(
+    (
+      await sql(
+        "SELECT id FROM channel_subscriptions WHERE last_checked_at IS NULL",
+      ).all()
+    ).results,
+  ).toEqual([]);
+});
+
+test("지금 확인은 남은 채널이 있으면 후속 작업을 대기시켜 전체 채널을 확인해요", async () => {
+  await seedAutomation();
+  await env.DB.batch([
+    sql(
+      "INSERT INTO channels (id, youtube_channel_id, title, url) VALUES ('channel-2', ?, '둘째 채널', ?)",
+      youtubeId2,
+      `https://www.youtube.com/channel/${youtubeId2}`,
+    ),
+    sql(
+      "INSERT INTO channels (id, youtube_channel_id, title, url) VALUES ('channel-3', ?, '셋째 채널', ?)",
+      youtubeId3,
+      `https://www.youtube.com/channel/${youtubeId3}`,
+    ),
+    sql(
+      "INSERT INTO channel_subscriptions (id, user_id, channel_id, created_at) VALUES ('sub-2', ?, 'channel-2', ?)",
+      owner,
+      now + 1,
+    ),
+    sql(
+      "INSERT INTO channel_subscriptions (id, user_id, channel_id, created_at) VALUES ('sub-3', ?, 'channel-3', ?)",
+      owner,
+      now + 2,
+    ),
+  ]);
+  const created = await call("POST", "/channel-checks", {});
+  expect(created.status).toBe(202);
+  const { id } = await created.json<{ id: string }>();
+  await runBackgroundJobs(settings, providers([]));
+  const first = await (await call("GET", `/channel-checks/${id}`)).json<{
+    channels: unknown[];
+    nextCheckId: string | null;
+  }>();
+  expect(first.channels).toHaveLength(2);
+  if (!first.nextCheckId) throw new Error("후속 확인이 필요해요.");
+
+  await runBackgroundJobs(settings, providers([]));
+  const second = await (
+    await call("GET", `/channel-checks/${first.nextCheckId}`)
+  ).json<{ channels: unknown[]; nextCheckId: string | null }>();
+  expect(second.channels).toHaveLength(1);
+  expect(second.nextCheckId).toBeNull();
+  expect(await count("channel_checks")).toBe(2);
   expect(
     (
       await sql(

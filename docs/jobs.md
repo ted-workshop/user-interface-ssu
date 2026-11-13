@@ -20,7 +20,12 @@
   발송 하나를 접수해요. 직접 요청은 거부하고 같은 사용자·보고서·주소의 발송은 재사용해요.
 - `getDelivery(DB, userId, deliveryId)` / `retryDelivery(DB, userId, deliveryId, attempt)`:
   발송 상태를 조회·재시도해요. 이미 성공한 분석을 다시 실행하지 않아요.
-- `runBackgroundJobs(env)`: 저장된 분석·발송·인증 메일 대기 행을 처리해요. 인증 메일은 [ADR-0028](decisions/0028-auth-http.md)의 `auth_mail_outbox`예요. Worker의 scheduled 핸들러가 호출하므로
+- `scheduleDueCheck(DB, now)`: 활성 구독과 확인된 수신 주소가 있고 `nextCheckAt`이 없거나 지난 첫 계정의
+  `channel_checks` 행을 만들어요. 서버 설정이 없으면 호출부가 예약 행을 만들지 않아요.
+- `claimChannelCheck(DB, now)` / `storeBaseline` / `storeNewVideos` / `recordCheckFailure` / `completeChannelCheck`:
+  확인 하나만 점유해 공식 업로드 목록을 읽어요. 첫 성공은 현재 영상을 기준으로만 저장하고,
+  이후에는 처음 관측한 영상만 `enqueueAnalysis`로 접수해요. 채널별 공급자 실패와 확인 작업 자체의 실패를 분리해요.
+- `runBackgroundJobs(env)`: 저장된 분석·발송·인증 메일·채널 확인 대기 행을 처리해요. 인증 메일은 [ADR-0028](decisions/0028-auth-http.md)의 `auth_mail_outbox`예요. Worker의 scheduled 핸들러가 호출하므로
   HTTP 핸들러에서 장기 `waitUntil()` 작업으로 실행하지 않아요.
 
 이 반환값은 서버 내부 상태예요. #11·#15의 HTTP 호출부는 [API 계약](api-contract.md)의 DTO로 변환하고
@@ -46,6 +51,12 @@ SQL 조회는 `analysis.ts`·`delivery.ts`에 두고 값을 바인딩해요. 저
 SMTP 접수 성공과 실제 수신함 도착은 별개예요. SMTP 호출 직전 구독·수신 주소·개인 권한을 다시 확인해요.
 메일의 명확한 일시 거부만 1분·5분 뒤 총 3시도까지 재전송해요. 결과 불명·quota·영구 거부는 멈춰요.
 
+채널 확인도 실행 전에 활성 구독·확인된 주소·주기를 다시 조회해요. 영상 관측 기록은 채널 요청 접수에 필요한
+스키마 조건이라 요청보다 먼저 저장하고, 접수가 실패하면 방금 만든 관측 기록을 지워 다음 확인에서 다시 처리해요.
+공급자 성공 후 관측·접수 사이의 DB 실패는 원자적이지 않아 같은 영상이 다시 접수될 수 있어요. 이때는 기존
+분석 작업·보고서를 재사용하고 새 보고서를 만들지 않아요. 15분 넘게 실행 중인 확인은 `failed`·`interrupted`로
+끝내고, 기준이 없는 구독은 다음 예약 확인에서 다시 시도해요.
+
 `job.claimed`, `job.completed`, `job.failed`, `job.recovered_unknown` 로그에는 종류·작업 ID·시도 번호·
 실패 코드만 남겨요. 주소·본문·키·공급자 오류 원문은 넣지 않아요. DB 장애 시 로그만으로 성공을 판단하지 말고
 저장된 작업·시도·결과를 함께 확인해요. 결과 불명을 해결하려고 행을 삭제하거나 새 ID로 재접수하지 않아요.
@@ -54,7 +65,7 @@ SMTP 접수 성공과 실제 수신함 도착은 별개예요. SMTP 호출 직�
 
 ```sh
 mise run api:db:migrate
-mise exec -- bun run --cwd apps/api vitest run test/jobs.test.ts test/job-migration.test.ts
+mise exec -- bun run --cwd apps/api vitest run test/jobs.test.ts test/job-migration.test.ts test/channel-checks.test.ts test/youtube-videos.test.ts
 mise run api:check
 ```
 

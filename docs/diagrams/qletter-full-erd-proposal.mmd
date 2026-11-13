@@ -1,4 +1,4 @@
-%% 공통 보고서 모델 · 전체 22개 테이블 · 확정 설계 · DB와 제품 HTTP 검증은 구분해요
+%% 공통 보고서 모델 · 전체 24개 테이블 · 확정 설계 · DB와 제품 HTTP 검증은 구분해요
 erDiagram
     users ||..o{ sessions : "세션"
     users ||--o| user_settings : "개인 설정"
@@ -6,6 +6,9 @@ erDiagram
     account_tokens ||..o| auth_mail_outbox : "대기 중인 인증 메일"
     recipients |o..o{ account_tokens : "주소 확인에만 연결"
     users ||..o{ recipients : "개인 주소"
+    users ||..o{ channel_checks : "지금·예약 확인 작업"
+    channel_checks ||--o{ channel_check_results : "확인을 시도한 채널"
+    channel_subscriptions ||..o{ channel_check_results : "확인 결과"
     users ||..o{ channel_subscriptions : "개인 구독"
     channels ||..o{ channel_subscriptions : "공통 채널 구독"
     channels |o..o{ videos : "실제 출처 확인 후 연결"
@@ -115,6 +118,24 @@ erDiagram
         text video_id PK, FK "videos.id"
         integer is_baseline "0 / 1, 첫 성공 관찰의 영상 여부"
         integer discovered_at "해당 구독의 발견 시각"
+    }
+    channel_checks {
+        text id PK "확인 작업 ID"
+        text user_id FK "users.id"
+        integer manual "1: 지금 확인, 0: 예약 확인"
+        text status "queued / running / completed / failed"
+        text failure_code "확인 자체의 실패 사유"
+        text lease_token "현재 실행자의 임의 token"
+        integer created_at "접수 시각"
+        integer started_at "실행 시작 시각"
+        integer finished_at "완료·실패 종료 시각"
+    }
+    channel_check_results {
+        text check_id PK, FK "channel_checks.id"
+        text subscription_id PK, FK "channel_subscriptions.id"
+        text status "completed / failed"
+        text failure_code "provider_unavailable / invalid_response"
+        integer last_checked_at "그 시점의 마지막 성공 확인"
     }
     analysis_jobs {
         text id PK "공통 작업 ID"

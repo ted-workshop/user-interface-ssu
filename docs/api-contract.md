@@ -8,7 +8,8 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 계정·인증 경로도 구현했고 경계는 [ADR-0028](decisions/0028-auth-http.md)에 남겨요. Android 연결은 후속 작업이에요.
 리포트 모음 경로도 구현했고 경계는 [ADR-0029](decisions/0029-collections-http.md)에 남겨요.
 채널 미리보기·구독 관리·수신 주소 확인·주기 설정도 구현했고 경계는 [ADR-0030](decisions/0030-channel-settings-http.md)에 남겨요.
-새 영상 확인·예약 실행(#14)·리포트 발송 HTTP(#15)는 이 설정 구현에 포함하지 않아요. 실제 YouTube·수신 메일 검증은 미완료예요.
+새 영상 확인·첫 기준·예약 실행과 지금 확인 경로도 구현했고 경계는 [ADR-0031](decisions/0031-channel-check-execution.md)에 남겨요.
+채널 리포트 발송 HTTP(#15)는 아직 구현하지 않았어요. 실제 YouTube·수신 메일·원격 Cron 검증은 미완료예요.
 로컬 세션·공급자 fixture 검증을 실제 로그인·Gemini 생성 성공으로 보지 않아요.
 
 ## 공통 규칙
@@ -44,7 +45,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | 401 | `AUTHENTICATION_REQUIRED`, `INVALID_CREDENTIALS` | 로그인으로 이동하거나 입력을 고쳐요. |
 | 403 | `EMAIL_VERIFICATION_REQUIRED` | 비밀번호가 맞는 계정에만 이메일 확인을 안내해요. |
 | 404 | `NOT_FOUND` | 다른 계정 정보나 존재 여부를 표시하지 않아요. |
-| 409 | `CHANNEL_EXISTS`, `RECIPIENT_EXISTS`, `RETRY_NOT_ALLOWED`, `COLLECTION_EXISTS` | 기존 자원·현재 상태를 다시 읽어요. |
+| 409 | `CHANNEL_EXISTS`, `RECIPIENT_EXISTS`, `RETRY_NOT_ALLOWED`, `COLLECTION_EXISTS`, `AUTOMATION_NOT_READY` | 기존 자원·현재 상태를 다시 읽어요. |
 | 413 | `PAYLOAD_TOO_LARGE` | 입력을 줄여요. |
 | 429 | `RATE_LIMITED`, `USAGE_LIMIT_REACHED` | 정수 초 `Retry-After` 이후에 재시도해요. |
 | 503 | `SUMMARY_UNAVAILABLE`, `AUTOMATION_UNAVAILABLE`, `SERVICE_UNAVAILABLE` | 새 분석을 반복하지 않고 나중에 다시 확인해요. |
@@ -220,7 +221,25 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
   주소 생성만으로 메일을 발송하지 않아요. 확인 코드는 해당 수신 주소로 보내고 로그인한 소유자가 입력해요.
 - 주기 변경은 이미 확인한 활성 구독의 다음 시각을 `lastCheckedAt + interval`로 다시 계산해요.
   중지는 다음 시각을 null로 만들고 재개는 최신 주기를 적용해요. 첫 확인 전에는 기준·확인·다음 시각 모두 null이에요.
-  null인 신규 구독을 처음 확인하는 실행과 활성 채널·확인된 주소의 조건 검사는 #14에서 연결해요.
+  신규 구독의 첫 확인과 활성 채널·확인된 주소 조건 검사는 아래 확인 실행 규칙을 따라요.
+
+- `POST /v1/channel-checks`는 본문 없이 또는 `{}`로 호출해요. 활성 구독과 확인된 수신 주소가 모두 없으면
+  `409 AUTOMATION_NOT_READY`, 서버의 `YOUTUBE_API_KEY`·Gemini 생성 설정이 없으면 `503 AUTOMATION_UNAVAILABLE`이에요.
+  같은 계정의 대기·실행 중 확인이 있으면 새로 만들지 않고 같은 자원을 `200`으로 돌려줘요.
+  마지막 확인 생성 뒤 60초가 지나지 않았으면 `429 RATE_LIMITED`와 남은 초 `Retry-After`예요.
+- 확인 객체는 `id`, `status`(`queued|running|completed|failed`), `failureCode`, `createdAt`, `finishedAt`과
+  시도한 채널의 `subscriptionId`, `title`, `status`(`completed|failed`), `failureCode`, `lastCheckedAt`을 담은
+  `channels`예요. 확인 자체의 실패 코드는 `configuration`(서버 설정)·`interrupted`(실행 중 중단),
+  채널별 실패 코드는 `provider_unavailable`(공급자 제한·오류·시간 초과)·`invalid_response`(응답 검증 실패)예요.
+  확인 `completed`는 영상 수집과 기준·다음 시각 갱신까지 마쳤다는 뜻이며 개별 리포트 생성 완료가 아니에요.
+- 확인은 1분 Cron에서 하나만 실행해요. 예약 확인은 `nextCheckAt`이 없거나 지난 활성 구독을,
+  `지금 확인`은 활성 구독 전체를 실행 직전에 다시 조회해요. 그 사이 중지·삭제된 구독과 삭제된 수신 주소는
+  건너뛰고 결과를 만들지 않아요. 실행 중 중단된 확인은 15분 뒤 `failed`·`interrupted`로 끝내며,
+  기준이 없는 구독은 다음 예약 확인에서 다시 시도해요.
+- 채널별 공급자 실패는 `lastCheckedAt`을 유지하고 `nextCheckAt`을 `지금 + 주기`로 미뤄요.
+  실패한 첫 확인은 기준을 만들지 않아요. 성공한 확인은 `lastCheckedAt=지금`, `nextCheckAt=지금 + 주기`예요.
+- 새 영상은 관측 기록을 먼저 남기고 기존 분석 흐름에 연결해요. 접수 실패 시 방금 만든 관측 기록을 지워
+  요청 없이 관측만 남는 상태를 만들지 않아요. 채널 자동 접수는 직접 요약의 하루 3회 상한을 쓰지 않아요.
 
 - 같은 계정의 같은 YouTube 채널은 하나만 활성 등록해요. 다른 계정의 등록과는 독립이에요.
   삭제 후 재등록은 새 UUID와 새 기준을 만들고 이전 발송을 되살리지 않아요.
@@ -229,7 +248,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
   이후 새로 관찰한 ID만 처리하고 게시 시각만으로 소급 여부를 추측하지 않아요.
 - 기본 확인 주기는 360분, 선택지는 60·360·1,440분인 경과 시간 간격이에요. 도착 시한이 아니며
   벽시계 시각·시간대를 선택하는 기능은 없어요. `지금 확인`은 계정당 최소 60초 간격, 진행 중이면
-  같은 작업을 반환해요. 공급자 미검증 상태에서는 `503 AUTOMATION_UNAVAILABLE`로 접수를 막아요.
+  같은 작업을 반환해요. 서버 공급자 설정이 없으면 `503 AUTOMATION_UNAVAILABLE`로 접수를 막아요.
   주기·상한은 제품 초기 정책이고 공급자가 보장하는 할당량이 아니에요.
 - 활성 채널과 확인된 수신 주소가 모두 있을 때만 자동화를 시작해요. 주소 추가 시 자동으로 동의하지 않은
   이전 리포트를 보내지 않아요. 채널 결과가 저장되는 시점의 확인된 주소 목록을 발송 대상으로 고정해요.

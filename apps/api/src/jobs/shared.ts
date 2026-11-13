@@ -50,3 +50,19 @@ export function jobLog(
     }),
   );
 }
+
+// 채널 확인은 시도 번호가 없어 작업 ID와 실패 코드만 남겨요.
+export function checkLog(
+  id: string,
+  event: string,
+  failureCode: string | null = null,
+) {
+  console.info(
+    JSON.stringify({
+      event: `check.${event}`,
+      kind: "channel_check",
+      jobId: id,
+      failureCode,
+    }),
+  );
+}

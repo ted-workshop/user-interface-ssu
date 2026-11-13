@@ -4,7 +4,9 @@
 [전체 ERD](diagrams/qletter-full-erd-proposal.mmd)를 구현하는 저장 기반이에요.
 `0001`·`0002`의 이력을 보존하고 `0003_shared_reports.sql`이 공통 보고서 모델로 전환해요.
 `0004_job_leases.sql`은 실행권·호출 의도 열을, `0005_summary_admissions.sql`은 직접 요약의 접수 차감 기록을 추가해요.
-`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을, `0007_collections.sql`은 리포트 모음을, `0008_report_comments.sql`은 댓글 삭제 표시와 개인 권한 기준 댓글 규칙을 추가해요. 제품 테이블은 22개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
+`0006_auth_mail_rate_limits.sql`은 인증 메일 대기열과 요청 제한을, `0007_collections.sql`은 리포트 모음을,
+`0008_report_comments.sql`은 댓글 삭제 표시와 개인 권한 기준 댓글 규칙을, `0009_channel_checks.sql`은
+채널 확인 작업·채널별 결과를 추가해요. 제품 테이블은 24개예요. [실행기](jobs.md)와 직접 요약 HTTP는 로컬 D1에서 검증하며,
 실제 로그인·공급자 생성·원격 적용은 별도예요.
 
 ## 공통 데이터와 개인 관계
@@ -95,7 +97,10 @@ mise exec -- bun run --cwd apps/api wrangler d1 execute DB --local --command "SE
 mise run api:check
 ```
 
-적용한 migration 파일과 적용 이력을 수정하지 않아요. 새 DB는 0001·0002·0003·0004·0005를 순서대로 적용해요.
+적용한 migration 파일과 적용 이력을 수정하지 않아요. 새 DB는 0001·0002·0003·0004·0005·0006·0007·0008·0009를 순서대로 적용해요.
+0009는 채널 확인 작업과 시도한 채널별 결과를 추가하고 영상·구독·분석·보고서 행은 바꾸지 않아요.
+확인 작업은 계정당 대기 하나·실행 하나(예약 확인 실행 중에도 지금 확인 대기 가능)와 채널별 `completed|failed`·마지막 성공 시각을 보존해요.
+구독이 많은 지금 확인은 `continued_from_id`로 첫 작업을 가리키는 후속 작업을 이어가요.
 0005는 빈 접수 차감 테이블만 추가하고 기존 계정·요청·시도·보고서를 수정하지 않아요.
 0004는 기존 행을 삭제하지 않고 실행권·호출 의도를 추가해요. 이전 running/started 시도는
 미호출을 확인할 수 없어 다음 실행에서 결과 불명으로 처리해요. 종료 시도·보고서는 보존해요.

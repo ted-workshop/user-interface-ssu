@@ -14,6 +14,7 @@ import {
 } from "./http-input";
 import {
   canAdmitAnalysis,
+  DAILY_ADMISSION_LIMIT,
   enqueueAnalysis,
   getAnalysisRequest,
   listAnalysisRequests,
@@ -35,7 +36,7 @@ function admissionLimit(env: Env) {
     model: env.GEMINI_MODEL,
   });
   // 새 분석·재시도의 하루 3회 정책은 ADR-0024를 따라요.
-  return config.success ? 3 : 0;
+  return config.success ? DAILY_ADMISSION_LIMIT : 0;
 }
 
 function resource(

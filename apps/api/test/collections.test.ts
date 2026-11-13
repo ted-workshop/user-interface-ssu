@@ -109,6 +109,7 @@ async function saveReport(userId: string, videoId: string) {
       },
       timestampVerification: "unverified" as const,
     }),
+    listVideos: async () => [],
     send: vi.fn(async () => {
       throw new Error("이 검사에서는 메일을 보내지 않아요.");
     }),
@@ -179,6 +180,8 @@ beforeEach(async () => {
     "summary_requests",
     "analysis_jobs",
     "subscription_videos",
+    "channel_check_results",
+    "channel_checks",
     "channel_subscriptions",
     "videos",
     "channels",

@@ -54,6 +54,8 @@ beforeEach(async () => {
     "analysis_jobs",
     "subscription_videos",
     "videos",
+    "channel_check_results",
+    "channel_checks",
     "channel_subscriptions",
     "channels",
     "account_tokens",
@@ -538,6 +540,7 @@ test.each(["channel", "recipient"])(
           },
           timestampVerification: "unverified",
         }),
+        listVideos: async () => [],
         send: vi.fn(),
       },
     );

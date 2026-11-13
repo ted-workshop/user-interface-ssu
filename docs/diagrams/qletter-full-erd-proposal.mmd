@@ -126,6 +126,7 @@ erDiagram
         text status "queued / running / completed / failed"
         text failure_code "확인 자체의 실패 사유"
         text lease_token "현재 실행자의 임의 token"
+        text continued_from_id FK "지금 확인 후속 작업이 가리키는 첫 작업"
         integer created_at "접수 시각"
         integer started_at "실행 시작 시각"
         integer finished_at "완료·실패 종료 시각"

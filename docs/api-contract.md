@@ -231,8 +231,9 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
   끝난 뒤 실행할 지금 확인을 대기시키고 `202`로 새 작업을 돌려줘요.
   마지막 **지금 확인** 생성 뒤 60초가 지나지 않았으면 `429 RATE_LIMITED`와 남은 초 `Retry-After`예요.
   예약 확인 생성은 이 간격에 포함하지 않아요.
-- 확인 객체는 `id`, `status`(`queued|running|completed|failed`), `failureCode`, `createdAt`, `finishedAt`과
-  시도한 채널의 `subscriptionId`, `title`, `status`(`completed|failed`), `failureCode`, `lastCheckedAt`을 담은
+- 확인 객체는 `id`, `status`(`queued|running|completed|failed`), `failureCode`, `createdAt`, `finishedAt`,
+  같은 지금 확인 묶음에서 다음에 실행할 작업의 `nextCheckId`(없으면 null)와 시도한 채널의 `subscriptionId`, `title`,
+  `status`(`completed|failed`), `failureCode`, `lastCheckedAt`을 담은
   `channels`예요. 확인 자체의 실패 코드는 `configuration`(서버 설정)·`interrupted`(실행 중 중단),
   채널별 실패 코드는 `provider_unavailable`(공급자 제한·오류·시간 초과)·`invalid_response`(응답 검증 실패)·`processing_failed`(영상 기록·접수 중 서버 저장 실패)예요.
   채널별 저장 실패는 다른 채널과 계정의 확인을 막지 않고, 해당 구독만 다음 주기로 미뤄요.
@@ -242,7 +243,9 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
   건너뛰고 결과를 만들지 않아요. 실행 중 중단된 확인은 15분 뒤 `failed`·`interrupted`로 끝내며,
   기준이 없는 구독은 다음 예약 확인에서 다시 시도해요.
 - 무료 Workers invocation의 subrequest·공급자 사용량을 지키기 위해 한 확인은 최근 확인이 오래된 순으로
-  최대 2개 구독과 새 분석 2건을 처리해요. 남은 구독은 다음 확인에서 이어가므로 뒤쪽 채널이 계속 밀리지 않아요.
+  최대 2개 구독과 새 분석 2건을 처리해요. 지금 확인에서 활성 구독이 남으면 같은 묶음의 다음 확인 작업을
+  자동으로 대기시키고 `nextCheckId`로 알려줘요. 앱은 이 값으로 이어서 조회해 전체 활성 구독의 결과를 모아요.
+  예약 확인의 남은 구독은 다음 1분 확인에서 이어가므로 뒤쪽 채널이 계속 밀리지 않아요.
   이 상한은 공급자가 보장한 할당량이 아니며 실제 사용량은 #17에서 확인해요.
 - 채널별 공급자 실패는 `lastCheckedAt`을 유지하고 `nextCheckAt`을 `지금 + 주기`로 미뤄요.
   실패한 첫 확인은 기준을 만들지 않아요. 성공한 확인은 `lastCheckedAt=지금`, `nextCheckAt=지금 + 주기`예요.

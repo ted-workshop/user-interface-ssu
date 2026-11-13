@@ -224,7 +224,16 @@ async function runChannelCheck(env: Env, io: JobProviders) {
           config.data.model,
           io.now(),
         );
-    } catch {
+    } catch (error) {
+      // 원인 추적용으로 예외 이름과 작업 ID만 남겨요. 메시지 원문·주소·본문은 넣지 않아요.
+      console.error(
+        JSON.stringify({
+          event: "check.channel_error",
+          kind: "channel_check",
+          jobId: claim.id,
+          errorName: error instanceof Error ? error.name : "unknown",
+        }),
+      );
       // 한 채널의 저장 실패가 다른 계정의 확인을 막지 않게 채널 결과로 남기고 다음 주기로 미뤄요.
       await recordCheckFailure(
         env.DB,

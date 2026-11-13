@@ -560,6 +560,52 @@ test("영상 접수 저장이 실패하면 관측을 되돌리고 채널만 실�
   ).toEqual([{ origin: "channel", video_id: "bbbbbbbbbbb" }]);
 });
 
+test("첫 기준 저장이 실패하면 기준을 비워 두고 채널만 실패로 남겨 다음 주기에 다시 세워요", async () => {
+  await seedAutomation();
+  const io = providers([video("aaaaaaaaaaa")]);
+  const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+  await env.DB.prepare(
+    "CREATE TRIGGER fail_baseline BEFORE INSERT ON subscription_videos BEGIN SELECT RAISE(ABORT, 'fixture_failure'); END",
+  ).run();
+  try {
+    await runBackgroundJobs(settings, io);
+  } finally {
+    await env.DB.prepare("DROP TRIGGER fail_baseline").run();
+  }
+  expect(await latestCheck()).toMatchObject({
+    status: "completed",
+    failureCode: null,
+  });
+  expect(
+    (
+      await sql(
+        "SELECT status, failure_code AS failureCode FROM channel_check_results WHERE subscription_id = 'sub'",
+      ).all()
+    ).results,
+  ).toEqual([{ status: "failed", failureCode: "processing_failed" }]);
+  expect(await subscriptionRow()).toMatchObject({
+    baselineInitializedAt: null,
+    lastCheckedAt: null,
+    nextCheckAt: now + interval,
+  });
+  // 원인 추적용 로그에는 작업 ID와 예외 이름만 남고 메시지 원문은 없어요.
+  const entry = JSON.parse(String(logged.mock.calls[0]?.[0]));
+  expect(entry).toMatchObject({
+    event: "check.channel_error",
+    kind: "channel_check",
+    errorName: expect.any(String),
+  });
+  expect(JSON.stringify(entry)).not.toContain("fixture_failure");
+
+  clock = now + interval;
+  await runBackgroundJobs(settings, io);
+  expect(await subscriptionRow()).toMatchObject({
+    baselineInitializedAt: clock,
+    lastCheckedAt: clock,
+  });
+  expect(await count("summary_requests")).toBe(0);
+});
+
 test("다른 계정의 확인 작업은 읽을 수 없어요", async () => {
   await seedAutomation();
   const created = await call("POST", "/channel-checks", {});

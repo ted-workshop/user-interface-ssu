@@ -1,6 +1,6 @@
 import { applyD1Migrations } from "cloudflare:test";
 import { env } from "cloudflare:workers";
-import { beforeAll, beforeEach, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { createApp } from "../src/app";
 import { sha256Hex } from "../src/auth";
 import { claimChannelCheck } from "../src/jobs/channels";
@@ -143,6 +143,7 @@ async function latestCheck() {
 }
 
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
+afterEach(() => vi.restoreAllMocks());
 beforeEach(async () => {
   clock = now;
   vi.spyOn(Date, "now").mockImplementation(() => clock * 1000);
@@ -510,6 +511,7 @@ test("영상 접수 저장이 실패하면 관측을 되돌리고 채널만 실�
     video(id === youtubeId ? "bbbbbbbbbbb" : "ccccccccccc"),
   ]);
   // 첫 구독의 요청 접수만 실패시켜요.
+  vi.spyOn(console, "error").mockImplementation(() => {});
   await env.DB.prepare(
     "CREATE TRIGGER fail_channel_request BEFORE INSERT ON summary_requests WHEN NEW.subscription_id = 'sub' BEGIN SELECT RAISE(ABORT, 'fixture_failure'); END",
   ).run();

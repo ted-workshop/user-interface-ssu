@@ -7,6 +7,8 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 `GET /v1/reports`의 검색·필터·페이지와 `GET /v1/reports/{id}`도 구현했고 경계는 [ADR-0026](decisions/0026-report-read-http.md)에 남겨요.
 계정·인증 경로도 구현했고 경계는 [ADR-0028](decisions/0028-auth-http.md)에 남겨요. Android 연결은 후속 작업이에요.
 리포트 모음 경로도 구현했고 경계는 [ADR-0029](decisions/0029-collections-http.md)에 남겨요.
+채널 미리보기·구독 관리·수신 주소 확인·주기 설정도 구현했고 경계는 [ADR-0030](decisions/0030-channel-settings-http.md)에 남겨요.
+새 영상 확인·예약 실행(#14)·리포트 발송 HTTP(#15)는 이 설정 구현에 포함하지 않아요. 실제 YouTube·수신 메일 검증은 미완료예요.
 로컬 세션·공급자 fixture 검증을 실제 로그인·Gemini 생성 성공으로 보지 않아요.
 
 ## 공통 규칙
@@ -208,6 +210,17 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 채널 객체는 `id`, `youtubeChannelId`, `title`, `url`, `status`, `baselineInitializedAt`,
 `lastCheckedAt`, `nextCheckAt`, `createdAt`예요. 수신 주소 객체는 `id`, `email`, `verifiedAt`,
 `createdAt`예요. 채널·수신 주소·발송 목록도 공통 `limit`·`cursor` 규칙을 따라요.
+
+- 채널 확인은 `@handle` 또는 HTTPS YouTube의 `/@handle`, `/channel/UC…`, `/user/username` 주소를 지원해요.
+  공유 query·fragment는 무시하고 공식 `channels.list`로 확인해요. `/c/…`, 영상·재생목록·채널 하위 탭은 입력 오류예요.
+  반환 URL은 `/channel/{youtubeChannelId}`예요. 등록에서 ID를 다시 조회하며 제목·URL을 클라이언트에서 받지 않아요.
+  공식 조회의 빈 결과는 `400 INVALID_INPUT`, 공급자 실패·키 미설정·응답 검증 실패는 `503 SERVICE_UNAVAILABLE`예요.
+- `POST /recipients/{id}/verifications`는 본문 없이 호출하고 `202 {"status":"accepted"}`를 반환해요.
+  이미 확인한 주소는 `400 INVALID_INPUT`과 `fields.email` 안내, 타인·삭제 주소는 404예요.
+  주소 생성만으로 메일을 발송하지 않아요. 확인 코드는 해당 수신 주소로 보내고 로그인한 소유자가 입력해요.
+- 주기 변경은 이미 확인한 활성 구독의 다음 시각을 `lastCheckedAt + interval`로 다시 계산해요.
+  중지는 다음 시각을 null로 만들고 재개는 최신 주기를 적용해요. 첫 확인 전에는 기준·확인·다음 시각 모두 null이에요.
+  null인 신규 구독을 처음 확인하는 실행과 활성 채널·확인된 주소의 조건 검사는 #14에서 연결해요.
 
 - 같은 계정의 같은 YouTube 채널은 하나만 활성 등록해요. 다른 계정의 등록과는 독립이에요.
   삭제 후 재등록은 새 UUID와 새 기준을 만들고 이전 발송을 되살리지 않아요.

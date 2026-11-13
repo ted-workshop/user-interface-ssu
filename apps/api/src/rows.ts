@@ -99,7 +99,7 @@ export type AuthMailRow = {
   id: string;
   tokenCiphertext: string;
   attempts: number;
-  purpose: "verify_email" | "reset_password";
+  purpose: "verify_email" | "reset_password" | "verify_recipient";
   email: string;
 };
 
@@ -117,3 +117,23 @@ export type CollectionRow = {
 
 // 모음 안의 리포트예요. 담은 시각으로 정렬해요.
 export type CollectionReportRow = ReportRow & { addedAt: number };
+
+// 본인의 채널 구독과 공식 출처에서 확인한 공통 채널 정보예요.
+export type SubscriptionRow = {
+  id: string;
+  youtubeChannelId: string;
+  title: string;
+  url: string;
+  status: "active" | "paused";
+  baselineInitializedAt: number | null;
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+  createdAt: number;
+};
+export type RecipientRow = {
+  id: string;
+  email: string;
+  verifiedAt: number | null;
+  createdAt: number;
+};
+export type RecipientTokenRow = { id: string; recipientId: string };

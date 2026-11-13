@@ -131,6 +131,32 @@ bunx wrangler d1 execute DB --local --command "UPDATE users SET email_verified_a
 새 분석·재시도는 계정별 UTC 하루 합계 3회예요. 키·모델이 준비되지 않으면 새 분석은 503이며 기존 요청 조회와 결과 재사용은 가능해요.
 workerd 검사는 격리된 D1 세션과 공급자 fixture로 동작해요. 실제 로그인·공급자 검증을 대신하지 않아요.
 
+## 채널·수신 설정 확인
+
+[ADR-0030](decisions/0030-channel-settings-http.md)의 설정 API는 기존 세션을 사용해요.
+실제 채널을 확인할 때는 YouTube Data API v3를 활성화한 키를 Git 제외 파일 `apps/api/.dev.vars`의
+`YOUTUBE_API_KEY`에 비공개로 설정해요. 테스트는 fixture를 쓰므로 실제 키 없이 실행돼요.
+운영에서는 [배포 가이드](deployment.md)의 `production` Environment Secret을 사용하고 키를 코드·Android·PR에 넣지 않아요.
+
+```sh
+mise exec -- bun run --cwd apps/api vitest run test/channel-settings.test.ts test/youtube-channels.test.ts
+mise run api:check
+```
+
+실제 연결 검증은 로그인한 API 클라이언트에서 아래 순서로 확인해요. 토큰·키·개인 주소는 기록에서 제거해요.
+
+1. `POST /v1/channel-previews`에 본인이 확인할 공개 채널의 `@handle`과 `/channel/…` 주소를 각각 보내 같은 ID인지 대조해요.
+2. 반환 ID로 `POST /v1/channels`를 호출해 201, 다시 등록해 409, 목록에서 같은 제목·공식 URL을 확인해요.
+3. 구독 ID의 PATCH로 paused·active를 바꾼 뒤 DELETE해 목록에서 빠지는지 확인해요. 다른 계정에서는 해당 ID가 404여야 해요.
+4. 본인이 수신할 주소를 추가하고 본문 없는 `/recipients/{id}/verifications` POST로 코드를 요청해요.
+   로컬 Wrangler는 `--test-scheduled`로 실행하고 `/__scheduled`를 호출해야 Cron 실행기를 수동 시험할 수 있어요.
+   이 실행기는 기존 분석·발송 대기열도 처리하므로 실제 검증용으로 분리한 로컬 DB를 사용해요.
+5. 실제 수신함에 도착한 코드로 `/recipient-verifications/confirm`을 호출하고 verifiedAt·재사용 거부를 확인해요.
+6. 주기를 60·360·1440으로 저장·재조회해요. 실제 공급자 응답과 로컬 fixture 결과를 구분해 날짜·환경·코드 SHA를 남겨요.
+
+이 변경에서는 실제 키·SMTP 자격증명을 제공받지 않아 위 실제 연결 검증을 실행하지 않았어요.
+새 영상 수집·예약 확인은 #14, 리포트 발송 연결은 #15에서 이어져요.
+
 ## Terraform
 
 D1·Worker 생성은 [infra/cloudflare](../infra/cloudflare/README.md), 공유 state 버킷은 `infra/state`에서 정의해요.

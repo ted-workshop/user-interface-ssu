@@ -27,7 +27,7 @@ CREATE TABLE channel_check_results (
   check_id TEXT NOT NULL REFERENCES channel_checks(id) ON DELETE RESTRICT,
   subscription_id TEXT NOT NULL REFERENCES channel_subscriptions(id) ON DELETE RESTRICT,
   status TEXT NOT NULL CHECK (status IN ('completed', 'failed')),
-  failure_code TEXT CHECK (failure_code IN ('provider_unavailable', 'invalid_response')),
+  failure_code TEXT CHECK (failure_code IN ('provider_unavailable', 'invalid_response', 'processing_failed')),
   last_checked_at INTEGER,
   CHECK ((status = 'failed') = (failure_code IS NOT NULL)),
   PRIMARY KEY (check_id, subscription_id)

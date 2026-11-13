@@ -134,7 +134,7 @@ erDiagram
         text check_id PK, FK "channel_checks.id"
         text subscription_id PK, FK "channel_subscriptions.id"
         text status "completed / failed"
-        text failure_code "provider_unavailable / invalid_response"
+        text failure_code "provider_unavailable / invalid_response / processing_failed"
         integer last_checked_at "그 시점의 마지막 성공 확인"
     }
     analysis_jobs {

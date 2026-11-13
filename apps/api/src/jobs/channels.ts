@@ -328,12 +328,15 @@ export async function storeNewVideos(
   checkLog(claim.id, "channel_completed");
 }
 
-// 공급자 실패는 마지막 성공 시각을 유지하고 다음 주기로 미뤄요. 첫 확인이면 기준은 계속 비어 있어요.
+// 공급자 실패와 저장 실패는 마지막 성공 시각을 유지하고 다음 주기로 미뤄요. 첫 확인이면 기준은 계속 비어 있어요.
 export async function recordCheckFailure(
   db: D1Database,
   claim: ChannelCheckClaim,
   subscriptionId: string,
-  failureCode: "provider_unavailable" | "invalid_response",
+  failureCode:
+    | "provider_unavailable"
+    | "invalid_response"
+    | "processing_failed",
   now = unixNow(),
 ) {
   const rows = await db.batch([

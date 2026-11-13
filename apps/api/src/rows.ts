@@ -169,6 +169,10 @@ export type ChannelCheckResultRow = {
   subscriptionId: string;
   title: string;
   status: "completed" | "failed";
-  failureCode: "provider_unavailable" | "invalid_response" | null;
+  failureCode:
+    | "provider_unavailable"
+    | "invalid_response"
+    | "processing_failed"
+    | null;
   lastCheckedAt: number | null;
 };

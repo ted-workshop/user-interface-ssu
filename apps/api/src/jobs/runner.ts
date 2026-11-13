@@ -212,17 +212,28 @@ async function runChannelCheck(env: Env, io: JobProviders) {
       await recordCheckFailure(env.DB, claim, target.id, code, io.now());
       continue;
     }
-    if (target.baselineInitializedAt === null)
-      await storeBaseline(env.DB, claim, target, videos, io.now());
-    else
-      await storeNewVideos(
+    try {
+      if (target.baselineInitializedAt === null)
+        await storeBaseline(env.DB, claim, target, videos, io.now());
+      else
+        await storeNewVideos(
+          env.DB,
+          claim,
+          target,
+          videos,
+          config.data.model,
+          io.now(),
+        );
+    } catch {
+      // 한 채널의 저장 실패가 다른 계정의 확인을 막지 않게 채널 결과로 남기고 다음 주기로 미뤄요.
+      await recordCheckFailure(
         env.DB,
         claim,
-        target,
-        videos,
-        config.data.model,
+        target.id,
+        "processing_failed",
         io.now(),
       );
+    }
   }
   await completeChannelCheck(env.DB, claim, io.now());
 }

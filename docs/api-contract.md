@@ -230,7 +230,8 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 - 확인 객체는 `id`, `status`(`queued|running|completed|failed`), `failureCode`, `createdAt`, `finishedAt`과
   시도한 채널의 `subscriptionId`, `title`, `status`(`completed|failed`), `failureCode`, `lastCheckedAt`을 담은
   `channels`예요. 확인 자체의 실패 코드는 `configuration`(서버 설정)·`interrupted`(실행 중 중단),
-  채널별 실패 코드는 `provider_unavailable`(공급자 제한·오류·시간 초과)·`invalid_response`(응답 검증 실패)예요.
+  채널별 실패 코드는 `provider_unavailable`(공급자 제한·오류·시간 초과)·`invalid_response`(응답 검증 실패)·`processing_failed`(영상 기록·접수 중 서버 저장 실패)예요.
+  채널별 저장 실패는 다른 채널과 계정의 확인을 막지 않고, 해당 구독만 다음 주기로 미뤄요.
   확인 `completed`는 영상 수집과 기준·다음 시각 갱신까지 마쳤다는 뜻이며 개별 리포트 생성 완료가 아니에요.
 - 확인은 1분 Cron에서 하나만 실행해요. 예약 확인은 `nextCheckAt`이 없거나 지난 활성 구독을,
   `지금 확인`은 활성 구독 전체를 실행 직전에 다시 조회해요. 그 사이 중지·삭제된 구독과 삭제된 수신 주소는

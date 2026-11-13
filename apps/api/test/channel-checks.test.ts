@@ -486,6 +486,80 @@ test("한 채널의 공급자 실패는 확인 완료와 다른 결과로 남겨
   expect(second).toBe(now + interval);
 });
 
+test("영상 접수 저장이 실패하면 관측을 되돌리고 채널만 실패로 남겨 다음 채널을 이어가요", async () => {
+  await seedAutomation();
+  await env.DB.batch([
+    sql(
+      "INSERT INTO channels (id, youtube_channel_id, title, url) VALUES ('channel-2', ?, '둘째 채널', ?)",
+      youtubeId2,
+      `https://www.youtube.com/channel/${youtubeId2}`,
+    ),
+    sql(
+      "INSERT INTO channel_subscriptions (id, user_id, channel_id, created_at) VALUES ('sub-2', ?, 'channel-2', ?)",
+      owner,
+      now + 1,
+    ),
+    sql(
+      "UPDATE channel_subscriptions SET baseline_initialized_at = ?, last_checked_at = ?, next_check_at = ? WHERE id = 'sub'",
+      now - 100,
+      now - 100,
+      now - 1,
+    ),
+  ]);
+  const io = providers(async (id) => [
+    video(id === youtubeId ? "bbbbbbbbbbb" : "ccccccccccc"),
+  ]);
+  // 첫 구독의 요청 접수만 실패시켜요.
+  await env.DB.prepare(
+    "CREATE TRIGGER fail_channel_request BEFORE INSERT ON summary_requests WHEN NEW.subscription_id = 'sub' BEGIN SELECT RAISE(ABORT, 'fixture_failure'); END",
+  ).run();
+  try {
+    await runBackgroundJobs(settings, io);
+  } finally {
+    await env.DB.prepare("DROP TRIGGER fail_channel_request").run();
+  }
+  expect(await latestCheck()).toMatchObject({
+    status: "completed",
+    failureCode: null,
+  });
+  expect(
+    (
+      await sql(
+        "SELECT subscription_id AS subscriptionId, status, failure_code AS failureCode FROM channel_check_results ORDER BY subscription_id",
+      ).all()
+    ).results,
+  ).toEqual([
+    {
+      subscriptionId: "sub",
+      status: "failed",
+      failureCode: "processing_failed",
+    },
+    { subscriptionId: "sub-2", status: "completed", failureCode: null },
+  ]);
+  // 실패한 영상은 관측되지 않아 다음 확인에서 다시 접수할 수 있고, 마지막 성공 시각은 그대로예요.
+  expect(
+    (
+      await sql(
+        "SELECT video_id FROM subscription_videos WHERE subscription_id = 'sub'",
+      ).all()
+    ).results,
+  ).toEqual([]);
+  expect(await subscriptionRow()).toMatchObject({
+    lastCheckedAt: now - 100,
+    nextCheckAt: now + interval,
+  });
+
+  clock = now + interval;
+  await runBackgroundJobs(settings, io);
+  expect(
+    (
+      await sql(
+        "SELECT q.origin, j.video_id FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id WHERE q.subscription_id = 'sub'",
+      ).all()
+    ).results,
+  ).toEqual([{ origin: "channel", video_id: "bbbbbbbbbbb" }]);
+});
+
 test("다른 계정의 확인 작업은 읽을 수 없어요", async () => {
   await seedAutomation();
   const created = await call("POST", "/channel-checks", {});

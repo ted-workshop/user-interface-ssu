@@ -4,7 +4,11 @@ import { afterEach, beforeAll, beforeEach, expect, test, vi } from "vitest";
 import { createApp } from "../src/app";
 import { sha256Hex } from "../src/auth";
 import { enqueueAnalysis } from "../src/jobs/analysis";
-import { claimChannelCheck } from "../src/jobs/channels";
+import {
+  claimChannelCheck,
+  completeChannelCheck,
+  scheduleDueCheck,
+} from "../src/jobs/channels";
 import { type JobProviders, runBackgroundJobs } from "../src/jobs/runner";
 import type { ChannelCheckTargetRow } from "../src/rows";
 import type { getVideoMetadata } from "../src/summary";
@@ -22,6 +26,7 @@ const token = "a".repeat(43);
 const otherToken = "b".repeat(43);
 const youtubeId = `UC${"a".repeat(22)}`;
 const youtubeId2 = `UC${"b".repeat(22)}`;
+const youtubeId3 = `UC${"c".repeat(22)}`;
 const channel = "channel";
 let clock = now;
 const settings = { ...env, GEMINI_MODEL: "gemini-3.6-flash" };
@@ -537,6 +542,152 @@ test("첫 확인 중 마지막 수신 주소가 삭제되면 기준도 만들지
     lastCheckedAt: null,
     nextCheckAt: null,
   });
+});
+
+test("예약 확인이 대기 중이면 지금 확인으로 바꿔 전체 활성 채널을 확인해요", async () => {
+  await seedAutomation();
+  await env.DB.batch([
+    sql(
+      "INSERT INTO channels (id, youtube_channel_id, title, url) VALUES ('channel-2', ?, '둘째 채널', ?)",
+      youtubeId2,
+      `https://www.youtube.com/channel/${youtubeId2}`,
+    ),
+    sql(
+      "INSERT INTO channel_subscriptions (id, user_id, channel_id, next_check_at, created_at) VALUES ('sub-2', ?, 'channel-2', ?, ?)",
+      owner,
+      now + interval,
+      now + 1,
+    ),
+  ]);
+  const scheduled = await scheduleDueCheck(env.DB, now);
+  if (!scheduled) throw new Error("예약 확인을 만들지 못했어요.");
+  expect(await latestCheck()).toMatchObject({ id: scheduled, manual: 0 });
+
+  // 예약 확인은 기한 된 채널만 보므로 같은 작업을 돌려주지 않고 지금 확인으로 바꿔요.
+  const created = await call("POST", "/channel-checks", {});
+  expect(created.status).toBe(202);
+  const { id } = await created.json<{ id: string }>();
+  expect(id).not.toBe(scheduled);
+  expect(await count("channel_checks")).toBe(1);
+  expect(await latestCheck()).toMatchObject({ id, manual: 1 });
+
+  await runBackgroundJobs(settings, providers([]));
+  expect(
+    (
+      await sql(
+        "SELECT subscription_id AS subscriptionId FROM channel_check_results WHERE check_id = ? ORDER BY subscription_id",
+        id,
+      ).all()
+    ).results,
+  ).toEqual([{ subscriptionId: "sub" }, { subscriptionId: "sub-2" }]);
+});
+
+test("예약 확인이 실행 중이면 지금 확인을 대기시킨 뒤 전체 채널을 확인해요", async () => {
+  await seedAutomation();
+  const scheduled = await scheduleDueCheck(env.DB, now);
+  if (!scheduled) throw new Error("예약 확인을 만들지 못했어요.");
+  const claim = await claimChannelCheck(env.DB, now);
+  if (!claim) throw new Error("예약 확인 실행권이 필요해요.");
+  expect(claim.id).toBe(scheduled);
+
+  const created = await call("POST", "/channel-checks", {});
+  expect(created.status).toBe(202);
+  const { id } = await created.json<{ id: string }>();
+  expect(
+    await sql(
+      "SELECT manual, status FROM channel_checks WHERE id = ?",
+      id,
+    ).first(),
+  ).toEqual({ manual: 1, status: "queued" });
+
+  await completeChannelCheck(env.DB, claim, now + 1);
+  clock += 2;
+  await runBackgroundJobs(settings, providers([]));
+  expect(
+    await sql(
+      "SELECT manual, status FROM channel_checks WHERE id = ?",
+      id,
+    ).first(),
+  ).toEqual({ manual: 1, status: "completed" });
+});
+
+test("한 확인의 채널 수 상한 뒤에도 다음 확인이 남은 채널을 확인해요", async () => {
+  await seedAutomation();
+  await env.DB.batch([
+    sql(
+      "INSERT INTO channels (id, youtube_channel_id, title, url) VALUES ('channel-2', ?, '둘째 채널', ?)",
+      youtubeId2,
+      `https://www.youtube.com/channel/${youtubeId2}`,
+    ),
+    sql(
+      "INSERT INTO channels (id, youtube_channel_id, title, url) VALUES ('channel-3', ?, '셋째 채널', ?)",
+      youtubeId3,
+      `https://www.youtube.com/channel/${youtubeId3}`,
+    ),
+    sql(
+      "INSERT INTO channel_subscriptions (id, user_id, channel_id, created_at) VALUES ('sub-2', ?, 'channel-2', ?)",
+      owner,
+      now + 1,
+    ),
+    sql(
+      "INSERT INTO channel_subscriptions (id, user_id, channel_id, created_at) VALUES ('sub-3', ?, 'channel-3', ?)",
+      owner,
+      now + 2,
+    ),
+  ]);
+  const io = providers([]);
+  await runBackgroundJobs(settings, io);
+  expect(await count("channel_check_results")).toBe(2);
+  expect(
+    (
+      await sql(
+        "SELECT id FROM channel_subscriptions WHERE last_checked_at IS NULL",
+      ).all()
+    ).results,
+  ).toEqual([{ id: "sub-3" }]);
+
+  clock += 60;
+  await runBackgroundJobs(settings, providers([]));
+  expect(
+    (
+      await sql(
+        "SELECT id FROM channel_subscriptions WHERE last_checked_at IS NULL",
+      ).all()
+    ).results,
+  ).toEqual([]);
+});
+
+test("채널 자동 접수도 계정별 하루 상한을 함께 쓰고 남은 영상은 다음 확인으로 미뤄요", async () => {
+  await seedBaseline();
+  const items = ["aaaaaaaaaaa", "bbbbbbbbbbb", "ccccccccccc", "ddddddddddd"];
+  await runBackgroundJobs(settings, providers(items.map((id) => video(id))));
+  expect(
+    (
+      await sql(
+        "SELECT j.video_id AS videoId FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id ORDER BY j.video_id",
+      ).all()
+    ).results,
+  ).toEqual([{ videoId: "aaaaaaaaaaa" }, { videoId: "bbbbbbbbbbb" }]);
+
+  clock += interval;
+  await runBackgroundJobs(settings, providers(items.map((id) => video(id))));
+  expect(await count("summary_requests")).toBe(3);
+  // 한도를 넘은 영상은 관측만 남고 다음 확인에서 다시 시도해요.
+  expect(
+    (
+      await sql(
+        "SELECT o.video_id AS videoId FROM subscription_videos o WHERE o.is_baseline = 0 AND NOT EXISTS (SELECT 1 FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id WHERE q.subscription_id = o.subscription_id AND j.video_id = o.video_id) ORDER BY o.video_id",
+      ).all()
+    ).results,
+  ).toEqual([{ videoId: "ddddddddddd" }]);
+
+  clock += interval;
+  await runBackgroundJobs(settings, providers(items.map((id) => video(id))));
+  expect(await count("summary_requests")).toBe(3);
+
+  clock += 86_400;
+  await runBackgroundJobs(settings, providers(items.map((id) => video(id))));
+  expect(await count("summary_requests")).toBe(4);
 });
 
 test("확인 중 중지한 채널은 공급자를 호출하지 않고 결과도 남기지 않아요", async () => {

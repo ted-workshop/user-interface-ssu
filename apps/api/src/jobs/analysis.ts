@@ -12,6 +12,9 @@ import {
 
 const generationSettingsSchema = summaryConfigSchema.omit({ apiKey: true });
 
+// 직접 요약과 채널 자동 접수가 함께 쓰는 계정별 UTC 하루 새 실행 상한이에요.
+export const DAILY_ADMISSION_LIMIT = 3;
+
 // 호출부가 임의 프롬프트를 공통 보고서에 섞지 못하게 현재 생성 설정만 식별해요.
 export function generationProfile(model: string) {
   const settings = generationSettingsSchema.parse({ model });

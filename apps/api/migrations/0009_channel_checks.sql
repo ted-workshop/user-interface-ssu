@@ -19,8 +19,9 @@ CREATE TABLE channel_checks (
 ) STRICT;
 CREATE INDEX channel_checks_owner_created ON channel_checks(user_id, created_at DESC, id DESC);
 CREATE INDEX channel_checks_queued ON channel_checks(created_at, id) WHERE status = 'queued';
--- 같은 계정의 확인은 한 번에 하나만 대기·실행해요.
-CREATE UNIQUE INDEX channel_checks_one_active ON channel_checks(user_id) WHERE status IN ('queued', 'running');
+-- 계정당 대기 하나·실행 하나를 허용해, 예약 확인이 실행 중이어도 지금 확인을 대기시킬 수 있어요.
+CREATE UNIQUE INDEX channel_checks_one_queued ON channel_checks(user_id) WHERE status = 'queued';
+CREATE UNIQUE INDEX channel_checks_one_running ON channel_checks(user_id) WHERE status = 'running';
 
 -- 확인을 시도한 채널별 결과예요. 확인 완료와 개별 영상 분석 완료는 다른 상태예요.
 CREATE TABLE channel_check_results (

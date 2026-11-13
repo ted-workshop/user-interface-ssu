@@ -23,6 +23,7 @@ import {
   failChannelCheck,
   getCheckTarget,
   listCheckTargets,
+  MAX_NEW_VIDEOS_PER_CHECK,
   recordCheckFailure,
   scheduleDueCheck,
   storeBaseline,
@@ -193,7 +194,10 @@ async function runChannelCheck(env: Env, io: JobProviders) {
     return;
   }
   const listVideos = io.listVideos;
+  // 한 invocation의 subrequest·공급자 사용량을 제한해요. 남은 구독은 다음 확인에서 이어가요.
+  let budget = MAX_NEW_VIDEOS_PER_CHECK;
   for (const listed of await listCheckTargets(env.DB, claim, io.now())) {
+    if (budget <= 0) break;
     // 공급자 호출 전에 중지·삭제·주소 삭제·주기 변경을 다시 확인해요.
     const target = await getCheckTarget(env.DB, claim, listed.id, io.now());
     if (!target) continue;
@@ -216,12 +220,13 @@ async function runChannelCheck(env: Env, io: JobProviders) {
       if (target.baselineInitializedAt === null)
         await storeBaseline(env.DB, claim, target, videos, io.now());
       else
-        await storeNewVideos(
+        budget = await storeNewVideos(
           env.DB,
           claim,
           target,
           videos,
           config.data.model,
+          budget,
           io.now(),
         );
     } catch (error) {

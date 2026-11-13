@@ -7,13 +7,18 @@ import type {
 } from "../rows";
 import { summaryConfigSchema } from "../summary";
 import type { ChannelVideo } from "../youtube-videos";
-import { enqueueAnalysis } from "./analysis";
+import { DAILY_ADMISSION_LIMIT, enqueueAnalysis } from "./analysis";
 import { checkLog, JobError, statement, unixNow } from "./shared";
 
 // 확인 주기와 지금 확인의 최소 간격이에요.
 export const MANUAL_CHECK_INTERVAL_SECONDS = 60;
 // 실행 중 확인이 비정상 종료로 남았을 때 다음 확인이 이어받는 기준 시간이에요.
 export const CHANNEL_CHECK_STALE_SECONDS = 900;
+// 무료 Workers invocation의 subrequest 한도(50)를 넘지 않도록 한 확인에서 처리할 상한이에요.
+// 채널마다 공식 조회 2회와 D1 읽기·쓰기가 붙고, 분석·발송 작업이 같은 invocation에서 함께 실행돼요.
+export const MAX_CHANNELS_PER_CHECK = 2;
+// 한 확인에서 새 분석으로 접수하는 영상 수예요. 나머지는 다음 확인에서 이어가요.
+export const MAX_NEW_VIDEOS_PER_CHECK = 2;
 
 const checkColumns = `id, status, manual, failure_code AS failureCode,
   created_at AS createdAt, finished_at AS finishedAt`;
@@ -101,13 +106,15 @@ export async function listCheckTargets(
   const due = claim.manual
     ? ""
     : "AND (s.next_check_at IS NULL OR s.next_check_at <= ?)";
+  // 오래 확인하지 않은 구독부터 처리해 한 번의 상한 때문에 뒤쪽 구독이 계속 밀리지 않게 해요.
   const rows = await statement(
     db,
     `${checkedTarget}
     WHERE s.user_id = ? AND ${activeForAutomation} ${due}
-    ORDER BY s.created_at, s.id`,
+    ORDER BY coalesce(s.last_checked_at, 0), s.created_at, s.id LIMIT ?`,
     claim.userId,
     ...(claim.manual ? [] : [now]),
+    MAX_CHANNELS_PER_CHECK,
   ).all<ChannelCheckTargetRow>();
   return rows.results;
 }
@@ -169,21 +176,23 @@ export async function createManualCheck(
   userId: string,
   now = unixNow(),
 ): Promise<ManualCheckResult> {
-  const active = await statement(
+  // 진행 중인 지금 확인은 같은 작업을 돌려줘요. 예약 확인은 기한 된 구독만 보므로 그대로 재사용하지 않아요.
+  const manual = await statement(
     db,
-    `SELECT ${checkColumns} FROM channel_checks WHERE user_id = ? AND status IN ('queued', 'running') LIMIT 1`,
+    `SELECT ${checkColumns} FROM channel_checks WHERE user_id = ? AND manual = 1 AND status IN ('queued', 'running') ORDER BY created_at, id LIMIT 1`,
     userId,
   ).first<ChannelCheckRow>();
-  if (active) return { status: "existing", check: active };
+  if (manual) return { status: "existing", check: manual };
   const ready = await statement(
     db,
     `SELECT s.id FROM channel_subscriptions s WHERE s.user_id = ? AND ${activeForAutomation} LIMIT 1`,
     userId,
   ).first<IdRow>();
   if (!ready) return { status: "not_ready" };
+  // 60초 간격은 사용자가 누른 지금 확인에만 적용해요. 예약 확인은 사용자 요청이 아니에요.
   const latest = await statement(
     db,
-    "SELECT created_at AS createdAt FROM channel_checks WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1",
+    "SELECT created_at AS createdAt FROM channel_checks WHERE user_id = ? AND manual = 1 ORDER BY created_at DESC, id DESC LIMIT 1",
     userId,
   ).first<{ createdAt: number }>();
   if (latest && latest.createdAt > now - MANUAL_CHECK_INTERVAL_SECONDS)
@@ -193,11 +202,17 @@ export async function createManualCheck(
     };
   const id = crypto.randomUUID();
   const rows = await db.batch([
+    // 아직 시작하지 않은 예약 확인은 결과가 없어 지금 확인으로 바꿔도 돼요.
+    statement(
+      db,
+      "DELETE FROM channel_checks WHERE user_id = ? AND status = 'queued' AND manual = 0",
+      userId,
+    ),
     statement(
       db,
       `INSERT INTO channel_checks (id, user_id, manual, created_at)
       SELECT ?, ?, 1, ?
-      WHERE NOT EXISTS (SELECT 1 FROM channel_checks WHERE user_id = ? AND status IN ('queued', 'running'))`,
+      WHERE NOT EXISTS (SELECT 1 FROM channel_checks WHERE user_id = ? AND status = 'queued')`,
       id,
       userId,
       now,
@@ -205,16 +220,25 @@ export async function createManualCheck(
     ),
     statement(
       db,
-      `SELECT ${checkColumns} FROM channel_checks WHERE user_id = ? AND status IN ('queued', 'running')`,
+      `SELECT ${checkColumns} FROM channel_checks WHERE user_id = ? AND manual = 1 AND status IN ('queued', 'running') ORDER BY created_at, id LIMIT 1`,
       userId,
     ),
   ]);
-  const check = rows[1]?.results[0] as ChannelCheckRow | undefined;
-  if (!check) return { status: "not_ready" };
-  return {
-    status: rows[0]?.meta.changes === 1 ? "created" : "existing",
-    check,
-  };
+  const check = rows[2]?.results[0] as ChannelCheckRow | undefined;
+  if (check)
+    return {
+      status: rows[1]?.meta.changes === 1 ? "created" : "existing",
+      check,
+    };
+  // 예약 확인 생성과 겹친 드문 경우에는 이미 대기 중인 확인을 돌려줘요.
+  const active = await statement(
+    db,
+    `SELECT ${checkColumns} FROM channel_checks WHERE user_id = ? AND status IN ('queued', 'running') ORDER BY created_at, id LIMIT 1`,
+    userId,
+  ).first<ChannelCheckRow>();
+  return active
+    ? { status: "existing", check: active }
+    : { status: "not_ready" };
 }
 
 // 실행 직전 조건이 유지되는지 확인해요. 관측·접수 시점에도 같은 조건을 다시 봐요.
@@ -276,15 +300,19 @@ export async function storeBaseline(
 }
 
 // 두 번째 확인부터는 처음 본 영상과 접수 전에 중단된 관측만 기존 분석 흐름에 연결해요.
+// 한 확인에서 접수하는 수를 제한해 무료 Workers 요청 한도와 Gemini 사용량을 함께 지켜요.
 export async function storeNewVideos(
   db: D1Database,
   claim: ChannelCheckClaim,
   target: ChannelCheckTargetRow,
   videos: ChannelVideo[],
   model: string,
+  budget: number,
   now = unixNow(),
 ) {
-  if (!(await automationActive(db, claim, target.id, "initialized"))) return;
+  if (budget <= 0) return 0;
+  if (!(await automationActive(db, claim, target.id, "initialized")))
+    return budget;
   // 관측만 저장되고 요청 접수 전에 중단된 영상은 다음 확인에서 이어서 접수해요.
   const pending = await statement(
     db,
@@ -293,9 +321,10 @@ export async function storeNewVideos(
     AND NOT EXISTS (
       SELECT 1 FROM summary_requests q JOIN analysis_jobs j ON j.id = q.analysis_job_id
       WHERE q.user_id = ? AND j.video_id = o.video_id)
-    ORDER BY o.discovered_at, o.video_id`,
+    ORDER BY o.discovered_at, o.video_id LIMIT ?`,
     target.id,
     claim.userId,
+    budget,
   ).all<{ videoId: string }>();
   const observed = await statement(
     db,
@@ -303,7 +332,11 @@ export async function storeNewVideos(
     target.id,
   ).all<{ videoId: string }>();
   const known = new Set(observed.results.map((row) => row.videoId));
-  const fresh = videos.filter((video) => !known.has(video.videoId));
+  // 이번 확인의 접수 예산만큼만 새로 관측해, 나머지는 다음 확인에서 다시 봐요.
+  // 대기 중인 관측을 먼저 접수하므로 새 관측은 남은 예산만큼만 저장해요.
+  const fresh = videos
+    .filter((video) => !known.has(video.videoId))
+    .slice(0, Math.max(0, budget - pending.results.length));
   if (fresh.length) {
     await runChunks(
       db,
@@ -325,7 +358,12 @@ export async function storeNewVideos(
     if (observedRow.meta.changes !== 1) continue;
     freshIds.push(video.videoId);
   }
-  const admit = async (videoId: string, freshObservation: boolean) => {
+  let remaining = budget;
+  let exhausted = false;
+  const admit = async (
+    videoId: string,
+    freshObservation: boolean,
+  ): Promise<"admitted" | "deferred" | "usage"> => {
     try {
       await enqueueAnalysis(
         db,
@@ -334,12 +372,17 @@ export async function storeNewVideos(
           url: `https://www.youtube.com/watch?v=${videoId}`,
           model,
           subscriptionId: target.id,
+          admissionLimit: DAILY_ADMISSION_LIMIT,
         },
         now,
       );
+      return "admitted";
     } catch (error) {
-      // 확인 중 조건이 바뀌어 접수하지 못한 관측은 다음 확인에서 다시 시도해요.
-      if (error instanceof JobError && error.code === "INELIGIBLE") return;
+      // 조건이 바뀌었거나 오늘 접수 한도를 다 쓴 관측은 다음 확인에서 다시 시도해요.
+      if (error instanceof JobError && error.code === "INELIGIBLE")
+        return "deferred";
+      if (error instanceof JobError && error.code === "USAGE_LIMIT_REACHED")
+        return "usage";
       // 접수 전에 중단된 관측은 다음 확인에서 이어가고, 저장 실패로 끝난 이번 관측은 되돌려요.
       if (freshObservation)
         await statement(
@@ -351,8 +394,20 @@ export async function storeNewVideos(
       throw error;
     }
   };
-  for (const videoId of pendingIds) await admit(videoId, false);
-  for (const videoId of freshIds) await admit(videoId, true);
+  for (const videoId of pendingIds) {
+    if (remaining <= 0 || exhausted) break;
+    const outcome = await admit(videoId, false);
+    if (outcome === "admitted") remaining--;
+    else if (outcome === "usage") exhausted = true;
+    else break;
+  }
+  for (const videoId of freshIds) {
+    if (remaining <= 0 || exhausted) break;
+    const outcome = await admit(videoId, true);
+    if (outcome === "admitted") remaining--;
+    else if (outcome === "usage") exhausted = true;
+    else break;
+  }
   const applied = await statement(
     db,
     `UPDATE channel_subscriptions SET last_checked_at = ?, next_check_at = ? + ${intervalSql}
@@ -367,9 +422,10 @@ export async function storeNewVideos(
     claim.id,
     claim.token,
   ).run();
-  if (applied.meta.changes !== 1) return;
+  if (applied.meta.changes !== 1) return exhausted ? 0 : remaining;
   await recordCheckCompleted(db, claim, target.id, now);
   checkLog(claim.id, "channel_completed");
+  return exhausted ? 0 : remaining;
 }
 
 // 공급자 실패와 저장 실패는 마지막 성공 시각을 유지하고 다음 주기로 미뤄요. 첫 확인이면 기준은 계속 비어 있어요.

@@ -62,6 +62,7 @@ async function deliverMail() {
     now: () => clock,
     metadata: vi.fn() as unknown as typeof getVideoMetadata,
     generate: vi.fn() as unknown as typeof generateReport,
+    listVideos: async () => [],
     send: async (_config, message) => {
       await sendImpl(message);
       sent.push(message);
@@ -608,6 +609,7 @@ test("서버 키가 잘못되면 대기 메일을 지우지 않고 복구 후 �
       now: () => clock,
       metadata: vi.fn() as unknown as typeof getVideoMetadata,
       generate: vi.fn() as unknown as typeof generateReport,
+      listVideos: async () => [],
       send,
     },
   );

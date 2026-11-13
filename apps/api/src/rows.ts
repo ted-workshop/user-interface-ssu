@@ -137,3 +137,38 @@ export type RecipientRow = {
   createdAt: number;
 };
 export type RecipientTokenRow = { id: string; recipientId: string };
+
+// 지금 확인·예약 확인 작업이에요. 실행권 token으로 중첩 실행의 결과 저장을 막아요.
+export type ChannelCheckRow = {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  manual: number;
+  failureCode: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+};
+export type ChannelCheckClaim = {
+  id: string;
+  userId: string;
+  token: string;
+  manual: number;
+};
+
+// 확인할 활성 구독과 공식 채널 정보예요.
+export type ChannelCheckTargetRow = {
+  id: string;
+  channelId: string;
+  youtubeChannelId: string;
+  baselineInitializedAt: number | null;
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+};
+
+// 확인을 시도한 채널별 결과예요. 확인 완료와 영상 분석 완료는 달라요.
+export type ChannelCheckResultRow = {
+  subscriptionId: string;
+  title: string;
+  status: "completed" | "failed";
+  failureCode: "provider_unavailable" | "invalid_response" | null;
+  lastCheckedAt: number | null;
+};

@@ -125,6 +125,8 @@ beforeEach(async () => {
     "summary_requests",
     "analysis_jobs",
     "subscription_videos",
+    "channel_check_results",
+    "channel_checks",
     "channel_subscriptions",
     "videos",
     "channels",
@@ -347,6 +349,7 @@ describe("직접 요약 HTTP 계약", () => {
         },
         timestampVerification: "unverified",
       }),
+      listVideos: async () => [],
       send: vi.fn(async () => {
         throw new Error("직접 요약은 메일을 보내면 안 돼요.");
       }),

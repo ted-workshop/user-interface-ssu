@@ -1,6 +1,7 @@
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { type AuthenticatedEnv, requireSession } from "./auth";
+import { deliveryResource } from "./deliveries";
 import {
   encodeCursor,
   FieldError,
@@ -15,6 +16,7 @@ import {
   parseQuery,
   rejectQuery,
 } from "./http-input";
+import { listDeliveries } from "./jobs/delivery";
 import { statement, unixNow } from "./jobs/shared";
 import type { CommentRow, ReportDetailRow, ReportRow } from "./rows";
 
@@ -187,6 +189,27 @@ const commentSelect = `SELECT cm.id, cm.body, u.nickname, cm.created_at AS creat
   FROM comments cm JOIN users u ON u.id = cm.user_id`;
 
 const notFound = (c: Context) => c.json({ error: { code: "NOT_FOUND" } }, 404);
+
+reports.get("/:id/deliveries", async (c) => {
+  const id = parseIdParam(c);
+  const { limit, cursor } = parseQuery(c, z.strictObject(pageQuery));
+  const userId = c.get("userId");
+  const allowed = await statement(
+    c.env.DB,
+    "SELECT 1 AS allowed FROM report_permissions WHERE report_id = ? AND user_id = ? AND audience = 'user'",
+    id,
+    userId,
+  ).first<{ allowed: number }>();
+  if (!allowed) return notFound(c);
+  const result = await listDeliveries(c.env.DB, userId, id, {
+    limit,
+    after: parseCursor(cursor),
+  });
+  return c.json({
+    items: result.items.map(deliveryResource),
+    nextCursor: encodeCursor(result.cursor),
+  });
+});
 
 reports.get("/:id/comments", async (c) => {
   const id = parseIdParam(c);

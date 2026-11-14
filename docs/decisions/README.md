@@ -44,6 +44,7 @@
 | [ADR-0034](0034-report-comments.md) | 리포트와 댓글은 리포트별 권한 행이 있는 사용자만 읽고 써요 | 확정 | 2026-11-09 |
 | [ADR-0035](0035-worker-provider-call-paths.md) | Workers에서 oEmbed와 Interactions 호출 경로를 고쳐요 | 확정 | 2026-11-10 |
 | [ADR-0036](0036-null-provider-fields.md) | 공급자 응답의 누락 필드는 null로 저장해요 | 확정 | 2026-11-10 |
+| [ADR-0037](0037-channel-report-delivery.md) | 채널 리포트 발송 행을 리포트 저장과 함께 만들고 주소별로 재시도해요 | 확정 | 2026-11-13 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

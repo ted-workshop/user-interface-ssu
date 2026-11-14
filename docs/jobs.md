@@ -18,6 +18,8 @@
   본인 상태·실패 이유·재시도 가능 여부를 조회하고 관찰한 시도 번호로 재시도해요.
 - `enqueueDelivery(DB, userId, requestId, recipientId)`: 완료된 자동 요청과 현재 확인된 주소를 대조해
   발송 하나를 접수해요. 직접 요청은 거부하고 같은 사용자·보고서·주소의 발송은 재사용해요.
+  실제 채널 리포트 완료는 `completeAnalysis` batch가 저장 시점에 확인된 주소별 발송 행을 직접 만들어요.
+  다른 사용자의 채널 요청이 완료 리포트를 재사용하면 `enqueueAnalysis` batch가 그 요청 시점의 확인된 주소로 발송 행을 만들어요.
 - `getDelivery(DB, userId, deliveryId)` / `retryDelivery(DB, userId, deliveryId, attempt)`:
   발송 상태를 조회·재시도해요. 이미 성공한 분석을 다시 실행하지 않아요.
 - `scheduleDueCheck(DB, now)`: 활성 구독과 확인된 수신 주소가 있고 `nextCheckAt`이 없거나 지난 첫 계정의
@@ -32,7 +34,8 @@
   HTTP 핸들러에서 장기 `waitUntil()` 작업으로 실행하지 않아요.
 
 이 반환값은 서버 내부 상태예요. #11·#15의 HTTP 호출부는 [API 계약](api-contract.md)의 DTO로 변환하고
-인증·입력 길이·공급자 운영 한도·사용자별 접수 제한을 적용해야 해요.
+인증·입력 길이·공급자 운영 한도·사용자별 접수 제한을 적용해요. 발송 목록은 리포트 개인 권한을 확인하고,
+재시도는 세션 사용자와 발송 ID로 제한해요.
 analysisJobId·lease token·다른 사용자의 요청을 사용자 API에 그대로 노출하지 않아요.
 
 ## 실행과 복구
@@ -50,7 +53,8 @@ SQL 조회는 `analysis.ts`·`delivery.ts`에 두고 값을 바인딩해요. 저
 결과 불명으로 종료하고 자동 재호출하지 않아요. 호출 직전에는 같은 실행권의 기간을 연장해요.
 늦은 성공 응답도 아직 token이 유지된 실행에는 저장하며, 회수된 실행의 응답은 상태를 덮어쓰지 못해요.
 
-성공 저장은 원자적이에요. 분석 시도·본문·개인 권한·완료 상태 중 일부만 저장하지 않아요.
+성공 저장은 원자적이에요. 분석 시도·본문·개인 권한·완료 상태·채널 발송 행 중 일부만 저장하지 않아요.
+발송 행은 리포트 저장 시점에 확인된 주소로 고정하고, SMTP 실패는 이후 실행기에서만 다뤄 본문·완료 상태를 바꾸지 않아요.
 SMTP 접수 성공과 실제 수신함 도착은 별개예요. SMTP 호출 직전 구독·수신 주소·개인 권한을 다시 확인해요.
 메일의 명확한 일시 거부만 1분·5분 뒤 총 3시도까지 재전송해요. 결과 불명·quota·영구 거부는 멈춰요.
 
@@ -72,7 +76,7 @@ SMTP 접수 성공과 실제 수신함 도착은 별개예요. SMTP 호출 직�
 
 ```sh
 mise run api:db:migrate
-mise exec -- bun run --cwd apps/api vitest run test/jobs.test.ts test/job-migration.test.ts test/channel-checks.test.ts test/youtube-videos.test.ts
+mise exec -- bun run --cwd apps/api vitest run test/jobs.test.ts test/job-migration.test.ts test/deliveries.test.ts test/channel-checks.test.ts test/youtube-videos.test.ts
 mise run api:check
 ```
 

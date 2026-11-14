@@ -295,23 +295,60 @@ export async function recoverDeliveries(db: D1Database, now = unixNow()) {
   }
 }
 
+// 목록과 재시도 응답이 같은 규칙을 쓰도록 발송 상태를 한 곳에서 계산해요.
+function retryable(row: DeliveryRow) {
+  return (
+    row.status === "failed" &&
+    row.failureCode === "temporary" &&
+    row.attempt < MAX_ATTEMPTS &&
+    row.eligible === 1
+  );
+}
+
 export async function getDelivery(db: D1Database, userId: string, id: string) {
   const row = await statement(
     db,
-    `SELECT d.id, d.status, d.failure_code AS failureCode, d.available_at AS availableAt,
+    `SELECT d.id, d.recipient_email AS email, d.status, d.failure_code AS failureCode,
+    d.available_at AS availableAt, d.created_at AS createdAt,
     (SELECT coalesce(max(attempt_number), 0) FROM delivery_attempts WHERE delivery_id = d.id) AS attempt,
     (${eligibleDelivery}) AS eligible FROM deliveries d WHERE d.id = ? AND d.user_id = ?`,
     id,
     userId,
   ).first<DeliveryRow>();
   if (!row) throw new JobError("NOT_FOUND");
+  return { ...row, retryable: retryable(row) };
+}
+
+// 리포트별 발송 목록이에요. 공통 page limit·cursor 규칙을 따르고 취소 이력도 함께 보여줘요.
+export async function listDeliveries(
+  db: D1Database,
+  userId: string,
+  reportId: string,
+  options: { limit: number; after?: { createdAt: number; id: string } },
+) {
+  const { limit, after } = options;
+  const rows = await statement(
+    db,
+    `SELECT d.id, d.recipient_email AS email, d.status, d.failure_code AS failureCode,
+    d.available_at AS availableAt, d.created_at AS createdAt,
+    (SELECT coalesce(max(attempt_number), 0) FROM delivery_attempts WHERE delivery_id = d.id) AS attempt,
+    (${eligibleDelivery}) AS eligible FROM deliveries d
+    WHERE d.user_id = ? AND d.report_id = ?
+    ${after ? "AND (d.created_at < ? OR (d.created_at = ? AND d.id < ?))" : ""}
+    ORDER BY d.created_at DESC, d.id DESC LIMIT ?`,
+    userId,
+    reportId,
+    ...(after ? [after.createdAt, after.createdAt, after.id] : []),
+    limit + 1,
+  ).all<DeliveryRow>();
+  const page = rows.results.slice(0, limit);
+  const last = page.at(-1);
   return {
-    ...row,
-    retryable:
-      row.status === "failed" &&
-      row.failureCode === "temporary" &&
-      row.attempt < MAX_ATTEMPTS &&
-      row.eligible === 1,
+    items: page.map((row) => ({ ...row, retryable: retryable(row) })),
+    cursor:
+      rows.results.length > limit && last
+        ? { createdAt: last.createdAt, id: last.id }
+        : null,
   };
 }
 
@@ -330,11 +367,11 @@ export async function retryDelivery(
     (delivery.attempt === attempt &&
       ["queued", "sending"].includes(delivery.status))
   )
-    return delivery;
+    return { ...delivery, accepted: false };
   if (delivery.attempt !== attempt || !delivery.retryable)
     throw new JobError("RETRY_NOT_ALLOWED");
   // 사용자 재시도도 대기 시간을 줄이지 않도록 available_at을 유지해요.
-  await statement(
+  const updated = await statement(
     db,
     `UPDATE deliveries AS d SET status = 'queued', failure_code = NULL
     WHERE id = ? AND user_id = ? AND status = 'failed' AND failure_code = 'temporary' AND ${eligibleDelivery}
@@ -344,5 +381,8 @@ export async function retryDelivery(
     attempt,
   ).run();
   jobLog("delivery", id, "retry_requested", attempt);
-  return getDelivery(db, userId, id);
+  return {
+    ...(await getDelivery(db, userId, id)),
+    accepted: updated.meta.changes === 1,
+  };
 }

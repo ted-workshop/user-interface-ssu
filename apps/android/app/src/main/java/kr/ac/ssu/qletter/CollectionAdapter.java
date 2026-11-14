@@ -13,13 +13,23 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Vi
     void onItemLongClick(int position);
   }
 
+  public interface OnItemClickListener {
+    void onItemClick(int position);
+  }
+
+  private final OnItemClickListener clickListener;
+
   private final List<ReportCollection> items;
 
   private final OnItemLongClickListener listener;
 
-  public CollectionAdapter(List<ReportCollection> items, OnItemLongClickListener listener) {
+  public CollectionAdapter(
+      List<ReportCollection> items,
+      OnItemLongClickListener listener,
+      OnItemClickListener clickListener) {
     this.items = items;
     this.listener = listener;
+    this.clickListener = clickListener;
   }
 
   @NonNull
@@ -28,6 +38,14 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Vi
     ItemCollectionBinding binding =
         ItemCollectionBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false);
     ViewHolder holder = new ViewHolder(binding);
+    binding
+        .getRoot()
+        .setOnClickListener(
+            view -> {
+              int position = holder.getBindingAdapterPosition();
+              if (position == RecyclerView.NO_POSITION) return;
+              clickListener.onItemClick(position);
+            });
     binding
         .getRoot()
         .setOnLongClickListener(

@@ -1,5 +1,6 @@
 package kr.ac.ssu.qletter;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -34,7 +35,7 @@ public class CollectionsFragment extends Fragment {
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     binding.collectionsList.setLayoutManager(new LinearLayoutManager(requireContext()));
-    adapter = new CollectionAdapter(items, this::showCollectionActions);
+    adapter = new CollectionAdapter(items, this::showCollectionActions, this::openCollectionDetail);
     binding.collectionsList.setAdapter(adapter);
     // 서버 연결 전까지 쓰는 더미 데이터예요.
     if (items.isEmpty()) {
@@ -111,5 +112,13 @@ public class CollectionsFragment extends Fragment {
               }
             }))
         .show();
+  }
+
+  private void openCollectionDetail(int position) {
+    ReportCollection item = items.get(position);
+    Intent intent = new Intent(requireContext(), CollectionDetailActivity.class);
+    intent.putExtra(CollectionDetailActivity.EXTRA_NAME, item.getName());
+    intent.putExtra(CollectionDetailActivity.EXTRA_REPORT_COUNT, item.getReportCount());
+    startActivity(intent);
   }
 }

@@ -19,7 +19,7 @@
 사용자별 요청·생성 경로·구독·최초 관찰·설정·수신 주소·발송은 개인 관계예요.
 A·B는 서로 다른 요청으로 같은 report_id를 받고 각자의 `report_permissions`를 가져요.
 직접 요청과 채널 자동 요청의 경로를 바꾸지 않으며 A의 직접 결과를 소급 발송하지 않아요.
-B의 별도 자동 요청은 같은 보고서를 재사용해 B의 확인된 주소에 발송할 수 있어요.
+B의 별도 자동 요청은 같은 보고서를 재사용해 B가 요청할 때 확인된 주소에 발송할 수 있어요.
 
 SQLite STRICT, UTC Unix 초 INTEGER, UUID를 사용해요. 영상 ID만 YouTube 원본 ID예요.
 oEmbed에서 확인한 채널 URL은 reports.channel_url에 저장해요. 채널 ID·게시 시각과 미확인 URL은 NULL로 두고 추측하지 않아요.

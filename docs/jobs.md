@@ -19,6 +19,7 @@
 - `enqueueDelivery(DB, userId, requestId, recipientId)`: 완료된 자동 요청과 현재 확인된 주소를 대조해
   발송 하나를 접수해요. 직접 요청은 거부하고 같은 사용자·보고서·주소의 발송은 재사용해요.
   실제 채널 리포트 완료는 `completeAnalysis` batch가 저장 시점에 확인된 주소별 발송 행을 직접 만들어요.
+  다른 사용자의 채널 요청이 완료 리포트를 재사용하면 `enqueueAnalysis` batch가 그 요청 시점의 확인된 주소로 발송 행을 만들어요.
 - `getDelivery(DB, userId, deliveryId)` / `retryDelivery(DB, userId, deliveryId, attempt)`:
   발송 상태를 조회·재시도해요. 이미 성공한 분석을 다시 실행하지 않아요.
 - `scheduleDueCheck(DB, now)`: 활성 구독과 확인된 수신 주소가 있고 `nextCheckAt`이 없거나 지난 첫 계정의

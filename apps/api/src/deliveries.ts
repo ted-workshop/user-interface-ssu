@@ -21,6 +21,7 @@ export function deliveryResource(row: DeliveryRow & { retryable: boolean }) {
     attempt: row.attempt,
     failureCode: row.failureCode,
     retryable: row.retryable,
+    availableAt: new Date(row.availableAt * 1_000).toISOString(),
   };
 }
 

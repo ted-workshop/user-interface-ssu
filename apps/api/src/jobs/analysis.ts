@@ -77,6 +77,7 @@ export async function enqueueAnalysis(
   const config = JSON.stringify(generationProfile(input.model));
   const key = await generationKey(config);
   const jobId = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
   const limit = input.admissionLimit ?? null;
   const day = Math.floor(now / 86_400) * 86_400;
   const sql = (query: string, ...values: (string | number | null)[]) =>
@@ -126,7 +127,7 @@ export async function enqueueAnalysis(
       AND (? IS NULL OR EXISTS (
         SELECT 1 FROM channel_subscriptions s WHERE s.id = ? AND s.user_id = ? AND s.status = 'active'
         AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = s.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL)))`,
-      crypto.randomUUID(),
+      requestId,
       input.userId,
       input.subscriptionId ? "channel" : "direct",
       input.subscriptionId ?? null,
@@ -166,6 +167,24 @@ export async function enqueueAnalysis(
       input.userId,
       videoId,
       key,
+    ),
+    // 다른 계정이 먼저 만든 완료 리포트를 채널 요청이 재사용하면, 그 요청 시점에 확인된 주소로 발송해요.
+    // 같은 사용자의 직접 요청이 먼저면 채널 요청 자체가 생기지 않아 발송 행도 만들어지지 않아요.
+    sql(
+      `INSERT INTO deliveries (id, user_id, request_id, report_id, subscription_id, recipient_id, recipient_email, available_at, created_at)
+      SELECT ${uuidSql}, q.user_id, q.id, r.id, q.subscription_id, a.id, a.email, ?, ?
+      FROM summary_requests q
+      JOIN reports r ON r.analysis_job_id = q.analysis_job_id
+      JOIN recipients a ON a.user_id = q.user_id
+      WHERE q.id = ? AND q.origin = 'channel' AND q.status = 'completed'
+      AND a.verified_at IS NOT NULL AND a.verified_at <= ? AND a.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM channel_subscriptions s WHERE s.id = q.subscription_id AND s.status = 'active')
+      AND EXISTS (SELECT 1 FROM report_permissions p WHERE p.report_id = r.id AND p.audience = 'user' AND p.user_id = q.user_id)
+      AND NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id AND (d.recipient_id = a.id OR d.recipient_email = a.email))`,
+      now,
+      now,
+      requestId,
+      now,
     ),
   ]);
   const request = await sql(

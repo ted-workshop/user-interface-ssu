@@ -279,7 +279,7 @@ test("같은 영상을 자동 요약한 다른 계정도 각자의 주소로 발
   ]);
 });
 
-test("이미 완료된 리포트를 나중에 재사용한 채널 요청에는 발송 행을 만들지 않아요", async () => {
+test("다른 계정의 채널 요청이 완료 리포트를 재사용해도 요청 시점 주소로 발송해요", async () => {
   await channelRequest([
     { id: "r1", email: "first@example.com", verifiedAt: now - 1 },
   ]);
@@ -301,7 +301,7 @@ test("이미 완료된 리포트를 나중에 재사용한 채널 요청에는 �
       videoId,
     ),
     sql(
-      "INSERT INTO recipients (id, user_id, email, verified_at) VALUES ('late-mail', ?, 'late@example.com', ?)",
+      "INSERT INTO recipients (id, user_id, email, verified_at) VALUES ('late-mail', ?, 'second@example.com', ?)",
       other,
       now - 1,
     ),
@@ -318,11 +318,73 @@ test("이미 완료된 리포트를 나중에 재사용한 채널 요청에는 �
   );
   expect(reused.status).toBe("completed");
   await runBackgroundJobs(settings, providers(temporary));
+  // A의 목록은 그대로이고, 완료 리포트를 재사용한 B의 요청 시점 주소로 발송 행이 생겨요.
   expect((await listDeliveries(reportId)).items).toHaveLength(before);
   expect(
-    (await sql("SELECT recipient_email AS email FROM deliveries").all())
-      .results,
-  ).toEqual([{ email: "first@example.com" }]);
+    (
+      await sql(
+        "SELECT user_id AS userId, recipient_email AS email FROM deliveries ORDER BY user_id",
+      ).all()
+    ).results,
+  ).toEqual([
+    { userId: owner, email: "first@example.com" },
+    { userId: other, email: "second@example.com" },
+  ]);
+});
+
+test("같은 사용자의 직접 요약이 먼저면 채널 요청 재사용으로 발송하지 않아요", async () => {
+  const direct = await enqueueAnalysis(
+    env.DB,
+    {
+      userId: owner,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      model,
+    },
+    now,
+  );
+  await runBackgroundJobs(settings, providers(temporary));
+  await env.DB.batch([
+    sql(
+      "INSERT INTO channels (id, youtube_channel_id, title, url) VALUES ('channel', 'UC_fixture', '검사 채널', 'https://www.youtube.com/channel/UC_fixture')",
+    ),
+    sql(
+      "INSERT INTO videos (id, channel_id) VALUES (?, 'channel') ON CONFLICT(id) DO UPDATE SET channel_id = coalesce(videos.channel_id, excluded.channel_id)",
+      videoId,
+    ),
+    sql(
+      "INSERT INTO channel_subscriptions (id, user_id, channel_id, baseline_initialized_at, last_checked_at, next_check_at) VALUES ('sub', ?, 'channel', ?, ?, ?)",
+      owner,
+      now - 100,
+      now - 100,
+      now + 3_600,
+    ),
+    sql(
+      "INSERT INTO subscription_videos (subscription_id, video_id, is_baseline) VALUES ('sub', ?, 0)",
+      videoId,
+    ),
+    sql(
+      "INSERT INTO recipients (id, user_id, email, verified_at) VALUES ('r1', ?, 'first@example.com', ?)",
+      owner,
+      now - 1,
+    ),
+  ]);
+  const reused = await enqueueAnalysis(
+    env.DB,
+    {
+      userId: owner,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      model,
+      subscriptionId: "sub",
+    },
+    now,
+  );
+  expect(reused).toMatchObject({
+    id: direct.id,
+    origin: "direct",
+    status: "completed",
+  });
+  await runBackgroundJobs(settings, providers(temporary));
+  expect((await sql("SELECT id FROM deliveries").all()).results).toEqual([]);
 });
 
 test("일부 주소가 실패해도 리포트를 읽을 수 있고 실패 주소만 재시도해요", async () => {

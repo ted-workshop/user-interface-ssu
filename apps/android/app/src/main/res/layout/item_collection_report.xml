@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical"
+  android:paddingVertical="12dp">
+
+  <TextView
+    android:id="@+id/report_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:maxLines="2"
+    android:ellipsize="end"
+    android:textSize="16sp"
+    android:textStyle="bold"
+    tools:text="미적분 한 번에 정리하기" />
+
+  <TextView
+    android:id="@+id/report_channel"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="2dp"
+    android:textSize="13sp"
+    tools:text="수학하는 채널" />
+</LinearLayout>

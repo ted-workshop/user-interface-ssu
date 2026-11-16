@@ -59,10 +59,26 @@ public class FoundationTest {
     }
   }
 
+  @Test
+  public void 복원보다_앞선_로그아웃은_이전_세션을_되살리지_않아요() throws Exception {
+    Context context = InstrumentationRegistry.getInstrumentation().getContext();
+    String server = "https://unit.example/";
+    SessionStore first = newStore(context, server);
+    try {
+      first.signIn("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "2099-01-01T00:00:00Z");
+      SessionStore restarting = new SessionStore(context, server);
+      restarting.clear();
+      restarting.restore();
+      assertFalse(restarting.isSignedIn());
+      assertFalse(newStore(context, server).isSignedIn());
+    } finally {
+      first.clear();
+    }
+  }
+
   private static SessionStore newStore(Context context, String server) {
-    final SessionStore[] result = new SessionStore[1];
-    InstrumentationRegistry.getInstrumentation()
-        .runOnMainSync(() -> result[0] = new SessionStore(context, server));
-    return result[0];
+    SessionStore store = new SessionStore(context, server);
+    store.restore();
+    return store;
   }
 }

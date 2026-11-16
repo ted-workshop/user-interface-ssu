@@ -31,6 +31,8 @@ kr.ac.ssu.qletter
 - 다른 패키지에서 쓰는 클래스와 메서드만 `public`으로 열어요.
 - 옮기는 순서
   1. PR #50이 머지된 뒤 공통 파일을 `common/`으로 옮기는 PR을 따로 올려요. 파일 이동만 담아요.
+     - `MainActivity`는 main·debug 매니페스트에, `QletterApplication`은 main 매니페스트에 등록돼 있어 두 매니페스트를 함께 고쳐요.
+     - `FoundationTest`는 `SessionStore` 생성자와 `snapshot()`을 같은 패키지에서 써요. 테스트도 `common/`으로 함께 옮겨 세션 내부 API를 `public`으로 열지 않아요.
   2. 각 담당자는 자기 기능 패키지를 자기 구현 PR에서 만들어요. 모음 화면은 #60 PR에서 `collection/`으로 옮겨요.
   3. Android Studio의 **Refactor → Move**로 옮겨 import와 `AndroidManifest.xml`의 Activity 경로를 함께 바꿔요.
 - 패키지 이름은 리뷰에서 바꿀 수 있어요.
@@ -54,10 +56,14 @@ kr.ac.ssu.qletter
 ## 검증과 재검토 조건
 
 - 문서 변경만 있어 `git diff --check`와 링크를 확인했어요. Android 검사는 실행하지 않았어요.
-- 이동 PR에서는 `mise run android:check`와 에뮬레이터 실행으로 화면이 그대로 열리는지 확인해요.
+- 이동 PR에서는 다음을 확인해요.
+  - `mise run android:check`와 `:app:assembleDebugAndroidTest`로 앱과 테스트 APK 빌드
+  - 에뮬레이터에서 debug·release 홈 진입, debug 앱 아이콘의 '개발 서버 연결' 바로가기, 탭 전환과 세션 복원
 - 한 기능 패키지의 파일이 너무 많아져 찾기 어려우면 그 기능만 안을 다시 나누고 이 기록을 갱신해요.
 - 팀이 범위 분담을 바꾸면 패키지 이름도 다시 정해요.
 
 ## 반론과 변경 이력
 
 - 2026-11-16: 기능별 한 단계 구조를 제안했어요.
+- 2026-11-16: #28 담당 리뷰에서 `home`·`summary`·`report` 이름과 이동 순서에 동의했어요.
+  #50 코드 기준으로 매니페스트 두 곳 갱신, `FoundationTest` 동반 이동, 테스트 APK 빌드와 기기 확인 항목을 더하자는 의견을 받아 옮기는 순서와 검증 조건에 반영했어요.

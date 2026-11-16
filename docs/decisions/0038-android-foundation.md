@@ -28,7 +28,7 @@ release 주소는 ADR-0028에 기록된 HTTPS Worker예요. debug는 기존 에�
 
 2026-11-07 작성자의 Ubuntu(WSL)에서 `97c42d2`로 `mise run android:check`(Spotless·lintDebug·testDebugUnitTest·assembleDebug)를 통과했어요. 이어서 `:app:assembleRelease :app:assembleDebugAndroidTest`도 성공했어요. 마지막 빌드 출력은 32초, Gradle 작업 94개 중 73개 실행·21개 최신 상태였어요.
 
-기기 테스트 실행과 실제 계정 로그인은 남아 있어요. 탭 선택·화면 재생성 및 Keystore 저장·복원은 개발 가이드의 `connectedDebugAndroidTest`로 확인해요. 계정 전환 뒤 이전 화면이 복원되거나 기존 세션이 새 요청에 쓰인다면 세션·탐색 경계를 다시 검토해요.
+수정본 `000ed45`에서 Pixel 7 AVD(Android 17, API 37, x86_64)로 `:app:connectedDebugAndroidTest`를 실행했어요. 패키지 확인 1개와 탭·세션 테스트 6개가 모두 통과했고 `:app:assembleRelease`도 성공했어요. 테스트의 시계를 전진시켜 절전 중 만료된 경우를 재현했어요. [기기별 검사 로그](https://github.com/ted-workshop/user-interface-ssu/actions/runs/43893351527/job/133390157908)에 결과가 있어요. 실제 계정 로그인은 #27 화면을 연결한 뒤 확인해요. 계정 전환 뒤 이전 화면이 복원되거나 기존 세션이 새 요청에 쓰인다면 세션·탐색 경계를 다시 검토해요.
 
 ## 반론과 변경 이력
 

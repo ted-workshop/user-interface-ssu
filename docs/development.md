@@ -99,10 +99,10 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 
 ### Android 화면에서 공통 기반 사용
 
-- **화면 연결.** `MainActivity.showTab`에서 선택한 메뉴 ID를 화면 Fragment로 연결해요. `TabFragment.create`에는 현재 다섯 탭의 제목이 있어요. #27은 채널·계정, #28은 홈·요약·리포트, #29는 리포트 안의 모음·둘러보기를 연결해요. Fragment의 작업은 화면 생명주기에 맞춰 취소해요.
+- **화면 연결.** `MainActivity.showTab`에서 선택한 메뉴 ID를 화면 Fragment로 연결해요. `TabFragment.create`에는 현재 다섯 탭의 제목이 있어요. #27은 채널·계정, #28은 홈·요약·리포트, #29는 모음·리포트 댓글을 연결해요. 공통 화면은 View Binding으로 XML의 뷰를 참조하고, Fragment의 관찰자는 `getViewLifecycleOwner()`에 연결해요.
 - **색상.** Figma `bg/default`는 `@color/q_bg_default`, `ink/on-ink`는 `@color/q_ink_on_ink`예요. 전체 값은 [색상 리소스](../apps/android/app/src/main/res/values/qletter_colors.xml)에 있어요. 앱을 다시 빌드하면 리소스 변경이 반영돼요.
 - **로그인 성공.** #27의 인증 화면에서 서버 응답을 받은 뒤 `app.sessions().signIn(session.token, session.expiresAt)`을 호출해요. `app`은 `(QletterApplication) requireActivity().getApplication()`이에요. 디스크·Keystore 접근은 작업 스레드에서 수행하고 저장 오류가 나면 화면에 재시도를 제공해요. 토큰을 화면 인자나 로그에 넣지 않아요.
-- **개인 API.** `app.api().endpoint("reports").addQueryParameter("limit", "20").build()`로 URL을 만들고 `app.api().newCall(new Request.Builder().url(url).build())`을 실행해요. `execute()`는 작업 스레드에서 사용하고 `Response`는 닫아요. 앱 진입 시 저장된 세션이 있으면 `GET /v1/me`로 확인해요.
+- **개인 API.** `app.api().endpoint("reports").addQueryParameter("limit", "20").build()`로 URL을 만들고 `app.api().newCall(new Request.Builder().url(url).build())`을 실행해요. `execute()`는 작업 스레드에서 사용하고 `Response`는 닫아요. 앱 시작 시 세션 파일 읽기와 Keystore 복호화는 작업 스레드에서 실행해요. 복원이 끝나면 세션 변경을 알리고, 유효한 세션이 있으면 `GET /v1/me`로 확인해요.
 - **세션 변경.** `app.sessions().changes().observe(getViewLifecycleOwner(), ...)`에서 `isSignedIn()`을 읽어요. 새 로그인·만료·현재 세션의 401·로컬 로그아웃 시 이전 계정의 화면 데이터를 비워요. 명시적 로그아웃은 #27에서 `DELETE /v1/auth/session`을 처리한 뒤 `clear()`를 호출해요. 요청 실패 시 사용자에게 서버 폐기 결과를 알려야 해요.
 - **검증.** 기본 검사는 `mise run android:check`예요. 기기를 연결하고 `mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest`로 탭 복원과 Android Keystore 저장·복원을 확인해요. 로그인 화면 통합 뒤에는 로그인 → 앱 재시작 → 로그아웃을 실제 계정으로 확인해요.
 

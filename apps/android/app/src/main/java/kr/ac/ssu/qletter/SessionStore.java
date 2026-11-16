@@ -20,6 +20,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -28,17 +30,33 @@ import javax.crypto.spec.GCMParameterSpec;
 /** 로그인 성공 결과를 보관하고 화면에는 세션 변경만 알려요. */
 public final class SessionStore {
   private static final String KEY = "qletter.session.v1";
-  private final AtomicFile file;
+  private static final Executor WORKER = Executors.newSingleThreadExecutor();
+  private final Context context;
   private final byte[] server;
   private final Handler timer = new Handler(Looper.getMainLooper());
-  private final Runnable checkExpiry = this::checkExpiry;
-  private final MutableLiveData<Long> changes = new MutableLiveData<>(0L);
+  private final Runnable checkExpiry = () -> WORKER.execute(this::checkExpiry);
+  private final MutableLiveData<Long> changes = new MutableLiveData<>();
   private long revision;
-  private Session current;
+  private volatile Session current;
+  private boolean initialized;
 
   SessionStore(Context context, String baseUrl) {
-    file = new AtomicFile(new File(context.getNoBackupFilesDir(), "qletter.session"));
+    this.context = context;
     server = baseUrl.getBytes(StandardCharsets.UTF_8);
+  }
+
+  void restoreAsync() {
+    WORKER.execute(this::restore);
+  }
+
+  private AtomicFile sessionFile() {
+    return new AtomicFile(new File(context.getNoBackupFilesDir(), "qletter.session"));
+  }
+
+  synchronized void restore() {
+    // 먼저 끝난 로그인이나 로그아웃이 있으면 저장된 이전 세션을 다시 적용하지 않아요.
+    if (initialized) return;
+    AtomicFile file = sessionFile();
     try (DataInputStream input = new DataInputStream(file.openRead())) {
       byte[] iv = new byte[12];
       input.readFully(iv);
@@ -62,6 +80,8 @@ public final class SessionStore {
     } catch (IOException | GeneralSecurityException unreadable) {
       file.delete();
     }
+    initialized = true;
+    notifyChange();
   }
 
   public synchronized void signIn(String token, String expiresAt) throws IOException {
@@ -81,6 +101,7 @@ public final class SessionStore {
       cipher.init(Cipher.ENCRYPT_MODE, key(true));
       cipher.updateAAD(server);
       byte[] encrypted = cipher.doFinal(plain.toByteArray());
+      AtomicFile file = sessionFile();
       FileOutputStream output = file.startWrite();
       try {
         DataOutputStream data = new DataOutputStream(output);
@@ -95,6 +116,7 @@ public final class SessionStore {
     } catch (GeneralSecurityException failure) {
       throw new IOException("세션을 저장할 수 없어요.", failure);
     }
+    initialized = true;
     current = new Session(token, expiresAtMillis);
     notifyChange();
     scheduleExpiry();
@@ -121,13 +143,13 @@ public final class SessionStore {
     return changes;
   }
 
-  public synchronized boolean isSignedIn() {
+  public boolean isSignedIn() {
     return snapshot() != null;
   }
 
-  synchronized Session snapshot() {
-    if (current != null && current.expiresAt <= System.currentTimeMillis()) clear();
-    return current;
+  Session snapshot() {
+    Session session = current;
+    return session != null && session.expiresAt > System.currentTimeMillis() ? session : null;
   }
 
   synchronized void clearIfCurrent(Session sent) {
@@ -135,8 +157,9 @@ public final class SessionStore {
   }
 
   public synchronized void clear() {
-    file.delete();
-    if (current == null) return;
+    sessionFile().delete();
+    if (current == null && initialized) return;
+    initialized = true;
     current = null;
     timer.removeCallbacks(checkExpiry);
     notifyChange();
@@ -147,7 +170,9 @@ public final class SessionStore {
   }
 
   private synchronized void checkExpiry() {
-    if (snapshot() != null) scheduleExpiry();
+    if (current == null) return;
+    if (snapshot() == null) clear();
+    else scheduleExpiry();
   }
 
   private void scheduleExpiry() {

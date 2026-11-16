@@ -10,6 +10,7 @@ public final class QletterApplication extends Application {
   public void onCreate() {
     super.onCreate();
     sessions = new SessionStore(this, BuildConfig.API_BASE_URL);
+    sessions.restoreAsync();
     api =
         new QletterApi(
             BuildConfig.API_BASE_URL,

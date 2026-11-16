@@ -9,29 +9,30 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
-import com.google.android.material.bottomnavigation.BottomNavigationView;
 import java.io.IOException;
+import kr.ac.ssu.qletter.databinding.ActivityMainBinding;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Request;
 import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
-  private BottomNavigationView tabs;
   private Session observed;
+  private boolean observedInitialSession;
   private Call validation;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
     EdgeToEdge.enable(this);
-    setContentView(R.layout.activity_main);
+    ActivityMainBinding binding = ActivityMainBinding.inflate(getLayoutInflater());
+    setContentView(binding.getRoot());
     WindowInsetsControllerCompat bars =
-        new WindowInsetsControllerCompat(getWindow(), findViewById(R.id.main));
+        new WindowInsetsControllerCompat(getWindow(), binding.getRoot());
     bars.setAppearanceLightStatusBars(true);
     bars.setAppearanceLightNavigationBars(true);
     ViewCompat.setOnApplyWindowInsetsListener(
-        findViewById(R.id.main),
+        binding.getRoot(),
         (view, insets) -> {
           Insets barsInset =
               insets.getInsets(
@@ -43,8 +44,7 @@ public class MainActivity extends AppCompatActivity {
                   Insets.NONE)
               .build();
         });
-    tabs = findViewById(R.id.tabs);
-    tabs.setOnItemSelectedListener(
+    binding.tabs.setOnItemSelectedListener(
         item -> {
           showTab(item.getItemId(), false);
           return true;
@@ -52,18 +52,23 @@ public class MainActivity extends AppCompatActivity {
     if (savedInstanceState == null) showTab(R.id.tab_home, false);
     SessionStore sessions = app().sessions();
     observed = sessions.snapshot();
+    observedInitialSession = sessions.changes().getValue() != null;
     sessions
         .changes()
         .observe(
             this,
             ignored -> {
               Session next = sessions.snapshot();
-              if (next != observed) {
+              if (!observedInitialSession) {
+                observedInitialSession = true;
+                observed = next;
+                if (next != null) verifySession();
+              } else if (next != observed) {
                 observed = next;
                 getSupportFragmentManager()
                     .popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
-                if (tabs.getSelectedItemId() == R.id.tab_home) showTab(R.id.tab_home, true);
-                else tabs.setSelectedItemId(R.id.tab_home);
+                if (binding.tabs.getSelectedItemId() == R.id.tab_home) showTab(R.id.tab_home, true);
+                else binding.tabs.setSelectedItemId(R.id.tab_home);
                 verifySession();
               }
             });

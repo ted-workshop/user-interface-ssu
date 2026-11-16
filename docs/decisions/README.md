@@ -8,10 +8,9 @@
 
 ## 목차
 
-Android 화면의 공통 탭·색상·로그인 세션은 [ADR-0038](0038-android-foundation.md)에서 확인해요.
-
 | 번호 | 결정 또는 제안 | 상태 | 날짜 |
 | --- | --- | --- | --- |
+| [ADR-0038](0038-android-foundation.md) | Android 공통 탭과 로그인 세션을 관리해요 | 확정 | 2026-11-07 |
 | [ADR-0001](0001-workers-d1-free-tier.md) | Cloudflare Workers와 D1을 무료 플랜으로 시작해요 | 확정 | 2026-10-20 |
 | [ADR-0002](0002-workflows-for-background-jobs.md) | 백그라운드 처리에 Workflows 사용을 제안해요 | 기각 | 2026-10-20 |
 | [ADR-0003](0003-shared-modules-sync-async.md) | 모듈 규칙을 통일하고 실행 방식은 요구에 맞춰요 | 확정 | 2026-10-20 |

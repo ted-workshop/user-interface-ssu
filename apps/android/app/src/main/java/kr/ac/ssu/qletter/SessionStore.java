@@ -6,6 +6,7 @@ import android.os.Looper;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.AtomicFile;
+import androidx.annotation.WorkerThread;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import java.io.ByteArrayInputStream;
@@ -20,8 +21,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.KeyStore;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
@@ -34,14 +38,21 @@ public final class SessionStore {
   private final Context context;
   private final byte[] server;
   private final Handler timer = new Handler(Looper.getMainLooper());
-  private final Runnable checkExpiry = () -> WORKER.execute(this::checkExpiry);
+  private final Runnable checkExpiry = this::refreshExpiryAsync;
+  private final LongSupplier clock;
+  private volatile long logoutVersion;
   private final MutableLiveData<Long> changes = new MutableLiveData<>();
   private long revision;
   private volatile Session current;
   private boolean initialized;
 
   SessionStore(Context context, String baseUrl) {
+    this(context, baseUrl, System::currentTimeMillis);
+  }
+
+  SessionStore(Context context, String baseUrl, LongSupplier clock) {
     this.context = context;
+    this.clock = clock;
     server = baseUrl.getBytes(StandardCharsets.UTF_8);
   }
 
@@ -70,7 +81,7 @@ public final class SessionStore {
       try (DataInputStream data =
           new DataInputStream(new ByteArrayInputStream(cipher.doFinal(encrypted)))) {
         Session restored = new Session(data.readUTF(), data.readLong());
-        if (restored.expiresAt > System.currentTimeMillis()) {
+        if (restored.expiresAt > clock.getAsLong()) {
           current = restored;
           scheduleExpiry();
         } else file.delete();
@@ -84,12 +95,33 @@ public final class SessionStore {
     notifyChange();
   }
 
-  public synchronized void signIn(String token, String expiresAt) throws IOException {
+  /** 저장 결과를 메인 스레드에 전달해요. 성공이면 오류가 null이에요. */
+  public void signInAsync(String token, String expiresAt, Consumer<Exception> onComplete) {
+    long version = logoutVersion;
+    WORKER.execute(
+        () -> {
+          try {
+            Session saved;
+            synchronized (this) {
+              if (version != logoutVersion) throw new CancellationException();
+              signIn(token, expiresAt);
+              saved = current;
+            }
+            timer.post(
+                () -> onComplete.accept(snapshot() == saved ? null : new CancellationException()));
+          } catch (IOException | IllegalArgumentException | CancellationException failure) {
+            timer.post(() -> onComplete.accept(failure));
+          }
+        });
+  }
+
+  @WorkerThread
+  synchronized void signIn(String token, String expiresAt) throws IOException {
     long expiresAtMillis = Session.expiryMillis(expiresAt);
     // 서버가 발급한 32바이트 base64url 세션 토큰 형태를 확인해요.
     if (token == null
         || !token.matches("[A-Za-z0-9_-]{43}")
-        || expiresAtMillis <= System.currentTimeMillis())
+        || expiresAtMillis <= clock.getAsLong())
       throw new IllegalArgumentException("유효한 세션이 필요해요.");
     try {
       ByteArrayOutputStream plain = new ByteArrayOutputStream();
@@ -149,14 +181,19 @@ public final class SessionStore {
 
   Session snapshot() {
     Session session = current;
-    return session != null && session.expiresAt > System.currentTimeMillis() ? session : null;
+    return session != null && session.expiresAt > clock.getAsLong() ? session : null;
   }
 
   synchronized void clearIfCurrent(Session sent) {
-    if (sent != null && current == sent) clear();
+    if (sent != null && current == sent) clearSession();
   }
 
   public synchronized void clear() {
+    logoutVersion++;
+    clearSession();
+  }
+
+  private void clearSession() {
     sessionFile().delete();
     if (current == null && initialized) return;
     initialized = true;
@@ -169,14 +206,18 @@ public final class SessionStore {
     changes.postValue(++revision);
   }
 
+  void refreshExpiryAsync() {
+    WORKER.execute(this::checkExpiry);
+  }
+
   private synchronized void checkExpiry() {
     if (current == null) return;
-    if (snapshot() == null) clear();
+    if (snapshot() == null) clearSession();
     else scheduleExpiry();
   }
 
   private void scheduleExpiry() {
     timer.removeCallbacks(checkExpiry);
-    timer.postDelayed(checkExpiry, Math.max(1, current.expiresAt - System.currentTimeMillis()));
+    timer.postDelayed(checkExpiry, Math.max(1, current.expiresAt - clock.getAsLong()));
   }
 }

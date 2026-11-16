@@ -8,7 +8,6 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
 import java.io.IOException;
 import kr.ac.ssu.qletter.databinding.ActivityMainBinding;
 import okhttp3.Call;
@@ -65,8 +64,6 @@ public class MainActivity extends AppCompatActivity {
                 if (next != null) verifySession();
               } else if (next != observed) {
                 observed = next;
-                getSupportFragmentManager()
-                    .popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
                 if (binding.tabs.getSelectedItemId() == R.id.tab_home) showTab(R.id.tab_home, true);
                 else binding.tabs.setSelectedItemId(R.id.tab_home);
                 verifySession();
@@ -81,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
   @Override
   protected void onStart() {
     super.onStart();
+    app().sessions().refreshExpiryAsync();
     verifySession();
   }
 

@@ -181,3 +181,14 @@ export type ChannelCheckResultRow = {
     | null;
   lastCheckedAt: number | null;
 };
+
+export type DashboardRow = {
+  activeChannelCount: number;
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+  queued: number;
+  running: number;
+  failedSummaries: number;
+  pending: number;
+  failedDeliveries: number;
+};

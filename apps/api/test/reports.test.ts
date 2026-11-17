@@ -796,3 +796,122 @@ test("잘못된 댓글 입력은 400이에요", async () => {
   expect((await removeComment(id, "not-a-uuid")).status).toBe(400);
   expect((await request(`/${id}/comments?limit=0`)).status).toBe(400);
 });
+
+const home = (secret: string | null = token, query = "") =>
+  app.request(
+    `/v1/dashboard${query}`,
+    secret ? { headers: { authorization: `Bearer ${secret}` } } : {},
+    settings,
+  );
+
+const emptyHome = {
+  recentReports: [],
+  activeChannelCount: 0,
+  summaryCounts: { queued: 0, running: 0, failed: 0 },
+  deliveryCounts: { pending: 0, failed: 0 },
+  lastCheckedAt: null,
+  nextCheckAt: null,
+};
+
+test("홈은 로그인을 요구하고 빈 계정에 0과 빈 목록을 반환해요", async () => {
+  expect((await home(null)).status).toBe(401);
+  expect((await home(token, "?userId=other")).status).toBe(400);
+  const response = await home();
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.json()).toEqual(emptyHome);
+});
+
+test("홈은 주소별 부분 실패와 요약 상태를 계정별로 집계하고 확인을 예약하지 않아요", async () => {
+  await channelReport(6);
+  await send("sent");
+  await send("failed");
+  await send("ambiguous");
+  const sending = await claim();
+  expect(sending).toBeDefined();
+  await sql(
+    "UPDATE deliveries SET status = 'cancelled' WHERE id = (SELECT id FROM deliveries WHERE status = 'queued' LIMIT 1)",
+  ).run();
+  await sql(
+    "UPDATE channel_subscriptions SET last_checked_at = ?, next_check_at = ? WHERE id = 'sub'",
+    now,
+    now + 3600,
+  ).run();
+  for (const [id, status, who, last, next] of [
+    ["paused", "paused", owner, now + 10, null],
+    ["deleted", "deleted", owner, now + 50, null],
+    ["other", "active", other, now + 100, now + 120],
+  ] as const) {
+    await sql(
+      "INSERT INTO channels (id,youtube_channel_id,title,url) VALUES (?,?,'채널','https://example.com')",
+      id,
+      id,
+    ).run();
+    await sql(
+      "INSERT INTO channel_subscriptions (id,user_id,channel_id,status,last_checked_at,next_check_at) VALUES (?,?,?,?,?,?)",
+      id,
+      who,
+      id,
+      status,
+      last,
+      next,
+    ).run();
+  }
+  for (const [id, status] of [
+    ["aaaaaaa0001", "queued"],
+    ["aaaaaaa0002", "running"],
+    ["aaaaaaa0003", "failed"],
+  ] as const) {
+    const row = await enqueueAnalysis(
+      env.DB,
+      { userId: owner, url: videoUrl(id), model },
+      now,
+    );
+    await sql(
+      "UPDATE summary_requests SET status = ?, failure_code = ? WHERE id = ?",
+      status,
+      status === "failed" ? "temporary" : null,
+      row.id,
+    ).run();
+  }
+  await enqueueAnalysis(
+    env.DB,
+    { userId: other, url: videoUrl("aaaaaaa0001"), model },
+    now,
+  );
+  const expected = {
+    recentReports: (await list()).items,
+    activeChannelCount: 1,
+    summaryCounts: { queued: 1, running: 1, failed: 1 },
+    deliveryCounts: { pending: 2, failed: 2 },
+    lastCheckedAt: new Date((now + 10) * 1000).toISOString(),
+    nextCheckAt: new Date((now + 3600) * 1000).toISOString(),
+  };
+  const countWork = () =>
+    sql(
+      "SELECT (SELECT count(*) FROM channel_checks) AS checks, (SELECT count(*) FROM summary_requests) AS requests, (SELECT count(*) FROM deliveries) AS deliveries, (SELECT count(*) FROM analysis_jobs) AS jobs",
+    ).first();
+  const before = await countWork();
+  expect(await (await home()).json()).toEqual(expected);
+  expect(await (await home()).json()).toEqual(expected);
+  expect(await countWork()).toEqual(before);
+  expect(await (await home(otherToken)).json()).toMatchObject({
+    recentReports: [],
+    activeChannelCount: 1,
+    deliveryCounts: { pending: 0, failed: 0 },
+    summaryCounts: { queued: 1, running: 0, failed: 0 },
+  });
+});
+
+test("홈의 최근 다섯 개는 같은 시각에도 내 보관함 순서로 나오고 직접 요약에는 발송이 없어요", async () => {
+  for (let seq = 0; seq < 6; seq++)
+    await saveReport(owner, `vid0000000${seq}`, now);
+  await saveReport(other, "other000001", now + 2);
+  const reports = await list("?limit=5");
+  expect(reports.items).toHaveLength(5);
+  expect(reports.nextCursor).not.toBeNull();
+  expect(await (await home()).json()).toEqual({
+    ...emptyHome,
+    recentReports: reports.items,
+  });
+});

@@ -34,6 +34,13 @@ export const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_na
   r.created_at AS createdAt, q.id AS requestId, q.origin, p.created_at AS savedAt,
   ${deliveryStatusSql} AS deliveryStatus`;
 
+export const personalReportSource = `FROM report_permissions p
+    JOIN reports r ON r.id = p.report_id
+    JOIN analysis_jobs j ON j.id = r.analysis_job_id
+    -- 개인 권한 행은 항상 본인 요청에서 만들어지므로 요청 행이 함께 있다고 가정해요.
+    JOIN summary_requests q ON q.user_id = p.user_id AND q.analysis_job_id = r.analysis_job_id
+    WHERE p.audience = 'user' AND p.user_id = ?`;
+
 const MAX_SEARCH_LENGTH = 100;
 const MAX_CHANNEL_URL_LENGTH = 2048;
 
@@ -115,12 +122,7 @@ reports.get("/", async (c) => {
   const rows = await statement(
     c.env.DB,
     `SELECT ${reportColumns}
-    FROM report_permissions p
-    JOIN reports r ON r.id = p.report_id
-    JOIN analysis_jobs j ON j.id = r.analysis_job_id
-    -- 개인 권한 행은 항상 본인 요청에서 만들어지므로 요청 행이 함께 있다고 가정해요.
-    JOIN summary_requests q ON q.user_id = p.user_id AND q.analysis_job_id = r.analysis_job_id
-    WHERE p.audience = 'user' AND p.user_id = ?
+    ${personalReportSource}
     ${conditions.map((condition) => `AND ${condition}`).join("\n    ")}
     ORDER BY p.created_at DESC, p.report_id DESC LIMIT ?`,
     c.get("userId"),

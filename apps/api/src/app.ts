@@ -3,6 +3,7 @@ import { accounts } from "./accounts";
 import { channelChecks } from "./channel-checks";
 import { channelSettings } from "./channel-settings";
 import { collections } from "./collections";
+import { dashboard } from "./dashboard";
 import { deliveries } from "./deliveries";
 import { reports } from "./reports";
 import { summaryRequests } from "./summary-requests";
@@ -16,6 +17,7 @@ export function createApp() {
   app.route("/v1/summary-requests", summaryRequests);
   app.route("/v1/reports", reports);
   app.route("/v1/collections", collections);
+  app.route("/v1/dashboard", dashboard);
   app.route("/v1/deliveries", deliveries);
   app.route("/v1", accounts);
   app.route("/v1", channelSettings);

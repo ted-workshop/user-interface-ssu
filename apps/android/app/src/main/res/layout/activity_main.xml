@@ -1,19 +1,35 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context=".MainActivity">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+    android:id="@+id/main" android:orientation="vertical"
+    android:background="@color/q_bg_default"
+    android:layout_width="match_parent" android:layout_height="match_parent">
+    <LinearLayout
+        android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:minHeight="64dp" android:paddingStart="16dp" android:paddingEnd="16dp"
+        android:orientation="horizontal" android:gravity="center_vertical">
+        <TextView
+            android:layout_width="24dp" android:layout_height="24dp"
+            android:gravity="center" android:importantForAccessibility="no"
+            android:background="@drawable/q_brand_mark" android:text="@string/brand_mark"
+            android:textSize="12sp" android:textColor="@color/q_ink_on_ink" />
+        <TextView
+            android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginStart="8dp" android:text="@string/brand_name"
+            android:textStyle="bold" android:textSize="18sp" />
+    </LinearLayout>
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@color/q_line_default" />
+    <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/tab_content" android:layout_width="match_parent"
+        android:layout_height="0dp" android:layout_weight="1" />
+    <View android:layout_width="match_parent" android:layout_height="1dp"
+        android:background="@color/q_line_default" />
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/tabs" android:layout_width="match_parent"
+        android:layout_height="wrap_content" android:minHeight="76dp"
+        android:background="@color/q_bg_default" app:elevation="0dp"
+        app:labelVisibilityMode="labeled" app:itemHorizontalTranslationEnabled="false"
+        app:itemActiveIndicatorStyle="@null" app:itemIconTint="@color/q_tab_ink"
+        app:itemTextColor="@color/q_tab_ink" app:itemTextAppearanceActive="@style/QletterTabLabel.Active"
+        app:itemTextAppearanceInactive="@style/QletterTabLabel" app:menu="@menu/q_tabs" />
+</LinearLayout>

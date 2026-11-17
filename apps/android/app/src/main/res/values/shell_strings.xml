@@ -1,0 +1,12 @@
+<resources>
+    <string name="tab_home">홈</string>
+    <string name="tab_summary">요약</string>
+    <string name="tab_reports">리포트</string>
+    <string name="tab_channels">채널</string>
+    <string name="tab_account">계정</string>
+    <string name="page_summary">영상 요약</string>
+    <string name="brand_mark">큐</string>
+    <string name="brand_name">큐레터</string>
+    <string name="session_signed_out">로그인이 필요해요.</string>
+    <string name="session_signed_in">로그인 상태예요.</string>
+</resources>

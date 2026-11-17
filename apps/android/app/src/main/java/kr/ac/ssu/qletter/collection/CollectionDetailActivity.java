@@ -10,6 +10,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import java.util.ArrayList;
 import java.util.List;
+import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.QletterApplication;
 import kr.ac.ssu.qletter.databinding.ActivityCollectionDetailBinding;
 import okhttp3.Call;
@@ -34,7 +35,7 @@ public class CollectionDetailActivity extends AppCompatActivity {
 
     int reportCount = getIntent().getIntExtra(EXTRA_REPORT_COUNT, 0);
     binding.detailName.setText(getIntent().getStringExtra(EXTRA_NAME));
-    binding.detailCount.setText("리포트 " + reportCount + "개");
+    binding.detailCount.setText(getString(R.string.collection_report_count, reportCount));
 
     adapter = new CollectionReportAdapter(reports);
     binding.detailReportsList.setLayoutManager(new LinearLayoutManager(this));
@@ -77,7 +78,8 @@ public class CollectionDetailActivity extends AppCompatActivity {
                           reports.clear();
                           reports.addAll(value);
                           adapter.notifyDataSetChanged();
-                          if (reports.isEmpty()) showMessage("아직 담긴 리포트가 없어요");
+                          if (reports.isEmpty())
+                            showMessage(getString(R.string.collection_detail_empty));
                         });
                   }
 

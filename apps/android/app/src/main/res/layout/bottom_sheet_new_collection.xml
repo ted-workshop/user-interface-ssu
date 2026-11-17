@@ -9,7 +9,7 @@
     android:id="@+id/sheet_title"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:text="새 모음"
+    android:text="@string/collection_new"
     android:textSize="20sp"
     android:textStyle="bold" />
 
@@ -18,7 +18,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="16dp"
-    android:hint="모음 이름 (1~30자)"
+    android:hint="@string/collection_name_hint"
+    android:importantForAutofill="no"
     android:inputType="text"
     android:maxLength="30" />
 
@@ -27,5 +28,5 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="16dp"
-    android:text="만들기" />
+    android:text="@string/collection_create" />
 </LinearLayout>

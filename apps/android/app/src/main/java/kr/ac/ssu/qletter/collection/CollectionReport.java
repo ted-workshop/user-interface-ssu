@@ -1,8 +1,8 @@
 package kr.ac.ssu.qletter.collection;
 
 public class CollectionReport {
-  private String title;
-  private String channelName;
+  private final String title;
+  private final String channelName;
 
   public CollectionReport(String title, String channelName) {
     this.title = title;

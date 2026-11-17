@@ -1,5 +1,6 @@
 package kr.ac.ssu.qletter.collection;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -14,6 +15,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import java.util.ArrayList;
 import java.util.List;
+import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.QletterApplication;
 import kr.ac.ssu.qletter.databinding.BottomSheetNewCollectionBinding;
 import kr.ac.ssu.qletter.databinding.FragmentCollectionsBinding;
@@ -63,8 +65,8 @@ public class CollectionsFragment extends Fragment {
     bottomSheetDialog.setContentView(sheet.getRoot());
     if (position != -1) {
       String oldName = items.get(position).getName();
-      sheet.sheetTitle.setText("이름 바꾸기");
-      sheet.createCollectionButton.setText("저장");
+      sheet.sheetTitle.setText(R.string.collection_rename);
+      sheet.createCollectionButton.setText(R.string.collection_save);
       sheet.collectionNameInput.setText(oldName);
       sheet.collectionNameInput.setSelection(oldName.length());
     }
@@ -72,46 +74,49 @@ public class CollectionsFragment extends Fragment {
         view -> {
           String name = sheet.collectionNameInput.getText().toString().trim();
           if (name.isEmpty()) {
-            sheet.collectionNameInput.setError("모음 이름을 입력해 주세요");
+            sheet.collectionNameInput.setError(getString(R.string.collection_name_required));
             return;
           }
 
           sheet.createCollectionButton.setEnabled(false);
+          ReportCollection original = position == -1 ? null : items.get(position);
           CollectionApi.Result<ReportCollection> result =
               new CollectionApi.Result<ReportCollection>() {
                 @Override
                 public void onSuccess(ReportCollection value) {
-                  requireActivity()
-                      .runOnUiThread(
-                          () -> {
-                            if (binding == null) return;
-                            if (position == -1) {
-                              items.add(0, value);
-                              adapter.notifyItemInserted(0);
-                              binding.collectionsMessage.setVisibility(View.GONE);
-                              binding.collectionsList.scrollToPosition(0);
-                            } else {
-                              items.set(position, value);
-                              adapter.notifyItemChanged(position);
-                            }
-                            bottomSheetDialog.dismiss();
-                          });
+                  runOnUi(
+                      () -> {
+                        if (binding == null) return;
+                        if (position == -1) {
+                          items.add(0, value);
+                          adapter.notifyItemInserted(0);
+                          binding.collectionsMessage.setVisibility(View.GONE);
+                          binding.collectionsList.scrollToPosition(0);
+                        } else {
+                          // 요청 중에 목록이 바뀌었을 수 있어서 위치를 다시 찾아요.
+                          int current = items.indexOf(original);
+                          if (current != -1) {
+                            items.set(current, value);
+                            adapter.notifyItemChanged(current);
+                          }
+                        }
+                        bottomSheetDialog.dismiss();
+                      });
                 }
 
                 @Override
                 public void onError(String message) {
-                  requireActivity()
-                      .runOnUiThread(
-                          () -> {
-                            sheet.createCollectionButton.setEnabled(true);
-                            sheet.collectionNameInput.setError(message);
-                          });
+                  runOnUi(
+                      () -> {
+                        sheet.createCollectionButton.setEnabled(true);
+                        sheet.collectionNameInput.setError(message);
+                      });
                 }
               };
           if (position == -1) {
             collectionApi.create(name, result);
           } else {
-            collectionApi.rename(items.get(position).getId(), name, result);
+            collectionApi.rename(original.getId(), name, result);
           }
         });
     bottomSheetDialog.show();
@@ -119,10 +124,11 @@ public class CollectionsFragment extends Fragment {
 
   private void confirmDelete(int position) {
     new AlertDialog.Builder(requireContext())
-        .setTitle("모음 삭제")
-        .setMessage(items.get(position).getName() + " 모음을 삭제할까요?")
-        .setPositiveButton("삭제", ((dialog, which) -> deleteCollection(items.get(position))))
-        .setNegativeButton("취소", null)
+        .setTitle(R.string.collection_delete_title)
+        .setMessage(getString(R.string.collection_delete_message, items.get(position).getName()))
+        .setPositiveButton(
+            R.string.collection_delete, ((dialog, which) -> deleteCollection(items.get(position))))
+        .setNegativeButton(R.string.collection_cancel, null)
         .show();
   }
 
@@ -132,27 +138,28 @@ public class CollectionsFragment extends Fragment {
         new CollectionApi.Result<Void>() {
           @Override
           public void onSuccess(Void value) {
-            requireActivity()
-                .runOnUiThread(
-                    () -> {
-                      if (binding == null) return;
-                      // 요청 중에 목록이 바뀌었을 수 있어서 위치를 다시 찾아요.
-                      int position = items.indexOf(target);
-                      if (position == -1) return;
-                      items.remove(position);
-                      adapter.notifyItemRemoved(position);
-                      if (items.isEmpty()) {
-                        binding.collectionsMessage.setText("아직 모음이 없어요");
-                        binding.collectionsMessage.setVisibility(View.VISIBLE);
-                      }
-                    });
+            runOnUi(
+                () -> {
+                  if (binding == null) return;
+                  // 요청 중에 목록이 바뀌었을 수 있어서 위치를 다시 찾아요.
+                  int position = items.indexOf(target);
+                  if (position == -1) return;
+                  items.remove(position);
+                  adapter.notifyItemRemoved(position);
+                  if (items.isEmpty()) {
+                    binding.collectionsMessage.setText(R.string.collection_empty);
+                    binding.collectionsMessage.setVisibility(View.VISIBLE);
+                  }
+                });
           }
 
           @Override
           public void onError(String message) {
-            requireActivity()
-                .runOnUiThread(
-                    () -> Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show());
+            runOnUi(
+                () -> {
+                  if (binding == null) return;
+                  Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show();
+                });
           }
         });
   }
@@ -161,7 +168,9 @@ public class CollectionsFragment extends Fragment {
     new AlertDialog.Builder(requireContext())
         .setTitle(items.get(position).getName())
         .setItems(
-            new String[] {"이름 바꾸기", "삭제"},
+            new String[] {
+              getString(R.string.collection_rename), getString(R.string.collection_delete)
+            },
             ((dialog, which) -> {
               if (which == 0) {
                 showNewCollectionSheet(position);
@@ -190,35 +199,39 @@ public class CollectionsFragment extends Fragment {
             new CollectionApi.Result<List<ReportCollection>>() {
               @Override
               public void onSuccess(List<ReportCollection> value) {
-                requireActivity()
-                    .runOnUiThread(
-                        () -> {
-                          if (binding == null) return;
+                runOnUi(
+                    () -> {
+                      if (binding == null) return;
 
-                          binding.collectionsLoading.setVisibility(View.GONE);
-                          items.clear();
-                          items.addAll(value);
-                          adapter.notifyDataSetChanged();
+                      binding.collectionsLoading.setVisibility(View.GONE);
+                      items.clear();
+                      items.addAll(value);
+                      adapter.notifyDataSetChanged();
 
-                          if (items.isEmpty()) {
-                            binding.collectionsMessage.setVisibility(View.VISIBLE);
-                            binding.collectionsMessage.setText("아직 모음이 없어요");
-                          }
-                        });
+                      if (items.isEmpty()) {
+                        binding.collectionsMessage.setVisibility(View.VISIBLE);
+                        binding.collectionsMessage.setText(R.string.collection_empty);
+                      }
+                    });
               }
 
               @Override
               public void onError(String message) {
-                requireActivity()
-                    .runOnUiThread(
-                        () -> {
-                          if (binding == null) return;
+                runOnUi(
+                    () -> {
+                      if (binding == null) return;
 
-                          binding.collectionsLoading.setVisibility(View.GONE);
-                          binding.collectionsMessage.setText(message);
-                          binding.collectionsMessage.setVisibility(View.VISIBLE);
-                        });
+                      binding.collectionsLoading.setVisibility(View.GONE);
+                      binding.collectionsMessage.setText(message);
+                      binding.collectionsMessage.setVisibility(View.VISIBLE);
+                    });
               }
             });
+  }
+
+  /** 응답이 왔을 때 화면이 이미 Activity에서 떨어졌으면 아무것도 하지 않아요. */
+  private void runOnUi(Runnable action) {
+    Activity activity = getActivity();
+    if (activity != null) activity.runOnUiThread(action);
   }
 }

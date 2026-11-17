@@ -36,5 +36,5 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="16dp"
-    android:text="새 모음" />
+    android:text="@string/collection_new" />
 </LinearLayout>

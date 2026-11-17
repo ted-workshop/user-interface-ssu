@@ -6,7 +6,9 @@ import java.util.List;
 import kr.ac.ssu.qletter.common.QletterApi;
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.MediaType;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
 import org.json.JSONArray;
@@ -22,6 +24,12 @@ final class CollectionApi {
     void onError(String message);
   }
 
+  private interface Parser<T> {
+    T parse(String body) throws JSONException;
+  }
+
+  private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
+
   private final QletterApi api;
 
   CollectionApi(QletterApi api) {
@@ -30,7 +38,36 @@ final class CollectionApi {
 
   /** 내 모음 목록 첫 페이지를 불러와요. 반환한 Call로 요청을 취소할 수 있어요. */
   Call list(Result<List<ReportCollection>> result) {
-    Call call = api.newCall(new Request.Builder().url(api.endpoint("collections").build()).build());
+    Request request = new Request.Builder().url(api.endpoint("collections").build()).build();
+    return send(request, CollectionApi::parseList, "모음을 불러오지 못했어요.", result);
+  }
+
+  /** 새 모음을 만들고 서버가 만든 모음을 돌려줘요. */
+  Call create(String name, Result<ReportCollection> result) {
+    Request request =
+        new Request.Builder().url(api.endpoint("collections").build()).post(nameBody(name)).build();
+    return send(request, CollectionApi::parseOne, "모음을 만들지 못했어요.", result);
+  }
+
+  /** 모음 이름을 바꾸고 바뀐 모음을 돌려줘요. */
+  Call rename(String id, String name, Result<ReportCollection> result) {
+    Request request =
+        new Request.Builder()
+            .url(api.endpoint("collections", id).build())
+            .patch(nameBody(name))
+            .build();
+    return send(request, CollectionApi::parseOne, "이름을 바꾸지 못했어요.", result);
+  }
+
+  /** 모음을 지워요. 담긴 리포트는 보관함에 남아요. 성공 값은 없어서 null이에요. */
+  Call delete(String id, Result<Void> result) {
+    Request request =
+        new Request.Builder().url(api.endpoint("collections", id).build()).delete().build();
+    return send(request, body -> null, "모음을 지우지 못했어요.", result);
+  }
+
+  private <T> Call send(Request request, Parser<T> parser, String failure, Result<T> result) {
+    Call call = api.newCall(request);
     call.enqueue(
         new Callback() {
           @Override
@@ -42,29 +79,57 @@ final class CollectionApi {
           @Override
           public void onResponse(Call call, Response response) {
             try (ResponseBody body = response.body()) {
-              if (!response.isSuccessful() || body == null) {
-                result.onError("모음을 불러오지 못했어요. (" + response.code() + ")");
+              String text = body == null ? "" : body.string();
+              if (!response.isSuccessful()) {
+                result.onError(errorMessage(response.code(), text, failure));
                 return;
               }
-              result.onSuccess(parseList(body.string()));
+              result.onSuccess(parser.parse(text));
             } catch (IOException | JSONException error) {
-              result.onError("모음 응답을 읽지 못했어요.");
+              result.onError("서버 응답을 읽지 못했어요.");
             }
           }
         });
     return call;
   }
 
+  private static RequestBody nameBody(String name) {
+    try {
+      return RequestBody.create(new JSONObject().put("name", name).toString(), JSON);
+    } catch (JSONException error) {
+      throw new IllegalStateException(error);
+    }
+  }
+
   private static List<ReportCollection> parseList(String json) throws JSONException {
     JSONArray items = new JSONObject(json).getJSONArray("items");
     List<ReportCollection> collections = new ArrayList<>();
-    for (int i = 0; i < items.length(); i++) {
-      JSONObject item = items.getJSONObject(i);
-      collections.add(
-          new ReportCollection(
-              item.getString("name"), item.getInt("reportCount"), item.getString("id")));
-    }
+    for (int i = 0; i < items.length(); i++) collections.add(toCollection(items.getJSONObject(i)));
     return collections;
+  }
+
+  private static ReportCollection parseOne(String json) throws JSONException {
+    return toCollection(new JSONObject(json));
+  }
+
+  private static ReportCollection toCollection(JSONObject item) throws JSONException {
+    return new ReportCollection(
+        item.getString("name"), item.getInt("reportCount"), item.getString("id"));
+  }
+
+  /** 서버 오류 코드를 화면 문장으로 바꿔요. 이름 오류는 서버가 준 필드 문장을 그대로 써요. */
+  private static String errorMessage(int status, String body, String failure) {
+    try {
+      JSONObject error = new JSONObject(body).getJSONObject("error");
+      String code = error.optString("code");
+      JSONObject fields = error.optJSONObject("fields");
+      if (fields != null && fields.has("name")) return fields.getString("name");
+      if ("COLLECTION_EXISTS".equals(code)) return "같은 이름의 모음이 이미 있어요.";
+      if ("NOT_FOUND".equals(code)) return "모음을 찾을 수 없어요.";
+    } catch (JSONException ignored) {
+      // 본문이 JSON이 아니면 상태 코드만 보여 줘요.
+    }
+    return failure + " (" + status + ")";
   }
 
   private static String failureMessage(IOException error) {

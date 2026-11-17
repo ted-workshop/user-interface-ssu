@@ -20,6 +20,8 @@ const tables = [
   "summary_requests",
   "analysis_jobs",
   "subscription_videos",
+  "channel_check_results",
+  "channel_checks",
   "channel_subscriptions",
   "videos",
   "channels",
@@ -205,7 +207,7 @@ beforeEach(async () => {
 });
 
 describe("공통 보고서 D1 저장 규칙", () => {
-  test("여덟 마이그레이션을 반복 적용하고 22개 제품 테이블과 FK를 재현해요", async () => {
+  test("아홉 마이그레이션을 반복 적용하고 24개 제품 테이블과 FK를 재현해요", async () => {
     await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
     expect(
       (
@@ -222,6 +224,7 @@ describe("공통 보고서 D1 저장 규칙", () => {
       "0006_auth_mail_rate_limits.sql",
       "0007_collections.sql",
       "0008_report_comments.sql",
+      "0009_channel_checks.sql",
     ]);
     expect((await sql("PRAGMA foreign_key_check").all()).results).toEqual([]);
     const names = await sql(

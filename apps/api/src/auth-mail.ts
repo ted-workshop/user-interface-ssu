@@ -4,7 +4,7 @@ import { EmailError, type sendEmail } from "./email";
 import { statement } from "./jobs/shared";
 import type { AuthMailRow } from "./rows";
 
-export type TokenPurpose = AuthMailRow["purpose"];
+export type TokenPurpose = Exclude<AuthMailRow["purpose"], "verify_recipient">;
 
 const TOKEN_LIFETIME: Record<TokenPurpose, number> = {
   verify_email: 86_400,
@@ -110,12 +110,75 @@ export async function issueTokenStatements(
   ];
 }
 
+// 주소·소유자를 고정해 재발급이 다른 주소의 토큰을 폐기하지 않게 해요.
+export async function issueRecipientTokenStatements(
+  env: Env,
+  userId: string,
+  recipientId: string,
+  now: number,
+) {
+  const token = randomToken();
+  const tokenId = crypto.randomUUID();
+  const expiresAt = now + 86_400;
+  return [
+    statement(
+      env.DB,
+      `DELETE FROM auth_mail_outbox WHERE token_id IN (
+      SELECT id FROM account_tokens WHERE purpose = 'verify_recipient' AND user_id = ? AND recipient_id = ?)`,
+      userId,
+      recipientId,
+    ),
+    statement(
+      env.DB,
+      `UPDATE account_tokens SET consumed_at = ? WHERE purpose = 'verify_recipient'
+      AND user_id = ? AND recipient_id = ? AND consumed_at IS NULL AND expires_at > ?`,
+      now,
+      userId,
+      recipientId,
+      now,
+    ),
+    statement(
+      env.DB,
+      `INSERT INTO account_tokens (id, user_id, purpose, recipient_id, token_hash, created_at, expires_at)
+      SELECT ?, user_id, 'verify_recipient', id, ?, ?, ? FROM recipients
+      WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND verified_at IS NULL`,
+      tokenId,
+      await sha256Hex(token),
+      now,
+      expiresAt,
+      recipientId,
+      userId,
+    ),
+    statement(
+      env.DB,
+      `INSERT INTO auth_mail_outbox (id, token_id, token_ciphertext, available_at, expires_at, created_at)
+      SELECT ?, id, ?, ?, ?, ? FROM account_tokens WHERE id = ?`,
+      crypto.randomUUID(),
+      await encrypt(env, token),
+      now,
+      expiresAt,
+      now,
+      tokenId,
+    ),
+  ];
+}
+
 function authMailLog(event: string, id: string, reason: string | null = null) {
   // 주소·토큰은 로그에 남기지 않아요.
   console.info(JSON.stringify({ event: `auth_mail.${event}`, id, reason }));
 }
 
-function message(purpose: TokenPurpose, token: string) {
+function message(purpose: AuthMailRow["purpose"], token: string) {
+  if (purpose === "verify_recipient") {
+    const guide =
+      "로그인한 Qletter 앱의 수신 주소 확인 화면에 아래 코드를 입력해 주세요. 24시간 동안 사용할 수 있어요.";
+    const ignore = "직접 요청하지 않았다면 이 메일을 무시해 주세요.";
+    return {
+      subject: "Qletter 수신 주소 확인",
+      text: `${guide}\n\n${token}\n\n${ignore}`,
+      html: `<p>${guide}</p><p><code>${token}</code></p><p>${ignore}</p>`,
+    };
+  }
   const verify = purpose === "verify_email";
   const guide = verify
     ? "앱의 이메일 확인 화면에 아래 코드와 가입한 비밀번호를 입력해 주세요. 24시간 동안 사용할 수 있어요."
@@ -147,7 +210,10 @@ export async function runAuthMail(
     // 호출 후 중단은 접수 여부를 알 수 없어요. 자동 재발송 없이 지우고 사용자 재요청에 맡겨요.
     statement(
       db,
-      "DELETE FROM auth_mail_outbox WHERE expires_at <= ? OR lease_expires_at <= ?",
+      `DELETE FROM auth_mail_outbox WHERE expires_at <= ? OR lease_expires_at <= ?
+      OR EXISTS (SELECT 1 FROM account_tokens t LEFT JOIN recipients r ON r.id = t.recipient_id
+        WHERE t.id = auth_mail_outbox.token_id AND (t.consumed_at IS NOT NULL OR (t.purpose = 'verify_recipient'
+          AND (r.id IS NULL OR r.deleted_at IS NOT NULL OR r.verified_at IS NOT NULL))))`,
       now,
       now,
     ),
@@ -163,8 +229,10 @@ export async function runAuthMail(
     ),
     statement(
       db,
-      `SELECT o.id, o.token_ciphertext AS tokenCiphertext, o.attempts, t.purpose, u.email
+      `SELECT o.id, o.token_ciphertext AS tokenCiphertext, o.attempts, t.purpose,
+        CASE WHEN t.purpose = 'verify_recipient' THEN r.email ELSE u.email END AS email
       FROM auth_mail_outbox o JOIN account_tokens t ON t.id = o.token_id JOIN users u ON u.id = t.user_id
+      LEFT JOIN recipients r ON r.id = t.recipient_id AND r.user_id = t.user_id
       WHERE o.lease_token = ?`,
       lease,
     ),

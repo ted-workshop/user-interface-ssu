@@ -10,6 +10,7 @@
 
 | 번호 | 결정 또는 제안 | 상태 | 날짜 |
 | --- | --- | --- | --- |
+| [ADR-0038](0038-android-foundation.md) | Android 공통 탭과 로그인 세션을 관리해요 | 확정 | 2026-11-07 |
 | [ADR-0001](0001-workers-d1-free-tier.md) | Cloudflare Workers와 D1을 무료 플랜으로 시작해요 | 확정 | 2026-10-20 |
 | [ADR-0002](0002-workflows-for-background-jobs.md) | 백그라운드 처리에 Workflows 사용을 제안해요 | 기각 | 2026-10-20 |
 | [ADR-0003](0003-shared-modules-sync-async.md) | 모듈 규칙을 통일하고 실행 방식은 요구에 맞춰요 | 확정 | 2026-10-20 |
@@ -37,11 +38,15 @@
 | [ADR-0027](0027-no-orm-typed-rows.md) | ORM을 도입하지 않고 행 타입을 한 곳에서 관리해요 | 확정 | 2026-11-02 |
 | [ADR-0028](0028-auth-http.md) | 인증 HTTP를 scrypt·암호화 메일 대기열·D1 요청 제한으로 구현해요 | 확정 | 2026-11-02 |
 | [ADR-0029](0029-collections-http.md) | 모음 항목은 본인의 보관 권한 행을 가리켜요 | 확정 | 2026-11-05 |
+| [ADR-0030](0030-channel-settings-http.md) | 공식 채널 조회와 개인 구독·수신 설정 HTTP를 연결해요 | 확정 | 2026-11-05 |
+| [ADR-0031](0031-channel-check-execution.md) | 채널 첫 기준과 새 영상 확인을 D1 Cron 대기열로 실행해요 | 확정 | 2026-11-13 |
 | [ADR-0032](0032-gemini-single-call.md) | Gemini는 한 번만 호출하고 503은 사용자가 다시 시도하게 해요 | 확정 | 2026-11-07 |
 | [ADR-0033](0033-commit-week-prefix.md) | 커밋 제목 앞에 강의 주차를 표시해요 | 확정 | 2026-11-09 |
 | [ADR-0034](0034-report-comments.md) | 리포트와 댓글은 리포트별 권한 행이 있는 사용자만 읽고 써요 | 확정 | 2026-11-09 |
 | [ADR-0035](0035-worker-provider-call-paths.md) | Workers에서 oEmbed와 Interactions 호출 경로를 고쳐요 | 확정 | 2026-11-10 |
 | [ADR-0036](0036-null-provider-fields.md) | 공급자 응답의 누락 필드는 null로 저장해요 | 확정 | 2026-11-10 |
+| [ADR-0037](0037-channel-report-delivery.md) | 채널 리포트 발송 행을 리포트 저장과 함께 만들고 주소별로 재시도해요 | 확정 | 2026-11-13 |
+| [ADR-0039](0039-android-feature-packages.md) | Android 코드를 기능별 패키지로 나눠요 | 확정 | 2026-11-16 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

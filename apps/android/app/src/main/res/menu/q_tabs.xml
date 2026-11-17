@@ -1,0 +1,7 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/tab_home" android:title="@string/tab_home" android:icon="@drawable/ic_tab_home" />
+    <item android:id="@+id/tab_summary" android:title="@string/tab_summary" android:icon="@drawable/ic_tab_summary" />
+    <item android:id="@+id/tab_reports" android:title="@string/tab_reports" android:icon="@drawable/ic_tab_reports" />
+    <item android:id="@+id/tab_channels" android:title="@string/tab_channels" android:icon="@drawable/ic_tab_channels" />
+    <item android:id="@+id/tab_account" android:title="@string/tab_account" android:icon="@drawable/ic_tab_account" />
+</menu>

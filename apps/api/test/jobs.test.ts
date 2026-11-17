@@ -120,6 +120,8 @@ beforeEach(async () => {
     "summary_requests",
     "analysis_jobs",
     "subscription_videos",
+    "channel_check_results",
+    "channel_checks",
     "channel_subscriptions",
     "videos",
     "channels",
@@ -150,6 +152,7 @@ beforeEach(async () => {
       metadataSource: "https://www.youtube.com/oembed",
     })),
     generate: vi.fn(async () => result),
+    listVideos: vi.fn(async () => []),
     send: vi.fn(async () => ({
       status: "accepted" as const,
       messageId: "<fixture@example.com>",
@@ -169,6 +172,7 @@ describe("D1 영속 분석 실행", () => {
     expect(network).not.toHaveBeenCalled();
     expect(io.metadata).not.toHaveBeenCalled();
     expect(io.generate).not.toHaveBeenCalled();
+    expect(io.listVideos).not.toHaveBeenCalled();
     expect(io.send).not.toHaveBeenCalled();
   });
 
@@ -930,11 +934,15 @@ describe("같은 D1 실행 기반의 메일 작업", () => {
       env.SMTP_APP_PASSWORD,
     ])
       expect(output).not.toContain(secret);
-    for (const [line] of logs.mock.calls)
-      expect(JSON.parse(String(line))).toMatchObject({
+    for (const [line] of logs.mock.calls) {
+      const log = JSON.parse(String(line)) as Record<string, unknown>;
+      expect(log).toMatchObject({
         kind: expect.any(String),
         jobId: expect.any(String),
-        attempt: expect.any(Number),
       });
+      // 채널 확인은 시도 번호가 없는 작업이라 attempt를 남기지 않아요.
+      if (log.kind !== "channel_check")
+        expect(log.attempt).toEqual(expect.any(Number));
+    }
   });
 });

@@ -44,11 +44,13 @@ export type RequestRow = {
 // 개인 메일 발송 상태예요.
 export type DeliveryRow = {
   id: string;
+  email: string;
   status: string;
   attempt: number;
   failureCode: string | null;
   eligible: number;
   availableAt: number;
+  createdAt: number;
 };
 
 // 공통 보고서와 현재 사용자의 보관 정보예요. 보관 관계가 없는 공개 열람은 요청·보관 값이 NULL이에요.
@@ -99,7 +101,7 @@ export type AuthMailRow = {
   id: string;
   tokenCiphertext: string;
   attempts: number;
-  purpose: "verify_email" | "reset_password";
+  purpose: "verify_email" | "reset_password" | "verify_recipient";
   email: string;
 };
 
@@ -117,3 +119,76 @@ export type CollectionRow = {
 
 // 모음 안의 리포트예요. 담은 시각으로 정렬해요.
 export type CollectionReportRow = ReportRow & { addedAt: number };
+
+// 본인의 채널 구독과 공식 출처에서 확인한 공통 채널 정보예요.
+export type SubscriptionRow = {
+  id: string;
+  youtubeChannelId: string;
+  title: string;
+  url: string;
+  status: "active" | "paused";
+  baselineInitializedAt: number | null;
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+  createdAt: number;
+};
+export type RecipientRow = {
+  id: string;
+  email: string;
+  verifiedAt: number | null;
+  createdAt: number;
+};
+export type RecipientTokenRow = { id: string; recipientId: string };
+
+// 지금 확인·예약 확인 작업이에요. 실행권 token으로 중첩 실행의 결과 저장을 막아요.
+export type ChannelCheckRow = {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed";
+  manual: number;
+  failureCode: string | null;
+  continuedFromId: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+};
+export type ChannelCheckClaim = {
+  id: string;
+  userId: string;
+  token: string;
+  manual: number;
+  // 지금 확인이 구독 상한으로 이어질 때 같은 확인 묶음을 식별하는 첫 작업이에요.
+  rootCheckId: string;
+};
+
+// 확인할 활성 구독과 공식 채널 정보예요.
+export type ChannelCheckTargetRow = {
+  id: string;
+  channelId: string;
+  youtubeChannelId: string;
+  baselineInitializedAt: number | null;
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+};
+
+// 확인을 시도한 채널별 결과예요. 확인 완료와 영상 분석 완료는 달라요.
+export type ChannelCheckResultRow = {
+  subscriptionId: string;
+  title: string;
+  status: "completed" | "failed";
+  failureCode:
+    | "provider_unavailable"
+    | "invalid_response"
+    | "processing_failed"
+    | null;
+  lastCheckedAt: number | null;
+};
+
+export type DashboardRow = {
+  activeChannelCount: number;
+  lastCheckedAt: number | null;
+  nextCheckAt: number | null;
+  queued: number;
+  running: number;
+  failedSummaries: number;
+  pending: number;
+  failedDeliveries: number;
+};

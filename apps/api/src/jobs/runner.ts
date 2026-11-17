@@ -1,6 +1,12 @@
 import { runAuthMail } from "../auth-mail";
 import { EmailError, sendEmail } from "../email";
-import { generateReport, getVideoMetadata, SummaryError } from "../summary";
+import {
+  generateReport,
+  getVideoMetadata,
+  SummaryError,
+  summaryConfigSchema,
+} from "../summary";
+import { ChannelFetchError, fetchChannelVideos } from "../youtube-videos";
 import {
   claimAnalysis,
   completeAnalysis,
@@ -10,6 +16,20 @@ import {
   parseGenerationProfile,
   recoverAnalysis,
 } from "./analysis";
+import {
+  automationConfigured,
+  claimChannelCheck,
+  completeChannelCheck,
+  failChannelCheck,
+  getCheckTarget,
+  listCheckTargets,
+  MAX_NEW_VIDEOS_PER_CHECK,
+  queueFollowUpCheck,
+  recordCheckFailure,
+  scheduleDueCheck,
+  storeBaseline,
+  storeNewVideos,
+} from "./channels";
 import {
   cancelUndispatchedDelivery,
   claimDelivery,
@@ -25,12 +45,15 @@ export type JobProviders = {
   metadata: typeof getVideoMetadata;
   generate: typeof generateReport;
   send: typeof sendEmail;
+  // 채널 확인 테스트는 외부 호출 대신 fixture를 넣어요.
+  listVideos: typeof fetchChannelVideos;
   now: () => number;
 };
 const providers: JobProviders = {
   metadata: getVideoMetadata,
   generate: generateReport,
   send: sendEmail,
+  listVideos: fetchChannelVideos,
   now: unixNow,
 };
 
@@ -40,10 +63,13 @@ export async function runBackgroundJobs(
 ) {
   await recoverAnalysis(env.DB, io.now());
   await recoverDeliveries(env.DB, io.now());
+  // 확인할 때가 된 채널 자동화만 확인 작업을 만들어요. 설정이 없으면 대기 행도 만들지 않아요.
+  if (automationConfigured(env)) await scheduleDueCheck(env.DB, io.now());
   // 각 종류는 D1에서 한 개만 점유해 중첩 Cron도 동시에 같은 공급자를 호출하지 않아요.
   const outcomes = await Promise.allSettled([
     runAnalysis(env, io),
     runDelivery(env, io),
+    runChannelCheck(env, io),
     runAuthMail(env, io.send, io.now()),
   ]);
   if (outcomes.some((outcome) => outcome.status === "rejected")) {
@@ -155,6 +181,78 @@ async function runDelivery(env: Env, io: JobProviders) {
     return;
   }
   await completeDelivery(env.DB, claim, io.now());
+}
+
+async function runChannelCheck(env: Env, io: JobProviders) {
+  const claim = await claimChannelCheck(env.DB, io.now());
+  if (!claim) return;
+  const config = summaryConfigSchema.safeParse({
+    apiKey: env.GEMINI_API_KEY,
+    model: env.GEMINI_MODEL,
+  });
+  if (!config.success) {
+    await failChannelCheck(env.DB, claim, "configuration", io.now());
+    return;
+  }
+  const listVideos = io.listVideos;
+  // 한 invocation의 subrequest·공급자 사용량을 제한해요. 남은 구독은 다음 확인에서 이어가요.
+  let budget = MAX_NEW_VIDEOS_PER_CHECK;
+  for (const listed of await listCheckTargets(env.DB, claim, io.now())) {
+    if (budget <= 0) break;
+    // 공급자 호출 전에 중지·삭제·주소 삭제·주기 변경을 다시 확인해요.
+    const target = await getCheckTarget(env.DB, claim, listed.id, io.now());
+    if (!target) continue;
+    let videos: Awaited<ReturnType<typeof listVideos>>;
+    try {
+      videos = await listVideos(env, target.youtubeChannelId);
+    } catch (error) {
+      const code =
+        error instanceof ChannelFetchError
+          ? error.code
+          : "provider_unavailable";
+      if (code === "configuration") {
+        await failChannelCheck(env.DB, claim, "configuration", io.now());
+        return;
+      }
+      await recordCheckFailure(env.DB, claim, target.id, code, io.now());
+      continue;
+    }
+    try {
+      if (target.baselineInitializedAt === null)
+        await storeBaseline(env.DB, claim, target, videos, io.now());
+      else
+        budget = await storeNewVideos(
+          env.DB,
+          claim,
+          target,
+          videos,
+          config.data.model,
+          budget,
+          io.now(),
+        );
+    } catch (error) {
+      // 원인 추적용으로 예외 이름과 작업 ID만 남겨요. 메시지 원문·주소·본문은 넣지 않아요.
+      console.error(
+        JSON.stringify({
+          event: "check.channel_error",
+          kind: "channel_check",
+          jobId: claim.id,
+          errorName: error instanceof Error ? error.name : "unknown",
+        }),
+      );
+      // 한 채널의 저장 실패가 다른 계정의 확인을 막지 않게 채널 결과로 남기고 다음 주기로 미뤄요.
+      await recordCheckFailure(
+        env.DB,
+        claim,
+        target.id,
+        "processing_failed",
+        io.now(),
+      );
+    }
+  }
+  // 지금 확인은 구독이 상한보다 많으면 남은 구독을 확인할 후속 작업을 대기시켜요.
+  if (claim.manual) await queueFollowUpCheck(env.DB, claim, io.now());
+  await completeChannelCheck(env.DB, claim, io.now());
 }
 
 function escapeHtml(value: string) {

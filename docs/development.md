@@ -74,7 +74,12 @@ curl http://127.0.0.1:3000/health
 Wrangler가 로컬 workerd에서 실행하며 Cloudflare 로그인은 필요하지 않아요. 인증 경로는 아래 `AUTH_TOKEN_KEY`가 있어야 동작해요.
 `X-Qletter-Revision` 헤더는 로컬에서 `local`, 배포 후에는 해당 커밋 SHA를 반환해요. health JSON은 그대로 유지해요.
 
-Android Studio에서 debug variant로 Run해요. 개발 연결 화면의 `연결 확인`을 눌러요. 에뮬레이터 기본 주소는 http://10.0.2.2:3000/예요. 이 화면은 제품 로그인·요약 기능과 별개인 개발 확인 도구예요.
+Android Studio에서 debug variant로 Run하면 홈 탭이 열려요. Android 7.1 이상에서 debug 앱 아이콘을 길게 눌러 **개발 서버 연결**을 선택하거나, 아래 명령으로 점검 화면을 열고 **연결 확인**을 눌러요.
+
+```sh
+adb shell am start -n kr.ac.ssu.qletter.debug/kr.ac.ssu.qletter.ConnectionActivity
+```
+ 에뮬레이터 기본 주소는 http://10.0.2.2:3000/예요. 이 화면은 제품 로그인·요약 기능과 별개인 개발 확인 도구예요.
 
 실제 기기에서는 USB debugging을 켜고 장치를 승인한 뒤 포트를 연결해요.
 
@@ -90,7 +95,16 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 2. 서버 종료 → 다시 확인 → 실패
 3. 서버 재시작 → 다시 시도 → 성공
 
-연결 화면·네트워크 권한·로컬 HTTP 예외는 debug에만 있어요. release는 가져온 XML 템플릿의 기본 화면을 표시하며, 아직 배포할 제품이 아니에요.
+네트워크 권한과 다섯 탭은 두 빌드에 공통이에요. 개발 연결 화면과 로컬 HTTP 예외는 debug에만 있어요. release는 [ADR-0028](decisions/0028-auth-http.md)에 기록한 HTTPS Worker 주소를 사용해요.
+
+### Android 화면에서 공통 기반 사용
+
+- **화면 연결.** `MainActivity.showTab`에서 선택한 메뉴 ID를 화면 Fragment로 연결해요. `TabFragment.create`에는 현재 다섯 탭의 제목이 있어요. #27은 채널·계정, #28은 홈·요약·리포트, #29는 모음·리포트 댓글을 연결해요. 공통 화면은 View Binding으로 XML의 뷰를 참조하고, Fragment의 관찰자는 `getViewLifecycleOwner()`에 연결해요.
+- **색상.** Figma `bg/default`는 `@color/q_bg_default`, `ink/on-ink`는 `@color/q_ink_on_ink`예요. 전체 값은 [색상 리소스](../apps/android/app/src/main/res/values/qletter_colors.xml)에 있어요. 앱을 다시 빌드하면 리소스 변경이 반영돼요.
+- **로그인 성공.** #27의 인증 화면에서 서버 응답을 받은 뒤 `app.sessions().signInAsync(session.token, session.expiresAt, error -> { ... })`을 호출해요. `app`은 `(QletterApplication) requireActivity().getApplication()`이에요. 디스크·Keystore 저장은 내부 작업 스레드에서 실행해요. 콜백은 메인 스레드에서 호출돼요. 화면이 살아 있고 오류가 없을 때 다음 화면으로 이동하고, 저장 오류가 나면 재시도를 제공해요. 토큰을 화면 인자나 로그에 넣지 않아요.
+- **개인 API.** `app.api().endpoint("reports").addQueryParameter("limit", "20").build()`로 URL을 만들고 `app.api().newCall(new Request.Builder().url(url).build())`을 실행해요. `execute()`는 작업 스레드에서 사용하고 `Response`는 닫아요. 앱 시작 시 세션 파일 읽기와 Keystore 복호화는 작업 스레드에서 실행해요. 복원이 끝나면 세션 변경을 알리고, 유효한 세션이 있으면 `GET /v1/me`로 확인해요.
+- **세션 변경.** `app.sessions().changes().observe(getViewLifecycleOwner(), ...)`에서 `isSignedIn()`을 읽어요. 앱이 다시 보일 때 절전 중 지난 만료 시각도 확인해요. 새 로그인·만료·현재 세션의 401·로컬 로그아웃 시 이전 계정의 화면 데이터를 비워요. 명시적 로그아웃은 #27에서 `DELETE /v1/auth/session`을 처리한 뒤 `clear()`를 호출해요. 요청 실패 시 사용자에게 서버 폐기 결과를 알려야 해요.
+- **검증.** 기본 검사는 `mise run android:check`예요. 기기를 연결하고 `mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest`로 탭 복원과 Android Keystore 저장·복원을 확인해요. 로그인 화면 통합 뒤에는 로그인 → 앱 재시작 → 로그아웃을 실제 계정으로 확인해요.
 
 ## 로컬 D1과 환경 타입
 
@@ -130,6 +144,32 @@ bunx wrangler d1 execute DB --local --command "UPDATE users SET email_verified_a
 직접 요약 HTTP는 [계약](api-contract.md)의 Bearer 세션을 검사해요. 세션은 `POST /v1/auth/sessions`로 발급해요.
 새 분석·재시도는 계정별 UTC 하루 합계 3회예요. 키·모델이 준비되지 않으면 새 분석은 503이며 기존 요청 조회와 결과 재사용은 가능해요.
 workerd 검사는 격리된 D1 세션과 공급자 fixture로 동작해요. 실제 로그인·공급자 검증을 대신하지 않아요.
+
+## 채널·수신 설정 확인
+
+[ADR-0030](decisions/0030-channel-settings-http.md)의 설정 API는 기존 세션을 사용해요.
+실제 채널을 확인할 때는 YouTube Data API v3를 활성화한 키를 Git 제외 파일 `apps/api/.dev.vars`의
+`YOUTUBE_API_KEY`에 비공개로 설정해요. 테스트는 fixture를 쓰므로 실제 키 없이 실행돼요.
+운영에서는 [배포 가이드](deployment.md)의 `production` Environment Secret을 사용하고 키를 코드·Android·PR에 넣지 않아요.
+
+```sh
+mise exec -- bun run --cwd apps/api vitest run test/channel-settings.test.ts test/youtube-channels.test.ts
+mise run api:check
+```
+
+실제 연결 검증은 로그인한 API 클라이언트에서 아래 순서로 확인해요. 토큰·키·개인 주소는 기록에서 제거해요.
+
+1. `POST /v1/channel-previews`에 본인이 확인할 공개 채널의 `@handle`과 `/channel/…` 주소를 각각 보내 같은 ID인지 대조해요.
+2. 반환 ID로 `POST /v1/channels`를 호출해 201, 다시 등록해 409, 목록에서 같은 제목·공식 URL을 확인해요.
+3. 구독 ID의 PATCH로 paused·active를 바꾼 뒤 DELETE해 목록에서 빠지는지 확인해요. 다른 계정에서는 해당 ID가 404여야 해요.
+4. 본인이 수신할 주소를 추가하고 본문 없는 `/recipients/{id}/verifications` POST로 코드를 요청해요.
+   로컬 Wrangler는 `--test-scheduled`로 실행하고 `/__scheduled`를 호출해야 Cron 실행기를 수동 시험할 수 있어요.
+   이 실행기는 기존 분석·발송 대기열도 처리하므로 실제 검증용으로 분리한 로컬 DB를 사용해요.
+5. 실제 수신함에 도착한 코드로 `/recipient-verifications/confirm`을 호출하고 verifiedAt·재사용 거부를 확인해요.
+6. 주기를 60·360·1440으로 저장·재조회해요. 실제 공급자 응답과 로컬 fixture 결과를 구분해 날짜·환경·코드 SHA를 남겨요.
+
+이 변경에서는 실제 키·SMTP 자격증명을 제공받지 않아 위 실제 연결 검증을 실행하지 않았어요.
+새 영상 수집·예약 확인은 #14, 리포트 발송 연결은 #15에서 이어져요.
 
 ## Terraform
 

@@ -68,6 +68,7 @@ mise exec -- terraform -chdir=infra/state state list
 | Secret | `SMTP_USER` | 발신 Gmail 계정 주소 |
 | Secret | `SMTP_APP_PASSWORD` | 해당 Gmail 계정의 Google 앱 비밀번호 |
 | Secret | `GEMINI_API_KEY` | 서버에서 Gemini를 호출할 API 키 |
+| Secret | `YOUTUBE_API_KEY` | 공개 채널 확인용 YouTube Data API v3 키. Google Cloud에서 해당 API를 활성화하고 키의 API 제한을 YouTube Data API v3로 지정해요 |
 | Secret | `AUTH_TOKEN_KEY` | 인증 메일 토큰 암호화·요청 제한 HMAC용 32바이트 base64url 키. `openssl rand -base64 32 \| tr '+/' '-_' \| tr -d '='`로 만들어요 |
 | Secret | `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | state 버킷 전용 S3 자격증명 |
 
@@ -94,9 +95,9 @@ R2 state에는 S3 lockfile을 사용하고 API 배포와 인프라 적용은 같
 1. Actions → Deploy API → Run workflow에서 main을 선택해요.
 2. `sha`에 main에 포함된 40자리 SHA를 넣어요. 비우면 실행 시점의 최신 main을 선택해요.
 3. 해당 SHA의 최신 main push Quality 실행이 성공했는지 확인하고 같은 SHA를 checkout해요.
-4. API 검사 후 SMTP 두 값, Gemini 키, `AUTH_TOKEN_KEY`를 검사하고 권한 `0600`의 임시 JSON으로 저장해요. 누락되거나 공백뿐이면 원격 변경 전에 중단해요.
+4. API 검사 후 SMTP 두 값, Gemini 키, `AUTH_TOKEN_KEY`, `YOUTUBE_API_KEY`를 검사하고 권한 `0600`의 임시 JSON으로 저장해요. 누락되거나 공백뿐이면 원격 변경 전에 중단해요.
 5. 실제 D1 ID·SHA·`GEMINI_MODEL`을 넣은 배포 설정의 dry-run을 확인하고 원격 D1 migration을 적용해요. 모델이 비어 있으면 로컬 기본값으로 배포하지 않아요.
-6. Wrangler의 `--secrets-file`로 코드·SMTP 자격증명·Gemini 키·`AUTH_TOKEN_KEY`를 함께 배포하고 tag·message에 해당 SHA를 기록해요.
+6. Wrangler의 `--secrets-file`로 코드·SMTP 자격증명·Gemini 키·`AUTH_TOKEN_KEY`·`YOUTUBE_API_KEY`를 함께 배포하고 tag·message에 해당 SHA를 기록해요.
 7. health 200·동일한 revision 헤더·JSON 404를 확인한 뒤 summary에 SHA와 URL을 남겨요. 마지막 정리 step은 배포 실패 때도 임시 파일을 삭제해요.
 
 `apps/api/wrangler.deploy.json`은 이 실행에서만 생성해요. 로컬 DB ID와 `BUILD_REVISION=local` 설정은 변경하지 않아요.

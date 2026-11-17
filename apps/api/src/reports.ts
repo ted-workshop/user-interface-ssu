@@ -1,6 +1,7 @@
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { type AuthenticatedEnv, requireSession } from "./auth";
+import { deliveryResource } from "./deliveries";
 import {
   encodeCursor,
   FieldError,
@@ -15,6 +16,7 @@ import {
   parseQuery,
   rejectQuery,
 } from "./http-input";
+import { listDeliveries } from "./jobs/delivery";
 import { statement, unixNow } from "./jobs/shared";
 import type { CommentRow, ReportDetailRow, ReportRow } from "./rows";
 
@@ -31,6 +33,13 @@ export const reportColumns = `r.id, j.video_id AS videoId, r.title, r.channel_na
   r.channel_url AS channelUrl, r.model, r.timestamp_verification AS timestampVerification,
   r.created_at AS createdAt, q.id AS requestId, q.origin, p.created_at AS savedAt,
   ${deliveryStatusSql} AS deliveryStatus`;
+
+export const personalReportSource = `FROM report_permissions p
+    JOIN reports r ON r.id = p.report_id
+    JOIN analysis_jobs j ON j.id = r.analysis_job_id
+    -- 개인 권한 행은 항상 본인 요청에서 만들어지므로 요청 행이 함께 있다고 가정해요.
+    JOIN summary_requests q ON q.user_id = p.user_id AND q.analysis_job_id = r.analysis_job_id
+    WHERE p.audience = 'user' AND p.user_id = ?`;
 
 const MAX_SEARCH_LENGTH = 100;
 const MAX_CHANNEL_URL_LENGTH = 2048;
@@ -113,12 +122,7 @@ reports.get("/", async (c) => {
   const rows = await statement(
     c.env.DB,
     `SELECT ${reportColumns}
-    FROM report_permissions p
-    JOIN reports r ON r.id = p.report_id
-    JOIN analysis_jobs j ON j.id = r.analysis_job_id
-    -- 개인 권한 행은 항상 본인 요청에서 만들어지므로 요청 행이 함께 있다고 가정해요.
-    JOIN summary_requests q ON q.user_id = p.user_id AND q.analysis_job_id = r.analysis_job_id
-    WHERE p.audience = 'user' AND p.user_id = ?
+    ${personalReportSource}
     ${conditions.map((condition) => `AND ${condition}`).join("\n    ")}
     ORDER BY p.created_at DESC, p.report_id DESC LIMIT ?`,
     c.get("userId"),
@@ -187,6 +191,27 @@ const commentSelect = `SELECT cm.id, cm.body, u.nickname, cm.created_at AS creat
   FROM comments cm JOIN users u ON u.id = cm.user_id`;
 
 const notFound = (c: Context) => c.json({ error: { code: "NOT_FOUND" } }, 404);
+
+reports.get("/:id/deliveries", async (c) => {
+  const id = parseIdParam(c);
+  const { limit, cursor } = parseQuery(c, z.strictObject(pageQuery));
+  const userId = c.get("userId");
+  const allowed = await statement(
+    c.env.DB,
+    "SELECT 1 AS allowed FROM report_permissions WHERE report_id = ? AND user_id = ? AND audience = 'user'",
+    id,
+    userId,
+  ).first<{ allowed: number }>();
+  if (!allowed) return notFound(c);
+  const result = await listDeliveries(c.env.DB, userId, id, {
+    limit,
+    after: parseCursor(cursor),
+  });
+  return c.json({
+    items: result.items.map(deliveryResource),
+    nextCursor: encodeCursor(result.cursor),
+  });
+});
 
 reports.get("/:id/comments", async (c) => {
   const id = parseIdParam(c);

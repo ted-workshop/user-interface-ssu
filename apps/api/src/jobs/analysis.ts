@@ -8,9 +8,13 @@ import {
   MAX_ATTEMPTS,
   statement,
   unixNow,
+  uuidSql,
 } from "./shared";
 
 const generationSettingsSchema = summaryConfigSchema.omit({ apiKey: true });
+
+// 직접 요약과 채널 자동 접수가 함께 쓰는 계정별 UTC 하루 새 실행 상한이에요.
+export const DAILY_ADMISSION_LIMIT = 3;
 
 // 호출부가 임의 프롬프트를 공통 보고서에 섞지 못하게 현재 생성 설정만 식별해요.
 export function generationProfile(model: string) {
@@ -73,6 +77,7 @@ export async function enqueueAnalysis(
   const config = JSON.stringify(generationProfile(input.model));
   const key = await generationKey(config);
   const jobId = crypto.randomUUID();
+  const requestId = crypto.randomUUID();
   const limit = input.admissionLimit ?? null;
   const day = Math.floor(now / 86_400) * 86_400;
   const sql = (query: string, ...values: (string | number | null)[]) =>
@@ -118,8 +123,11 @@ export async function enqueueAnalysis(
     sql(
       `INSERT INTO summary_requests (id, user_id, analysis_job_id, origin, subscription_id, created_at, updated_at)
       SELECT ?, ?, j.id, ?, ?, ?, ? FROM analysis_jobs j WHERE j.video_id = ? AND j.generation_key = ?
-      AND NOT EXISTS (SELECT 1 FROM summary_requests WHERE user_id = ? AND analysis_job_id = j.id)`,
-      crypto.randomUUID(),
+      AND NOT EXISTS (SELECT 1 FROM summary_requests WHERE user_id = ? AND analysis_job_id = j.id)
+      AND (? IS NULL OR EXISTS (
+        SELECT 1 FROM channel_subscriptions s WHERE s.id = ? AND s.user_id = ? AND s.status = 'active'
+        AND EXISTS (SELECT 1 FROM recipients r WHERE r.user_id = s.user_id AND r.verified_at IS NOT NULL AND r.deleted_at IS NULL)))`,
+      requestId,
       input.userId,
       input.subscriptionId ? "channel" : "direct",
       input.subscriptionId ?? null,
@@ -127,6 +135,10 @@ export async function enqueueAnalysis(
       now,
       videoId,
       key,
+      input.userId,
+      // 채널 자동 접수는 활성 구독과 확인된 수신 주소를 같은 statement에서 다시 확인해요.
+      input.subscriptionId ?? null,
+      input.subscriptionId ?? null,
       input.userId,
     ),
     sql(
@@ -155,6 +167,24 @@ export async function enqueueAnalysis(
       input.userId,
       videoId,
       key,
+    ),
+    // 다른 계정이 먼저 만든 완료 리포트를 채널 요청이 재사용하면, 그 요청 시점에 확인된 주소로 발송해요.
+    // 같은 사용자의 직접 요청이 먼저면 채널 요청 자체가 생기지 않아 발송 행도 만들어지지 않아요.
+    sql(
+      `INSERT INTO deliveries (id, user_id, request_id, report_id, subscription_id, recipient_id, recipient_email, available_at, created_at)
+      SELECT ${uuidSql}, q.user_id, q.id, r.id, q.subscription_id, a.id, a.email, ?, ?
+      FROM summary_requests q
+      JOIN reports r ON r.analysis_job_id = q.analysis_job_id
+      JOIN recipients a ON a.user_id = q.user_id
+      WHERE q.id = ? AND q.origin = 'channel' AND q.status = 'completed'
+      AND a.verified_at IS NOT NULL AND a.verified_at <= ? AND a.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM channel_subscriptions s WHERE s.id = q.subscription_id AND s.status = 'active')
+      AND EXISTS (SELECT 1 FROM report_permissions p WHERE p.report_id = r.id AND p.audience = 'user' AND p.user_id = q.user_id)
+      AND NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id AND (d.recipient_id = a.id OR d.recipient_email = a.email))`,
+      now,
+      now,
+      requestId,
+      now,
     ),
   ]);
   const request = await sql(
@@ -335,6 +365,22 @@ export async function completeAnalysis(
       claim.attemptId,
     ),
     ...completeRequests(db, claim.id, now),
+    // 채널 자동 요청은 리포트 저장 시점에 확인된 주소를 발송 대상으로 고정해 발송 행을 함께 만들어요.
+    sql(
+      `INSERT INTO deliveries (id, user_id, request_id, report_id, subscription_id, recipient_id, recipient_email, available_at, created_at)
+      SELECT ${uuidSql}, q.user_id, q.id, r.id, q.subscription_id, a.id, a.email, ?, ?
+      FROM summary_requests q
+      JOIN reports r ON r.analysis_job_id = q.analysis_job_id
+      JOIN recipients a ON a.user_id = q.user_id
+      WHERE q.analysis_job_id = ? AND q.origin = 'channel' AND q.status = 'completed'
+      AND a.verified_at IS NOT NULL AND a.verified_at <= r.created_at AND a.deleted_at IS NULL
+      AND EXISTS (SELECT 1 FROM channel_subscriptions s WHERE s.id = q.subscription_id AND s.status = 'active')
+      AND EXISTS (SELECT 1 FROM report_permissions p WHERE p.report_id = r.id AND p.audience = 'user' AND p.user_id = q.user_id)
+      AND NOT EXISTS (SELECT 1 FROM deliveries d WHERE d.user_id = q.user_id AND d.report_id = r.id AND (d.recipient_id = a.id OR d.recipient_email = a.email))`,
+      now,
+      now,
+      claim.id,
+    ),
   ]);
   const completed = rows[0]?.meta.changes === 1;
   if (completed) jobLog("analysis", claim.id, "completed", claim.attempt);

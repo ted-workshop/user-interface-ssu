@@ -134,6 +134,7 @@ if (import.meta.main) {
       SMTP_APP_PASSWORD: process.env.SMTP_APP_PASSWORD,
       GEMINI_API_KEY: process.env.GEMINI_API_KEY,
       AUTH_TOKEN_KEY: process.env.AUTH_TOKEN_KEY,
+      YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY,
     };
     for (const [name, value] of Object.entries(secrets)) {
       if (!value?.trim())

@@ -3,6 +3,9 @@ export const ANALYSIS_LEASE_SECONDS = 660;
 export const DELIVERY_LEASE_SECONDS = 120;
 export const unixNow = () => Math.floor(Date.now() / 1_000);
 
+// SQLite에는 UUID 함수가 없어 D1 batch 안에서도 쓸 수 있는 v4 형식 문자열을 만들어요.
+export const uuidSql = `lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-4' || substr(hex(randomblob(2)), 2) || '-' || substr('89ab', 1 + (abs(random()) % 4), 1) || substr(hex(randomblob(2)), 2) || '-' || hex(randomblob(6)))`;
+
 export type JobClaim = {
   id: string;
   token: string;
@@ -46,6 +49,22 @@ export function jobLog(
       kind,
       jobId: id,
       attempt,
+      failureCode,
+    }),
+  );
+}
+
+// 채널 확인은 시도 번호가 없어 작업 ID와 실패 코드만 남겨요.
+export function checkLog(
+  id: string,
+  event: string,
+  failureCode: string | null = null,
+) {
+  console.info(
+    JSON.stringify({
+      event: `check.${event}`,
+      kind: "channel_check",
+      jobId: id,
       failureCode,
     }),
   );

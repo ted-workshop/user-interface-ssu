@@ -1,6 +1,7 @@
-package kr.ac.ssu.qletter;
+package kr.ac.ssu.qletter.common;
 
 import android.app.Application;
+import kr.ac.ssu.qletter.BuildConfig;
 
 public final class QletterApplication extends Application {
   private SessionStore sessions;

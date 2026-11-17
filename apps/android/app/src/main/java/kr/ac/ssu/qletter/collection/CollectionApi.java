@@ -42,6 +42,13 @@ final class CollectionApi {
     return send(request, CollectionApi::parseList, "모음을 불러오지 못했어요.", result);
   }
 
+  /** 모음에 담긴 리포트 첫 페이지를 담은 시각 최신순으로 불러와요. */
+  Call reports(String id, Result<List<CollectionReport>> result) {
+    Request request =
+        new Request.Builder().url(api.endpoint("collections", id, "reports").build()).build();
+    return send(request, CollectionApi::parseReports, "리포트를 불러오지 못했어요.", result);
+  }
+
   /** 새 모음을 만들고 서버가 만든 모음을 돌려줘요. */
   Call create(String name, Result<ReportCollection> result) {
     Request request =
@@ -106,6 +113,23 @@ final class CollectionApi {
     List<ReportCollection> collections = new ArrayList<>();
     for (int i = 0; i < items.length(); i++) collections.add(toCollection(items.getJSONObject(i)));
     return collections;
+  }
+
+  private static List<CollectionReport> parseReports(String json) throws JSONException {
+    JSONArray items = new JSONObject(json).getJSONArray("items");
+    List<CollectionReport> reports = new ArrayList<>();
+    for (int i = 0; i < items.length(); i++) {
+      JSONObject item = items.getJSONObject(i);
+      // 공급자가 주지 않은 제목·채널은 null로 와요(ADR-0036).
+      reports.add(
+          new CollectionReport(
+              textOr(item, "title", "제목 없음"), textOr(item, "channelName", "채널 정보 없음")));
+    }
+    return reports;
+  }
+
+  private static String textOr(JSONObject item, String key, String fallback) {
+    return item.isNull(key) ? fallback : item.optString(key, fallback);
   }
 
   private static ReportCollection parseOne(String json) throws JSONException {

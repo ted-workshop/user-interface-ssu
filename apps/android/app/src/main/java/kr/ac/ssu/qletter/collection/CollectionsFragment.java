@@ -175,6 +175,7 @@ public class CollectionsFragment extends Fragment {
   private void openCollectionDetail(int position) {
     ReportCollection item = items.get(position);
     Intent intent = new Intent(requireContext(), CollectionDetailActivity.class);
+    intent.putExtra(CollectionDetailActivity.EXTRA_ID, item.getId());
     intent.putExtra(CollectionDetailActivity.EXTRA_NAME, item.getName());
     intent.putExtra(CollectionDetailActivity.EXTRA_REPORT_COUNT, item.getReportCount());
     startActivity(intent);

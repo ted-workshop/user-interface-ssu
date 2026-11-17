@@ -1,4 +1,4 @@
-package kr.ac.ssu.qletter;
+package kr.ac.ssu.qletter.collection;
 
 import android.os.Bundle;
 import androidx.appcompat.app.AppCompatActivity;

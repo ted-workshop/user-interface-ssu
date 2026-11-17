@@ -1,4 +1,4 @@
-package kr.ac.ssu.qletter;
+package kr.ac.ssu.qletter.collection;
 
 public class CollectionReport {
   private String title;

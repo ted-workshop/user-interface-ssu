@@ -26,7 +26,6 @@ public final class QletterApi {
     client =
         new OkHttpClient.Builder()
             .callTimeout(15, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(false)
             .followRedirects(false)
             .followSslRedirects(false)
             .addInterceptor(

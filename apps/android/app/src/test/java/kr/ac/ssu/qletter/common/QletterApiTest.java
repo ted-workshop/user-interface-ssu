@@ -11,6 +11,7 @@ import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -129,5 +130,19 @@ public class QletterApiTest {
       assertEquals(503, response.code());
     }
     assertSame(first, active);
+  }
+
+  @Test
+  public void 서버가_닫은_연결을_다시_쓰다_실패하면_새_연결로_보내요() throws Exception {
+    server.enqueue(
+        new MockResponse().setResponseCode(200).setSocketPolicy(SocketPolicy.DISCONNECT_AT_END));
+    server.enqueue(new MockResponse().setResponseCode(200));
+    try (Response response = request().execute()) {
+      assertEquals(200, response.code());
+    }
+    try (Response response = request().execute()) {
+      assertEquals(200, response.code());
+    }
+    assertEquals(2, server.getRequestCount());
   }
 }

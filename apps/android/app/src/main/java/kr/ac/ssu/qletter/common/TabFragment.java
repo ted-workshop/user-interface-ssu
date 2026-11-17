@@ -1,4 +1,4 @@
-package kr.ac.ssu.qletter;
+package kr.ac.ssu.qletter.common;
 
 import android.os.Bundle;
 import android.view.View;
@@ -6,6 +6,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
+import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.databinding.FragmentTabBinding;
 
 public final class TabFragment extends Fragment {

@@ -1,4 +1,4 @@
-package kr.ac.ssu.qletter;
+package kr.ac.ssu.qletter.common;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;

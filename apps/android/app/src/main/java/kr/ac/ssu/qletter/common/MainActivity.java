@@ -1,4 +1,4 @@
-package kr.ac.ssu.qletter;
+package kr.ac.ssu.qletter.common;
 
 import android.os.Bundle;
 import androidx.activity.EdgeToEdge;
@@ -9,6 +9,7 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import java.io.IOException;
+import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.databinding.ActivityMainBinding;
 import okhttp3.Call;
 import okhttp3.Callback;

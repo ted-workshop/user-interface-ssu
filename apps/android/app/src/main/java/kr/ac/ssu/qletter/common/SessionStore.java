@@ -1,4 +1,4 @@
-package kr.ac.ssu.qletter;
+package kr.ac.ssu.qletter.common;
 
 import android.content.Context;
 import android.os.Handler;

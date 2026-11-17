@@ -13,13 +13,16 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
 import java.util.ArrayList;
 import java.util.List;
+import kr.ac.ssu.qletter.common.QletterApplication;
 import kr.ac.ssu.qletter.databinding.BottomSheetNewCollectionBinding;
 import kr.ac.ssu.qletter.databinding.FragmentCollectionsBinding;
+import okhttp3.Call;
 
 public class CollectionsFragment extends Fragment {
   private FragmentCollectionsBinding binding;
   private final List<ReportCollection> items = new ArrayList<>();
   private CollectionAdapter adapter;
+  private Call loadCall;
 
   @Nullable
   @Override
@@ -37,18 +40,15 @@ public class CollectionsFragment extends Fragment {
     binding.collectionsList.setLayoutManager(new LinearLayoutManager(requireContext()));
     adapter = new CollectionAdapter(items, this::showCollectionActions, this::openCollectionDetail);
     binding.collectionsList.setAdapter(adapter);
-    // 서버 연결 전까지 쓰는 더미 데이터예요.
-    if (items.isEmpty()) {
-      items.add(new ReportCollection("면접준비", 3));
-      items.add(new ReportCollection("수학", 4));
-      items.add(new ReportCollection("과학", 2));
-    }
+    loadCollections();
     binding.newCollectionButton.setOnClickListener(v -> showNewCollectionSheet(-1));
   }
 
   @Override
   public void onDestroyView() {
     super.onDestroyView();
+    if (loadCall != null) loadCall.cancel();
+    loadCall = null;
     binding = null;
   }
 
@@ -73,11 +73,11 @@ public class CollectionsFragment extends Fragment {
           }
 
           if (position == -1) {
-            items.add(new ReportCollection(name, 0));
+            items.add(new ReportCollection(name, 0, null));
             adapter.notifyItemInserted(items.size() - 1);
           } else {
             ReportCollection old = items.get(position);
-            items.set(position, new ReportCollection(name, old.getReportCount()));
+            items.set(position, new ReportCollection(name, old.getReportCount(), old.getId()));
             adapter.notifyItemChanged(position);
           }
           bottomSheetDialog.dismiss();
@@ -120,5 +120,49 @@ public class CollectionsFragment extends Fragment {
     intent.putExtra(CollectionDetailActivity.EXTRA_NAME, item.getName());
     intent.putExtra(CollectionDetailActivity.EXTRA_REPORT_COUNT, item.getReportCount());
     startActivity(intent);
+  }
+
+  private void loadCollections() {
+    binding.collectionsLoading.setVisibility(View.VISIBLE);
+    binding.collectionsMessage.setVisibility(View.GONE);
+
+    QletterApplication app = (QletterApplication) requireActivity().getApplication();
+
+    loadCall =
+        new CollectionApi(app.api())
+            .list(
+                new CollectionApi.Result<List<ReportCollection>>() {
+                  @Override
+                  public void onSuccess(List<ReportCollection> value) {
+                    requireActivity()
+                        .runOnUiThread(
+                            () -> {
+                              if (binding == null) return;
+
+                              binding.collectionsLoading.setVisibility(View.GONE);
+                              items.clear();
+                              items.addAll(value);
+                              adapter.notifyDataSetChanged();
+
+                              if (items.isEmpty()) {
+                                binding.collectionsMessage.setVisibility(View.VISIBLE);
+                                binding.collectionsMessage.setText("아직 모음이 없어요");
+                              }
+                            });
+                  }
+
+                  @Override
+                  public void onError(String message) {
+                    requireActivity()
+                        .runOnUiThread(
+                            () -> {
+                              if (binding == null) return;
+
+                              binding.collectionsLoading.setVisibility(View.GONE);
+                              binding.collectionsMessage.setText(message);
+                              binding.collectionsMessage.setVisibility(View.VISIBLE);
+                            });
+                  }
+                });
   }
 }

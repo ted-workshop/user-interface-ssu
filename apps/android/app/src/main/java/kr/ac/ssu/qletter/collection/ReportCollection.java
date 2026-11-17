@@ -2,12 +2,14 @@ package kr.ac.ssu.qletter.collection;
 
 public class ReportCollection {
 
-  private String name;
-  private int reportCount;
+  private final String name;
+  private final int reportCount;
+  private final String id;
 
-  public ReportCollection(String name, int reportCount) {
+  public ReportCollection(String name, int reportCount, String id) {
     this.name = name;
     this.reportCount = reportCount;
+    this.id = id;
   }
 
   public String getName() {
@@ -16,5 +18,9 @@ public class ReportCollection {
 
   public int getReportCount() {
     return reportCount;
+  }
+
+  public String getId() {
+    return id;
   }
 }

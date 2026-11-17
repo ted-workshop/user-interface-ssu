@@ -4,11 +4,32 @@
   android:layout_height="match_parent"
   android:orientation="vertical">
 
-  <androidx.recyclerview.widget.RecyclerView
-    android:id="@+id/collections_list"
+  <FrameLayout
     android:layout_width="match_parent"
     android:layout_height="0dp"
-    android:layout_weight="1" />
+    android:layout_weight="1">
+
+    <androidx.recyclerview.widget.RecyclerView
+      android:id="@+id/collections_list"
+      android:layout_width="match_parent"
+      android:layout_height="match_parent" />
+
+    <ProgressBar
+      android:id="@+id/collections_loading"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="center"
+      android:visibility="gone" />
+
+    <TextView
+      android:id="@+id/collections_message"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="center"
+      android:gravity="center"
+      android:padding="24dp"
+      android:visibility="gone" />
+  </FrameLayout>
 
   <Button
     android:id="@+id/new_collection_button"

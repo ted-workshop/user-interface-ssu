@@ -7,17 +7,17 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import com.google.android.material.bottomsheet.BottomSheetDialog;
 import java.util.ArrayList;
 import java.util.List;
 import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.QletterApplication;
-import kr.ac.ssu.qletter.databinding.BottomSheetNewCollectionBinding;
 import kr.ac.ssu.qletter.databinding.FragmentCollectionsBinding;
 import okhttp3.Call;
 
@@ -27,6 +27,14 @@ public class CollectionsFragment extends Fragment {
   private CollectionAdapter adapter;
   private Call loadCall;
   private CollectionApi collectionApi;
+
+  /** 상세에서 이름을 바꾸거나 모음을 지우면 RESULT_OK가 와서 목록을 다시 불러와요(07강 결과 받기). */
+  private final ActivityResultLauncher<Intent> detailLauncher =
+      registerForActivityResult(
+          new ActivityResultContracts.StartActivityForResult(),
+          result -> {
+            if (result.getResultCode() == Activity.RESULT_OK && binding != null) loadCollections();
+          });
 
   @Nullable
   @Override
@@ -42,7 +50,9 @@ public class CollectionsFragment extends Fragment {
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     binding.collectionsList.setLayoutManager(new LinearLayoutManager(requireContext()));
-    adapter = new CollectionAdapter(items, this::showCollectionActions, this::openCollectionDetail);
+    adapter =
+        new CollectionAdapter(
+            items, this::openCollectionDetail, this::showNewCollectionSheet, this::confirmDelete);
     binding.collectionsList.setAdapter(adapter);
     QletterApplication app = (QletterApplication) requireActivity().getApplication();
     collectionApi = new CollectionApi(app.api());
@@ -58,68 +68,28 @@ public class CollectionsFragment extends Fragment {
     binding = null;
   }
 
+  /** position이 -1이면 새 모음, 아니면 그 모음의 이름 바꾸기예요. */
   private void showNewCollectionSheet(int position) {
-    BottomSheetDialog bottomSheetDialog = new BottomSheetDialog(requireContext());
-    BottomSheetNewCollectionBinding sheet =
-        BottomSheetNewCollectionBinding.inflate(getLayoutInflater());
-    bottomSheetDialog.setContentView(sheet.getRoot());
-    if (position != -1) {
-      String oldName = items.get(position).getName();
-      sheet.sheetTitle.setText(R.string.collection_rename);
-      sheet.createCollectionButton.setText(R.string.collection_save);
-      sheet.collectionNameInput.setText(oldName);
-      sheet.collectionNameInput.setSelection(oldName.length());
-    }
-    sheet.createCollectionButton.setOnClickListener(
-        view -> {
-          String name = sheet.collectionNameInput.getText().toString().trim();
-          if (name.isEmpty()) {
-            sheet.collectionNameInput.setError(getString(R.string.collection_name_required));
+    ReportCollection original = position == -1 ? null : items.get(position);
+    CollectionNameSheet.show(
+        requireContext(),
+        collectionApi,
+        original,
+        saved -> {
+          if (binding == null) return;
+          if (original == null) {
+            items.add(0, saved);
+            adapter.notifyItemInserted(0);
+            binding.collectionsMessage.setVisibility(View.GONE);
+            binding.collectionsList.scrollToPosition(0);
             return;
           }
-
-          sheet.createCollectionButton.setEnabled(false);
-          ReportCollection original = position == -1 ? null : items.get(position);
-          CollectionApi.Result<ReportCollection> result =
-              new CollectionApi.Result<ReportCollection>() {
-                @Override
-                public void onSuccess(ReportCollection value) {
-                  runOnUi(
-                      () -> {
-                        if (binding == null) return;
-                        if (position == -1) {
-                          items.add(0, value);
-                          adapter.notifyItemInserted(0);
-                          binding.collectionsMessage.setVisibility(View.GONE);
-                          binding.collectionsList.scrollToPosition(0);
-                        } else {
-                          // 요청 중에 목록이 바뀌었을 수 있어서 위치를 다시 찾아요.
-                          int current = items.indexOf(original);
-                          if (current != -1) {
-                            items.set(current, value);
-                            adapter.notifyItemChanged(current);
-                          }
-                        }
-                        bottomSheetDialog.dismiss();
-                      });
-                }
-
-                @Override
-                public void onError(String message) {
-                  runOnUi(
-                      () -> {
-                        sheet.createCollectionButton.setEnabled(true);
-                        sheet.collectionNameInput.setError(message);
-                      });
-                }
-              };
-          if (position == -1) {
-            collectionApi.create(name, result);
-          } else {
-            collectionApi.rename(original.getId(), name, result);
-          }
+          // 요청 중에 목록이 바뀌었을 수 있어서 위치를 다시 찾아요.
+          int current = items.indexOf(original);
+          if (current == -1) return;
+          items.set(current, saved);
+          adapter.notifyItemChanged(current);
         });
-    bottomSheetDialog.show();
   }
 
   private void confirmDelete(int position) {
@@ -164,30 +134,13 @@ public class CollectionsFragment extends Fragment {
         });
   }
 
-  private void showCollectionActions(int position) {
-    new AlertDialog.Builder(requireContext())
-        .setTitle(items.get(position).getName())
-        .setItems(
-            new String[] {
-              getString(R.string.collection_rename), getString(R.string.collection_delete)
-            },
-            ((dialog, which) -> {
-              if (which == 0) {
-                showNewCollectionSheet(position);
-              } else if (which == 1) {
-                confirmDelete(position);
-              }
-            }))
-        .show();
-  }
-
   private void openCollectionDetail(int position) {
     ReportCollection item = items.get(position);
     Intent intent = new Intent(requireContext(), CollectionDetailActivity.class);
     intent.putExtra(CollectionDetailActivity.EXTRA_ID, item.getId());
     intent.putExtra(CollectionDetailActivity.EXTRA_NAME, item.getName());
     intent.putExtra(CollectionDetailActivity.EXTRA_REPORT_COUNT, item.getReportCount());
-    startActivity(intent);
+    detailLauncher.launch(intent);
   }
 
   private void loadCollections() {

@@ -1,10 +1,15 @@
 package kr.ac.ssu.qletter.collection;
 
+import android.content.Context;
+import android.text.format.DateFormat;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
+import java.util.Calendar;
 import java.util.List;
+import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.databinding.ItemCollectionReportBinding;
 
 public class CollectionReportAdapter
@@ -27,8 +32,33 @@ public class CollectionReportAdapter
   @Override
   public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
     CollectionReport item = items.get(position);
+    Context context = holder.itemView.getContext();
     holder.binding.reportTitle.setText(item.getTitle());
-    holder.binding.reportChannel.setText(item.getChannelName());
+    holder.binding.reportChannel.setText(
+        context.getString(
+            R.string.report_meta,
+            item.getChannelName(),
+            dayLabel(context, item.getCreatedAtMillis())));
+    holder.binding.reportOrigin.setText(
+        item.isChannelOrigin() ? R.string.report_origin_channel : R.string.report_origin_direct);
+    holder.binding.reportDeliveryFailed.setVisibility(
+        item.isDeliveryFailed() ? View.VISIBLE : View.GONE);
+  }
+
+  /** 피그마처럼 오늘·어제는 말로, 그 밖에는 "11월 16일"처럼 보여 줘요. */
+  private static String dayLabel(Context context, long millis) {
+    Calendar created = Calendar.getInstance();
+    created.setTimeInMillis(millis);
+    Calendar today = Calendar.getInstance();
+    if (sameDay(created, today)) return context.getString(R.string.report_day_today);
+    today.add(Calendar.DAY_OF_YEAR, -1);
+    if (sameDay(created, today)) return context.getString(R.string.report_day_yesterday);
+    return DateFormat.format("M월 d일", created).toString();
+  }
+
+  private static boolean sameDay(Calendar a, Calendar b) {
+    return a.get(Calendar.YEAR) == b.get(Calendar.YEAR)
+        && a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR);
   }
 
   @Override

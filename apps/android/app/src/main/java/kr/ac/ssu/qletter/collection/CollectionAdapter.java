@@ -1,6 +1,7 @@
 package kr.ac.ssu.qletter.collection;
 
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -10,27 +11,24 @@ import kr.ac.ssu.qletter.databinding.ItemCollectionBinding;
 
 public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.ViewHolder> {
 
-  public interface OnItemLongClickListener {
-    void onItemLongClick(int position);
-  }
-
   public interface OnItemClickListener {
     void onItemClick(int position);
   }
 
-  private final OnItemClickListener clickListener;
-
   private final List<ReportCollection> items;
-
-  private final OnItemLongClickListener listener;
+  private final OnItemClickListener openListener;
+  private final OnItemClickListener renameListener;
+  private final OnItemClickListener deleteListener;
 
   public CollectionAdapter(
       List<ReportCollection> items,
-      OnItemLongClickListener listener,
-      OnItemClickListener clickListener) {
+      OnItemClickListener openListener,
+      OnItemClickListener renameListener,
+      OnItemClickListener deleteListener) {
     this.items = items;
-    this.listener = listener;
-    this.clickListener = clickListener;
+    this.openListener = openListener;
+    this.renameListener = renameListener;
+    this.deleteListener = deleteListener;
   }
 
   @NonNull
@@ -39,37 +37,27 @@ public class CollectionAdapter extends RecyclerView.Adapter<CollectionAdapter.Vi
     ItemCollectionBinding binding =
         ItemCollectionBinding.inflate(LayoutInflater.from(parent.getContext()), parent, false);
     ViewHolder holder = new ViewHolder(binding);
-    binding
-        .getRoot()
-        .setOnClickListener(
-            view -> {
-              int position = holder.getBindingAdapterPosition();
-              if (position == RecyclerView.NO_POSITION) return;
-              clickListener.onItemClick(position);
-            });
-    binding
-        .getRoot()
-        .setOnLongClickListener(
-            view -> {
-              // 삭제 뒤 위치가 당겨질 수 있어서 누른 순간의 위치를 다시 읽어요.
-              int position = holder.getBindingAdapterPosition();
-              // 삭제 애니메이션 중처럼 위치를 모르면 NO_POSITION이 와요.
-              if (position == RecyclerView.NO_POSITION) return false;
-              listener.onItemLongClick(position);
-              return true;
-            });
+    binding.collectionOpen.setOnClickListener(view -> notify(holder, openListener));
+    binding.collectionRenameButton.setOnClickListener(view -> notify(holder, renameListener));
+    binding.collectionDeleteButton.setOnClickListener(view -> notify(holder, deleteListener));
     return holder;
+  }
+
+  /** 삭제 뒤 위치가 당겨질 수 있어서 누른 순간의 위치를 다시 읽어요. */
+  private static void notify(ViewHolder holder, OnItemClickListener listener) {
+    int position = holder.getBindingAdapterPosition();
+    // 삭제 애니메이션 중처럼 위치를 모르면 NO_POSITION이 와요.
+    if (position == RecyclerView.NO_POSITION) return;
+    listener.onItemClick(position);
   }
 
   @Override
   public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
     ReportCollection item = items.get(position);
+    View root = holder.itemView;
     holder.binding.collectionName.setText(item.getName());
     holder.binding.collectionCount.setText(
-        holder
-            .itemView
-            .getContext()
-            .getString(R.string.collection_report_count, item.getReportCount()));
+        root.getContext().getString(R.string.collection_report_count, item.getReportCount()));
   }
 
   @Override

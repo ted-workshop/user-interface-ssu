@@ -39,7 +39,7 @@ final class CollectionNameSheet {
             return;
           }
           clearError(sheet);
-          sheet.createCollectionButton.setEnabled(false);
+          setSaving(dialog, sheet, true);
           CollectionApi.Result<ReportCollection> result =
               new CollectionApi.Result<ReportCollection>() {
                 @Override
@@ -59,7 +59,7 @@ final class CollectionNameSheet {
                       .getRoot()
                       .post(
                           () -> {
-                            sheet.createCollectionButton.setEnabled(true);
+                            setSaving(dialog, sheet, false);
                             showError(sheet, message);
                           });
                 }
@@ -68,6 +68,15 @@ final class CollectionNameSheet {
           else api.rename(original.getId(), name, result);
         });
     dialog.show();
+  }
+
+  /** 저장 중에는 취소·뒤로 가기·바깥 터치로 시트를 닫지 못하게 해요. 닫힌 시트에서는 결과를 목록에 반영할 수 없어서 서버에만 모음이 생기는 일을 막아요. */
+  private static void setSaving(
+      BottomSheetDialog dialog, BottomSheetNewCollectionBinding sheet, boolean saving) {
+    dialog.setCancelable(!saving);
+    sheet.cancelCollectionButton.setEnabled(!saving);
+    sheet.createCollectionButton.setEnabled(!saving);
+    sheet.collectionNameInput.setEnabled(!saving);
   }
 
   /** 피그마처럼 입력칸 테두리를 빨갛게 하고 아래에 문구를 보여 줘요. */

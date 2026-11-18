@@ -3,7 +3,6 @@ package kr.ac.ssu.qletter.collection;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Toast;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -91,12 +90,7 @@ public class CollectionDetailActivity extends AppCompatActivity {
   }
 
   private void confirmDelete() {
-    new AlertDialog.Builder(this)
-        .setTitle(R.string.collection_delete_title)
-        .setMessage(getString(R.string.collection_delete_message, collection.getName()))
-        .setPositiveButton(R.string.collection_delete, (dialog, which) -> deleteCollection())
-        .setNegativeButton(R.string.collection_cancel, null)
-        .show();
+    CollectionDeleteDialog.show(this, collection.getName(), this::deleteCollection);
   }
 
   private void deleteCollection() {

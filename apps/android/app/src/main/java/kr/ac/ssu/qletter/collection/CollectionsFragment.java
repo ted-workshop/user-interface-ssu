@@ -11,7 +11,6 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import java.util.ArrayList;
@@ -93,13 +92,8 @@ public class CollectionsFragment extends Fragment {
   }
 
   private void confirmDelete(int position) {
-    new AlertDialog.Builder(requireContext())
-        .setTitle(R.string.collection_delete_title)
-        .setMessage(getString(R.string.collection_delete_message, items.get(position).getName()))
-        .setPositiveButton(
-            R.string.collection_delete, ((dialog, which) -> deleteCollection(items.get(position))))
-        .setNegativeButton(R.string.collection_cancel, null)
-        .show();
+    ReportCollection target = items.get(position);
+    CollectionDeleteDialog.show(requireContext(), target.getName(), () -> deleteCollection(target));
   }
 
   private void deleteCollection(ReportCollection target) {

@@ -80,6 +80,39 @@ final class CollectionApi {
     return send(request, this::parseReports, R.string.collection_error_load_reports, result);
   }
 
+  /** 모음에 담기 시트용으로, 내 모음과 그 모음에 이 리포트가 담겼는지를 함께 불러와요. */
+  Call checksForReport(String reportId, Result<Page<CollectionCheck>> result) {
+    Request request =
+        new Request.Builder()
+            .url(
+                api.endpoint("collections")
+                    .addQueryParameter("limit", limit())
+                    .addQueryParameter("reportId", reportId)
+                    .build())
+            .build();
+    return send(request, this::parseChecks, R.string.collection_error_load, result);
+  }
+
+  /** 리포트를 모음에 담아요. 이미 담겨 있어도 성공이에요. */
+  Call addReport(String collectionId, String reportId, Result<Void> result) {
+    Request request =
+        new Request.Builder()
+            .url(api.endpoint("collections", collectionId, "reports", reportId).build())
+            .put(RequestBody.create(new byte[0]))
+            .build();
+    return send(request, body -> null, R.string.collection_error_add, result);
+  }
+
+  /** 리포트를 모음에서 빼요. 담겨 있지 않아도 성공이고, 리포트는 보관함에 남아요. */
+  Call removeReport(String collectionId, String reportId, Result<Void> result) {
+    Request request =
+        new Request.Builder()
+            .url(api.endpoint("collections", collectionId, "reports", reportId).build())
+            .delete()
+            .build();
+    return send(request, body -> null, R.string.collection_error_remove, result);
+  }
+
   /** 새 모음을 만들고 서버가 만든 모음을 돌려줘요. */
   Call create(String name, Result<ReportCollection> result) {
     Request request =
@@ -149,6 +182,18 @@ final class CollectionApi {
     List<ReportCollection> collections = new ArrayList<>();
     for (int i = 0; i < items.length(); i++) collections.add(toCollection(items.getJSONObject(i)));
     return new Page<>(collections, !page.isNull("nextCursor"));
+  }
+
+  private Page<CollectionCheck> parseChecks(String json) throws JSONException {
+    JSONObject page = new JSONObject(json);
+    JSONArray items = page.getJSONArray("items");
+    List<CollectionCheck> checks = new ArrayList<>();
+    for (int i = 0; i < items.length(); i++) {
+      JSONObject item = items.getJSONObject(i);
+      // containsReport는 reportId를 보낼 때만 붙어요(docs/api-contract.md 모음 절).
+      checks.add(new CollectionCheck(toCollection(item), item.optBoolean("containsReport")));
+    }
+    return new Page<>(checks, !page.isNull("nextCursor"));
   }
 
   private Page<CollectionReport> parseReports(String json) throws JSONException {

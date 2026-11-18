@@ -35,6 +35,32 @@ public class CollectionsFragment extends Fragment {
             if (result.getResultCode() == Activity.RESULT_OK && binding != null) loadCollections();
           });
 
+  @Override
+  public void onCreate(@Nullable Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    getChildFragmentManager()
+        .setFragmentResultListener(
+            CollectionNameSheet.REQUEST_KEY,
+            this,
+            (key, result) ->
+                applySaved(
+                    CollectionNameSheet.collectionFrom(result),
+                    result.getBoolean(CollectionNameSheet.RESULT_CREATED)));
+    getChildFragmentManager()
+        .setFragmentResultListener(
+            CollectionDeleteDialog.REQUEST_KEY,
+            this,
+            (key, result) -> {
+              String id = result.getString(CollectionDeleteDialog.RESULT_ID);
+              for (ReportCollection item : items) {
+                if (item.getId().equals(id)) {
+                  deleteCollection(item);
+                  return;
+                }
+              }
+            });
+  }
+
   @Nullable
   @Override
   public View onCreateView(
@@ -69,31 +95,32 @@ public class CollectionsFragment extends Fragment {
 
   /** position이 -1이면 새 모음, 아니면 그 모음의 이름 바꾸기예요. */
   private void showNewCollectionSheet(int position) {
-    ReportCollection original = position == -1 ? null : items.get(position);
     CollectionNameSheet.show(
-        requireContext(),
-        collectionApi,
-        original,
-        saved -> {
-          if (binding == null) return;
-          if (original == null) {
-            items.add(0, saved);
-            adapter.notifyItemInserted(0);
-            binding.collectionsMessage.setVisibility(View.GONE);
-            binding.collectionsList.scrollToPosition(0);
-            return;
-          }
-          // 요청 중에 목록이 바뀌었을 수 있어서 위치를 다시 찾아요.
-          int current = items.indexOf(original);
-          if (current == -1) return;
-          items.set(current, saved);
-          adapter.notifyItemChanged(current);
-        });
+        getChildFragmentManager(), position == -1 ? null : items.get(position));
+  }
+
+  /** 시트가 저장에 성공하면 Fragment Result로 결과가 와요. 화면을 돌린 뒤에도 같은 방법으로 받아요. */
+  private void applySaved(ReportCollection saved, boolean created) {
+    if (binding == null) return;
+    if (created) {
+      items.add(0, saved);
+      adapter.notifyItemInserted(0);
+      binding.collectionsMessage.setVisibility(View.GONE);
+      binding.collectionsList.scrollToPosition(0);
+      return;
+    }
+    // 요청 중에 목록이 바뀌었을 수 있어서 id로 위치를 다시 찾아요.
+    for (int i = 0; i < items.size(); i++) {
+      if (items.get(i).getId().equals(saved.getId())) {
+        items.set(i, saved);
+        adapter.notifyItemChanged(i);
+        return;
+      }
+    }
   }
 
   private void confirmDelete(int position) {
-    ReportCollection target = items.get(position);
-    CollectionDeleteDialog.show(requireContext(), target.getName(), () -> deleteCollection(target));
+    CollectionDeleteDialog.show(getChildFragmentManager(), items.get(position));
   }
 
   private void deleteCollection(ReportCollection target) {

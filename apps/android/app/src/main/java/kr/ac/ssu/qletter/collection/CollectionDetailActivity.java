@@ -72,19 +72,22 @@ public class CollectionDetailActivity extends AppCompatActivity {
 
     binding.detailBack.setOnClickListener(v -> finish());
     binding.detailRenameButton.setOnClickListener(
-        v ->
-            CollectionNameSheet.show(
-                this,
-                collectionApi,
-                collection,
-                saved -> {
-                  if (isDestroyed() || sessionChanged()) return;
-                  collection = saved;
-                  changed = true;
-                  showHeader();
-                  // 목록 화면도 바뀐 이름을 다시 불러오게 알려요.
-                  setResult(RESULT_OK);
-                }));
+        v -> CollectionNameSheet.show(getSupportFragmentManager(), collection));
+    getSupportFragmentManager()
+        .setFragmentResultListener(
+            CollectionNameSheet.REQUEST_KEY,
+            this,
+            (key, result) -> {
+              if (sessionChanged()) return;
+              collection = CollectionNameSheet.collectionFrom(result);
+              changed = true;
+              showHeader();
+              // 목록 화면도 바뀐 이름을 다시 불러오게 알려요.
+              setResult(RESULT_OK);
+            });
+    getSupportFragmentManager()
+        .setFragmentResultListener(
+            CollectionDeleteDialog.REQUEST_KEY, this, (key, result) -> deleteCollection());
     binding.detailDeleteButton.setOnClickListener(v -> confirmDelete());
 
     adapter = new CollectionReportAdapter(reports);
@@ -147,7 +150,7 @@ public class CollectionDetailActivity extends AppCompatActivity {
   }
 
   private void confirmDelete() {
-    CollectionDeleteDialog.show(this, collection.getName(), this::deleteCollection);
+    CollectionDeleteDialog.show(getSupportFragmentManager(), collection);
   }
 
   private void deleteCollection() {

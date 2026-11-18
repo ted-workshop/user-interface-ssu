@@ -94,4 +94,9 @@
         <item name="cornerSizeBottomLeft">0dp</item>
         <item name="cornerSizeBottomRight">0dp</item>
     </style>
+
+    <!-- 피그마 확인창(61:132): 떠 있는 창 안의 흰 버튼에 Material3 높이 색이 덧입혀지지 않게 해요. -->
+    <style name="ThemeOverlay.Qletter.Dialog" parent="ThemeOverlay.Material3.Dialog.Alert">
+        <item name="elevationOverlayEnabled">false</item>
+    </style>
 </resources>

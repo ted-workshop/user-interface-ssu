@@ -11,7 +11,8 @@ final class CollectionDeleteDialog {
   private CollectionDeleteDialog() {}
 
   static void show(Context context, String name, Runnable onConfirm) {
-    AlertDialog.Builder builder = new AlertDialog.Builder(context);
+    AlertDialog.Builder builder =
+        new AlertDialog.Builder(context, R.style.ThemeOverlay_Qletter_Dialog);
     // 확인창의 테마로 inflate해야 버튼이 피그마처럼 흰 바탕으로 보여요.
     DialogConfirmBinding view =
         DialogConfirmBinding.inflate(LayoutInflater.from(builder.getContext()));

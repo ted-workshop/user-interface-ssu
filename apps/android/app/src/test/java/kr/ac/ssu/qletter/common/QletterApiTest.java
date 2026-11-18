@@ -5,7 +5,9 @@ import static org.junit.Assert.*;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
+import okhttp3.MediaType;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
@@ -143,6 +145,24 @@ public class QletterApiTest {
     try (Response response = request().execute()) {
       assertEquals(200, response.code());
     }
+    assertEquals(2, server.getRequestCount());
+  }
+
+  @Test
+  public void 서버가_저장_요청을_받은_뒤_연결을_끊어도_다시_보내지_않아요() throws Exception {
+    server.enqueue(new MockResponse().setResponseCode(200));
+    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST));
+    server.enqueue(new MockResponse().setResponseCode(201));
+    try (Response response = request().execute()) {
+      assertEquals(200, response.code());
+    }
+    Call save =
+        api.newCall(
+            new Request.Builder()
+                .url(api.endpoint("collections").build())
+                .post(RequestBody.create("{}", MediaType.get("application/json")))
+                .build());
+    assertThrows(IOException.class, save::execute);
     assertEquals(2, server.getRequestCount());
   }
 }

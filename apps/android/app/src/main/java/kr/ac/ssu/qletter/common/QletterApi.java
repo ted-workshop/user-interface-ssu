@@ -26,6 +26,8 @@ public final class QletterApi {
     client =
         new OkHttpClient.Builder()
             .callTimeout(15, TimeUnit.SECONDS)
+            // 저장 요청이 자동으로 두 번 가지 않게 OkHttp 전체 재시도는 꺼요(ADR-0038).
+            .retryOnConnectionFailure(false)
             .followRedirects(false)
             .followSslRedirects(false)
             .addInterceptor(
@@ -34,13 +36,20 @@ public final class QletterApi {
                   Session sent = request.tag(Session.class);
                   if (sent == null || sent != sessions.current())
                     throw new IOException("로그인이 필요해요.");
-                  Response response =
-                      chain.proceed(
-                          request
-                              .newBuilder()
-                              .header("Accept", "application/json")
-                              .header("Authorization", "Bearer " + sent.token)
-                              .build());
+                  Request authorized =
+                      request
+                          .newBuilder()
+                          .header("Accept", "application/json")
+                          .header("Authorization", "Bearer " + sent.token)
+                          .build();
+                  Response response;
+                  try {
+                    response = chain.proceed(authorized);
+                  } catch (IOException error) {
+                    // 서버가 닫은 keep-alive 연결을 다시 쓰다 실패하면 조회만 새 연결로 한 번 더 보내요.
+                    if (!safeToRetry(authorized) || chain.call().isCanceled()) throw error;
+                    response = chain.proceed(authorized);
+                  }
                   if (sent != sessions.current()) {
                     response.close();
                     throw new IOException("세션이 변경됐어요.");
@@ -49,6 +58,11 @@ public final class QletterApi {
                   return response;
                 })
             .build();
+  }
+
+  /** 다시 보내도 서버 상태가 바뀌지 않는 요청만 재전송해요. */
+  private static boolean safeToRetry(Request request) {
+    return "GET".equals(request.method()) || "HEAD".equals(request.method());
   }
 
   public HttpUrl.Builder endpoint(String... segments) {

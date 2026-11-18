@@ -12,9 +12,15 @@ import kr.ac.ssu.qletter.databinding.ItemCollectionCheckBinding;
 public class CollectionCheckAdapter
     extends RecyclerView.Adapter<CollectionCheckAdapter.ViewHolder> {
   private final List<CollectionCheck> items;
+  private boolean enabled = true;
 
   public CollectionCheckAdapter(List<CollectionCheck> items) {
     this.items = items;
+  }
+
+  /** 저장하는 동안에는 체크를 바꾸지 못하게 해요. */
+  void setEnabled(boolean enabled) {
+    this.enabled = enabled;
   }
 
   @NonNull
@@ -26,7 +32,7 @@ public class CollectionCheckAdapter
     binding.checkRow.setOnClickListener(
         view -> {
           int position = holder.getBindingAdapterPosition();
-          if (position == RecyclerView.NO_POSITION) return;
+          if (!enabled || position == RecyclerView.NO_POSITION) return;
           CollectionCheck item = items.get(position);
           item.setChecked(!item.isChecked());
           notifyItemChanged(position);

@@ -52,4 +52,5 @@
     <string name="add_to_collection_check_mark">✓</string>
     <string name="collection_error_add">모음에 담지 못했어요.</string>
     <string name="collection_error_remove">모음에서 빼지 못했어요.</string>
+    <string name="add_to_collection_save_failed">%1$s 바뀐 모음은 남겨 두었어요. 다시 완료를 눌러 주세요.</string>
 </resources>

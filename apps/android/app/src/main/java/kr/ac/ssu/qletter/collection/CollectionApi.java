@@ -1,12 +1,15 @@
 package kr.ac.ssu.qletter.collection;
 
+import android.content.res.Resources;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
+import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.QletterApi;
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -28,36 +31,60 @@ final class CollectionApi {
     void onError(String message);
   }
 
+  /** 한 번에 받은 목록과, 서버에 더 남은 항목이 있는지예요. */
+  static final class Page<T> {
+    final List<T> items;
+    final boolean hasMore;
+
+    Page(List<T> items, boolean hasMore) {
+      this.items = Collections.unmodifiableList(items);
+      this.hasMore = hasMore;
+    }
+  }
+
   private interface Parser<T> {
     T parse(String body) throws JSONException;
   }
 
+  /** 서버가 한 번에 주는 최대 개수예요(apps/api/src/http-input.ts). 넘는 항목은 "더 있어요" 안내만 해요. */
+  static final int PAGE_LIMIT = 100;
+
   private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
   private final QletterApi api;
+  private final Resources resources;
 
-  CollectionApi(QletterApi api) {
+  CollectionApi(QletterApi api, Resources resources) {
     this.api = api;
+    this.resources = resources;
   }
 
-  /** 내 모음 목록 첫 페이지를 불러와요. 반환한 Call로 요청을 취소할 수 있어요. */
-  Call list(Result<List<ReportCollection>> result) {
-    Request request = new Request.Builder().url(api.endpoint("collections").build()).build();
-    return send(request, CollectionApi::parseList, "모음을 불러오지 못했어요.", result);
-  }
-
-  /** 모음에 담긴 리포트 첫 페이지를 담은 시각 최신순으로 불러와요. */
-  Call reports(String id, Result<List<CollectionReport>> result) {
+  /** 내 모음 목록을 만든 시각 최신순으로 최대 100개 불러와요. 반환한 Call로 요청을 취소할 수 있어요. */
+  Call list(Result<Page<ReportCollection>> result) {
     Request request =
-        new Request.Builder().url(api.endpoint("collections", id, "reports").build()).build();
-    return send(request, CollectionApi::parseReports, "리포트를 불러오지 못했어요.", result);
+        new Request.Builder()
+            .url(api.endpoint("collections").addQueryParameter("limit", limit()).build())
+            .build();
+    return send(request, this::parseList, R.string.collection_error_load, result);
+  }
+
+  /** 모음에 담긴 리포트를 담은 시각 최신순으로 최대 100개 불러와요. */
+  Call reports(String id, Result<Page<CollectionReport>> result) {
+    Request request =
+        new Request.Builder()
+            .url(
+                api.endpoint("collections", id, "reports")
+                    .addQueryParameter("limit", limit())
+                    .build())
+            .build();
+    return send(request, this::parseReports, R.string.collection_error_load_reports, result);
   }
 
   /** 새 모음을 만들고 서버가 만든 모음을 돌려줘요. */
   Call create(String name, Result<ReportCollection> result) {
     Request request =
         new Request.Builder().url(api.endpoint("collections").build()).post(nameBody(name)).build();
-    return send(request, CollectionApi::parseOne, "모음을 만들지 못했어요.", result);
+    return send(request, CollectionApi::parseOne, R.string.collection_error_create, result);
   }
 
   /** 모음 이름을 바꾸고 바뀐 모음을 돌려줘요. */
@@ -67,17 +94,21 @@ final class CollectionApi {
             .url(api.endpoint("collections", id).build())
             .patch(nameBody(name))
             .build();
-    return send(request, CollectionApi::parseOne, "이름을 바꾸지 못했어요.", result);
+    return send(request, CollectionApi::parseOne, R.string.collection_error_rename, result);
   }
 
   /** 모음을 지워요. 담긴 리포트는 보관함에 남아요. 성공 값은 없어서 null이에요. */
   Call delete(String id, Result<Void> result) {
     Request request =
         new Request.Builder().url(api.endpoint("collections", id).build()).delete().build();
-    return send(request, body -> null, "모음을 지우지 못했어요.", result);
+    return send(request, body -> null, R.string.collection_error_delete, result);
   }
 
-  private <T> Call send(Request request, Parser<T> parser, String failure, Result<T> result) {
+  private static String limit() {
+    return String.valueOf(PAGE_LIMIT);
+  }
+
+  private <T> Call send(Request request, Parser<T> parser, int failure, Result<T> result) {
     Call call = api.newCall(request);
     call.enqueue(
         new Callback() {
@@ -97,7 +128,7 @@ final class CollectionApi {
               }
               result.onSuccess(parser.parse(text));
             } catch (IOException | JSONException error) {
-              result.onError("서버 응답을 읽지 못했어요.");
+              result.onError(resources.getString(R.string.collection_error_response));
             }
           }
         });
@@ -112,15 +143,17 @@ final class CollectionApi {
     }
   }
 
-  private static List<ReportCollection> parseList(String json) throws JSONException {
-    JSONArray items = new JSONObject(json).getJSONArray("items");
+  private Page<ReportCollection> parseList(String json) throws JSONException {
+    JSONObject page = new JSONObject(json);
+    JSONArray items = page.getJSONArray("items");
     List<ReportCollection> collections = new ArrayList<>();
     for (int i = 0; i < items.length(); i++) collections.add(toCollection(items.getJSONObject(i)));
-    return collections;
+    return new Page<>(collections, !page.isNull("nextCursor"));
   }
 
-  private static List<CollectionReport> parseReports(String json) throws JSONException {
-    JSONArray items = new JSONObject(json).getJSONArray("items");
+  private Page<CollectionReport> parseReports(String json) throws JSONException {
+    JSONObject page = new JSONObject(json);
+    JSONArray items = page.getJSONArray("items");
     List<CollectionReport> reports = new ArrayList<>();
     for (int i = 0; i < items.length(); i++) {
       JSONObject item = items.getJSONObject(i);
@@ -128,13 +161,13 @@ final class CollectionApi {
       reports.add(
           new CollectionReport(
               // 공급자가 주지 않은 제목·채널은 null로 와요(ADR-0036).
-              textOr(item, "title", "제목 없음"),
-              textOr(item, "channelName", "채널 정보 없음"),
+              textOr(item, "title", resources.getString(R.string.report_untitled)),
+              textOr(item, "channelName", resources.getString(R.string.report_unknown_channel)),
               parseTime(item.getString("createdAt")),
               viewer != null && "channel".equals(viewer.optString("origin")),
               viewer != null && "failed".equals(viewer.optString("deliveryStatus"))));
     }
-    return reports;
+    return new Page<>(reports, !page.isNull("nextCursor"));
   }
 
   /** 서버 시각(UTC, ISO 8601)을 밀리초로 바꿔요. minSdk 24라 java.time 대신 SimpleDateFormat을 써요. */
@@ -162,23 +195,30 @@ final class CollectionApi {
   }
 
   /** 서버 오류 코드를 화면 문장으로 바꿔요. 이름 오류는 서버가 준 필드 문장을 그대로 써요. */
-  private static String errorMessage(int status, String body, String failure) {
+  private String errorMessage(int status, String body, int failure) {
+    // 세션이 만료되면 QletterApi가 세션을 지우고, 화면에는 다른 경로와 같은 문장을 보여 줘요.
+    if (status == 401) return resources.getString(R.string.collection_error_sign_in);
     try {
       JSONObject error = new JSONObject(body).getJSONObject("error");
       String code = error.optString("code");
       JSONObject fields = error.optJSONObject("fields");
       if (fields != null && fields.has("name")) return fields.getString("name");
-      if ("COLLECTION_EXISTS".equals(code)) return "이미 같은 이름의 모음이 있어요. 다른 이름을 정해 주세요.";
-      if ("NOT_FOUND".equals(code)) return "모음을 찾을 수 없어요.";
+      if ("COLLECTION_EXISTS".equals(code))
+        return resources.getString(R.string.collection_error_exists);
+      if ("NOT_FOUND".equals(code)) return resources.getString(R.string.collection_error_not_found);
     } catch (JSONException ignored) {
       // 본문이 JSON이 아니면 상태 코드만 보여 줘요.
     }
-    return failure + " (" + status + ")";
+    return resources.getString(
+        R.string.collection_error_with_status, resources.getString(failure), status);
   }
 
-  private static String failureMessage(IOException error) {
+  /** QletterApi가 요청 전후로 던지는 세션 문장(common/QletterApi.java)은 그대로 보여 주고, 나머지는 연결 문제로 안내해요. */
+  private String failureMessage(IOException error) {
     String message = error.getMessage();
-    if ("로그인이 필요해요.".equals(message)) return message;
-    return "네트워크 연결을 확인해 주세요.";
+    if ("로그인이 필요해요.".equals(message)) return resources.getString(R.string.collection_error_sign_in);
+    if ("세션이 변경됐어요.".equals(message))
+      return resources.getString(R.string.collection_error_session_changed);
+    return resources.getString(R.string.collection_error_network);
   }
 }

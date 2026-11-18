@@ -17,7 +17,7 @@
     <string name="collection_folder_mark">▱</string>
     <string name="collection_report_count">리포트 %1$d편</string>
     <string name="collection_detail_back">←  모음</string>
-    <string name="collection_detail_summary">리포트 %1$d편 · 최근에 만든 리포트부터 보여요.</string>
+    <string name="collection_detail_summary">리포트 %1$d편 · 최근에 담은 리포트부터 보여요.</string>
     <string name="collection_detail_empty">아직 담긴 리포트가 없어요</string>
     <string name="collection_detail_note">모음을 지워도 안에 있던 리포트는 내 리포트에 그대로 남아요.</string>
     <string name="report_origin_direct">직접 요약</string>
@@ -26,4 +26,22 @@
     <string name="report_meta">%1$s · %2$s</string>
     <string name="report_day_today">오늘</string>
     <string name="report_day_yesterday">어제</string>
+    <string name="collection_more_collections">최근에 만든 모음 %1$d개까지 보여요.</string>
+    <string name="collection_more_reports">최근에 담은 리포트 %1$d편까지 보여요.</string>
+    <string name="collection_retry">다시 시도</string>
+    <string name="report_untitled">제목 없음</string>
+    <string name="report_unknown_channel">채널 정보 없음</string>
+    <string name="report_day_format">M월 d일</string>
+    <string name="collection_error_load">모음을 불러오지 못했어요.</string>
+    <string name="collection_error_load_reports">리포트를 불러오지 못했어요.</string>
+    <string name="collection_error_create">모음을 만들지 못했어요.</string>
+    <string name="collection_error_rename">이름을 바꾸지 못했어요.</string>
+    <string name="collection_error_delete">모음을 지우지 못했어요.</string>
+    <string name="collection_error_response">서버 응답을 읽지 못했어요.</string>
+    <string name="collection_error_with_status">%1$s (%2$d)</string>
+    <string name="collection_error_sign_in">로그인이 필요해요.</string>
+    <string name="collection_error_session_changed">로그인 상태가 바뀌었어요. 다시 시도해 주세요.</string>
+    <string name="collection_error_network">네트워크 연결을 확인해 주세요.</string>
+    <string name="collection_error_exists">이미 같은 이름의 모음이 있어요. 다른 이름을 정해 주세요.</string>
+    <string name="collection_error_not_found">모음을 찾을 수 없어요.</string>
 </resources>

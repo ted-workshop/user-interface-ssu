@@ -1,10 +1,10 @@
 <resources>
-    <!-- 피그마 Button/primary: 검은 알약 버튼, 높이 40, 좌우 16 -->
+    <!-- 피그마 Button/primary: 보이는 높이 40, 좌우 16. 위아래 inset 4로 터치 영역은 48을 지켜요. -->
     <style name="QletterButton.Primary" parent="Widget.Material3.Button">
-        <item name="android:minHeight">40dp</item>
+        <item name="android:minHeight">48dp</item>
         <item name="android:minWidth">0dp</item>
-        <item name="android:insetTop">0dp</item>
-        <item name="android:insetBottom">0dp</item>
+        <item name="android:insetTop">4dp</item>
+        <item name="android:insetBottom">4dp</item>
         <item name="android:paddingStart">16dp</item>
         <item name="android:paddingEnd">16dp</item>
         <item name="android:textSize">15sp</item>
@@ -17,10 +17,10 @@
 
     <!-- 피그마 Button/default: 흰 바탕, 회색 테두리 알약 버튼 -->
     <style name="QletterButton.Default" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="android:minHeight">40dp</item>
+        <item name="android:minHeight">48dp</item>
         <item name="android:minWidth">0dp</item>
-        <item name="android:insetTop">0dp</item>
-        <item name="android:insetBottom">0dp</item>
+        <item name="android:insetTop">4dp</item>
+        <item name="android:insetBottom">4dp</item>
         <item name="android:paddingStart">16dp</item>
         <item name="android:paddingEnd">16dp</item>
         <item name="android:textSize">15sp</item>

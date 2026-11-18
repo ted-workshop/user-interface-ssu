@@ -53,7 +53,7 @@ public class CollectionReportAdapter
     if (sameDay(created, today)) return context.getString(R.string.report_day_today);
     today.add(Calendar.DAY_OF_YEAR, -1);
     if (sameDay(created, today)) return context.getString(R.string.report_day_yesterday);
-    return DateFormat.format("M월 d일", created).toString();
+    return DateFormat.format(context.getString(R.string.report_day_format), created).toString();
   }
 
   private static boolean sameDay(Calendar a, Calendar b) {

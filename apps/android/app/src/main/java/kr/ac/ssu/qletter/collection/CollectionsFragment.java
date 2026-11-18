@@ -42,10 +42,16 @@ public class CollectionsFragment extends Fragment {
         .setFragmentResultListener(
             CollectionNameSheet.REQUEST_KEY,
             this,
-            (key, result) ->
-                applySaved(
-                    CollectionNameSheet.collectionFrom(result),
-                    result.getBoolean(CollectionNameSheet.RESULT_CREATED)));
+            (key, result) -> {
+              // 저장 중에 화면이 돌아가 결과를 놓쳤으면 서버 목록을 다시 불러와요.
+              if (result.getBoolean(CollectionNameSheet.RESULT_RELOAD)) {
+                if (binding != null) loadCollections();
+                return;
+              }
+              applySaved(
+                  CollectionNameSheet.collectionFrom(result),
+                  result.getBoolean(CollectionNameSheet.RESULT_CREATED));
+            });
     getChildFragmentManager()
         .setFragmentResultListener(
             CollectionDeleteDialog.REQUEST_KEY,
@@ -80,7 +86,8 @@ public class CollectionsFragment extends Fragment {
             items, this::openCollectionDetail, this::showNewCollectionSheet, this::confirmDelete);
     binding.collectionsList.setAdapter(adapter);
     QletterApplication app = (QletterApplication) requireActivity().getApplication();
-    collectionApi = new CollectionApi(app.api());
+    collectionApi = new CollectionApi(app.api(), getResources());
+    binding.collectionsRetry.setOnClickListener(v -> loadCollections());
     loadCollections();
     binding.newCollectionButton.setOnClickListener(v -> showNewCollectionSheet(-1));
   }
@@ -105,7 +112,7 @@ public class CollectionsFragment extends Fragment {
     if (created) {
       items.add(0, saved);
       adapter.notifyItemInserted(0);
-      binding.collectionsMessage.setVisibility(View.GONE);
+      hideState();
       binding.collectionsList.scrollToPosition(0);
       return;
     }
@@ -137,10 +144,7 @@ public class CollectionsFragment extends Fragment {
                   if (position == -1) return;
                   items.remove(position);
                   adapter.notifyItemRemoved(position);
-                  if (items.isEmpty()) {
-                    binding.collectionsMessage.setText(R.string.collection_empty);
-                    binding.collectionsMessage.setVisibility(View.VISIBLE);
-                  }
+                  if (items.isEmpty()) showState(getString(R.string.collection_empty), false);
                 });
           }
 
@@ -166,25 +170,28 @@ public class CollectionsFragment extends Fragment {
 
   private void loadCollections() {
     binding.collectionsLoading.setVisibility(View.VISIBLE);
-    binding.collectionsMessage.setVisibility(View.GONE);
+    binding.collectionsMore.setVisibility(View.GONE);
+    hideState();
+    if (loadCall != null) loadCall.cancel();
 
     loadCall =
         collectionApi.list(
-            new CollectionApi.Result<List<ReportCollection>>() {
+            new CollectionApi.Result<CollectionApi.Page<ReportCollection>>() {
               @Override
-              public void onSuccess(List<ReportCollection> value) {
+              public void onSuccess(CollectionApi.Page<ReportCollection> page) {
                 runOnUi(
                     () -> {
                       if (binding == null) return;
-
                       binding.collectionsLoading.setVisibility(View.GONE);
                       items.clear();
-                      items.addAll(value);
+                      items.addAll(page.items);
                       adapter.notifyDataSetChanged();
-
-                      if (items.isEmpty()) {
-                        binding.collectionsMessage.setVisibility(View.VISIBLE);
-                        binding.collectionsMessage.setText(R.string.collection_empty);
+                      if (items.isEmpty()) showState(getString(R.string.collection_empty), false);
+                      // 서버에 더 남아 있으면 조용히 빼지 않고 몇 개까지 보이는지 알려요.
+                      if (page.hasMore) {
+                        binding.collectionsMore.setText(
+                            getString(R.string.collection_more_collections, items.size()));
+                        binding.collectionsMore.setVisibility(View.VISIBLE);
                       }
                     });
               }
@@ -194,13 +201,24 @@ public class CollectionsFragment extends Fragment {
                 runOnUi(
                     () -> {
                       if (binding == null) return;
-
                       binding.collectionsLoading.setVisibility(View.GONE);
-                      binding.collectionsMessage.setText(message);
-                      binding.collectionsMessage.setVisibility(View.VISIBLE);
+                      // 다시 불러오다 실패하면 지운 모음이 남아 보이지 않게 목록을 비우고 다시 시도를 보여 줘요.
+                      items.clear();
+                      adapter.notifyDataSetChanged();
+                      showState(message, true);
                     });
               }
             });
+  }
+
+  private void showState(String message, boolean retry) {
+    binding.collectionsMessage.setText(message);
+    binding.collectionsRetry.setVisibility(retry ? View.VISIBLE : View.GONE);
+    binding.collectionsState.setVisibility(View.VISIBLE);
+  }
+
+  private void hideState() {
+    binding.collectionsState.setVisibility(View.GONE);
   }
 
   /** 응답이 왔을 때 화면이 이미 Activity에서 떨어졌으면 아무것도 하지 않아요. */

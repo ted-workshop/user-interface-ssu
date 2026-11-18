@@ -51,7 +51,7 @@
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginTop="20dp"
+    android:layout_marginTop="16dp"
     android:gravity="end"
     android:orientation="horizontal">
 
@@ -59,14 +59,14 @@
       android:id="@+id/cancel_collection_button"
       style="@style/QletterButton.Default"
       android:layout_width="wrap_content"
-      android:layout_height="40dp"
+      android:layout_height="wrap_content"
       android:text="@string/collection_cancel" />
 
     <Button
       android:id="@+id/create_collection_button"
       style="@style/QletterButton.Primary"
       android:layout_width="wrap_content"
-      android:layout_height="40dp"
+      android:layout_height="wrap_content"
       android:layout_marginStart="8dp"
       android:text="@string/collection_create" />
   </LinearLayout>

@@ -56,7 +56,8 @@ public class CollectionDetailActivity extends AppCompatActivity {
     }
     collection = new ReportCollection(name, reportCount, getIntent().getStringExtra(EXTRA_ID));
     QletterApplication app = (QletterApplication) getApplication();
-    collectionApi = new CollectionApi(app.api());
+    collectionApi = new CollectionApi(app.api(), getResources());
+    binding.detailRetry.setOnClickListener(v -> loadReports(collection.getId()));
     showHeader();
 
     // 상세는 별도 Activity라 MainActivity의 세션 관찰이 닿지 않아요. 여기서도 세션이 바뀌면 닫아요(ADR-0038).
@@ -79,6 +80,12 @@ public class CollectionDetailActivity extends AppCompatActivity {
             this,
             (key, result) -> {
               if (sessionChanged()) return;
+              // 저장 중 회전으로 결과를 놓쳤으면 목록 화면이 다시 불러오게만 알려요.
+              if (result.getBoolean(CollectionNameSheet.RESULT_RELOAD)) {
+                changed = true;
+                setResult(RESULT_OK);
+                return;
+              }
               collection = CollectionNameSheet.collectionFrom(result);
               changed = true;
               showHeader();
@@ -187,23 +194,31 @@ public class CollectionDetailActivity extends AppCompatActivity {
 
   private void loadReports(String id) {
     binding.detailLoading.setVisibility(View.VISIBLE);
-    binding.detailMessage.setVisibility(View.GONE);
+    binding.detailMore.setVisibility(View.GONE);
+    binding.detailState.setVisibility(View.GONE);
+    if (loadCall != null) loadCall.cancel();
 
     loadCall =
         collectionApi.reports(
             id,
-            new CollectionApi.Result<List<CollectionReport>>() {
+            new CollectionApi.Result<CollectionApi.Page<CollectionReport>>() {
               @Override
-              public void onSuccess(List<CollectionReport> value) {
+              public void onSuccess(CollectionApi.Page<CollectionReport> page) {
                 runOnUiThread(
                     () -> {
                       if (isDestroyed() || sessionChanged()) return;
                       binding.detailLoading.setVisibility(View.GONE);
                       reports.clear();
-                      reports.addAll(value);
+                      reports.addAll(page.items);
                       adapter.notifyDataSetChanged();
                       if (reports.isEmpty())
-                        showMessage(getString(R.string.collection_detail_empty));
+                        showState(getString(R.string.collection_detail_empty), false);
+                      // 헤더의 리포트 수보다 적게 받았으면 몇 편까지 보이는지 알려요.
+                      if (page.hasMore) {
+                        binding.detailMore.setText(
+                            getString(R.string.collection_more_reports, reports.size()));
+                        binding.detailMore.setVisibility(View.VISIBLE);
+                      }
                     });
               }
 
@@ -213,14 +228,17 @@ public class CollectionDetailActivity extends AppCompatActivity {
                     () -> {
                       if (isDestroyed() || sessionChanged()) return;
                       binding.detailLoading.setVisibility(View.GONE);
-                      showMessage(message);
+                      reports.clear();
+                      adapter.notifyDataSetChanged();
+                      showState(message, true);
                     });
               }
             });
   }
 
-  private void showMessage(String message) {
+  private void showState(String message, boolean retry) {
     binding.detailMessage.setText(message);
-    binding.detailMessage.setVisibility(View.VISIBLE);
+    binding.detailRetry.setVisibility(retry ? View.VISIBLE : View.GONE);
+    binding.detailState.setVisibility(View.VISIBLE);
   }
 }

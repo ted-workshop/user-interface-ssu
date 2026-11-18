@@ -25,14 +25,18 @@ public final class CollectionNameSheet extends BottomSheetDialogFragment {
   static final String RESULT_NAME = "name";
   static final String RESULT_REPORT_COUNT = "reportCount";
   static final String RESULT_CREATED = "created";
+  static final String RESULT_RELOAD = "reload";
 
   private static final String ARG_ID = "id";
   private static final String ARG_NAME = "name";
   private static final String ARG_REPORT_COUNT = "reportCount";
   private static final String TAG = "collection_name_sheet";
+  private static final String STATE_SAVING = "saving";
 
   private final Handler main = new Handler(Looper.getMainLooper());
   private BottomSheetNewCollectionBinding sheet;
+  private boolean saving;
+  private boolean lostResult;
 
   /** original이 null이면 새 모음, 아니면 그 모음의 이름 바꾸기예요. */
   static void show(FragmentManager manager, @Nullable ReportCollection original) {
@@ -59,6 +63,31 @@ public final class CollectionNameSheet extends BottomSheetDialogFragment {
   @Override
   public int getTheme() {
     return R.style.ThemeOverlay_Qletter_BottomSheet;
+  }
+
+  @Override
+  public void onCreate(@Nullable Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    lostResult = savedInstanceState != null && savedInstanceState.getBoolean(STATE_SAVING);
+  }
+
+  @Override
+  public void onStart() {
+    super.onStart();
+    // 저장 중에 화면이 돌아가면 이전 시트의 응답은 새 화면에 닿지 않아요.
+    // 서버에는 이미 저장됐을 수 있으니 띄운 쪽이 목록을 다시 불러오게 알리고 닫아요.
+    if (!lostResult) return;
+    lostResult = false;
+    Bundle result = new Bundle();
+    result.putBoolean(RESULT_RELOAD, true);
+    getParentFragmentManager().setFragmentResult(REQUEST_KEY, result);
+    dismissAllowingStateLoss();
+  }
+
+  @Override
+  public void onSaveInstanceState(@NonNull Bundle outState) {
+    super.onSaveInstanceState(outState);
+    outState.putBoolean(STATE_SAVING, saving);
   }
 
   @Nullable
@@ -104,7 +133,7 @@ public final class CollectionNameSheet extends BottomSheetDialogFragment {
     clearError();
     setSaving(true);
     QletterApplication app = (QletterApplication) requireActivity().getApplication();
-    CollectionApi api = new CollectionApi(app.api());
+    CollectionApi api = new CollectionApi(app.api(), getResources());
     CollectionApi.Result<ReportCollection> result =
         new CollectionApi.Result<ReportCollection>() {
           @Override
@@ -140,6 +169,7 @@ public final class CollectionNameSheet extends BottomSheetDialogFragment {
 
   /** 저장 중에는 취소·뒤로 가기·바깥 터치로 시트를 닫지 못하게 해요. 닫힌 시트에서는 결과를 목록에 반영할 수 없어서 서버에만 모음이 생기는 일을 막아요. */
   private void setSaving(boolean saving) {
+    this.saving = saving;
     setCancelable(!saving);
     sheet.cancelCollectionButton.setEnabled(!saving);
     sheet.createCollectionButton.setEnabled(!saving);

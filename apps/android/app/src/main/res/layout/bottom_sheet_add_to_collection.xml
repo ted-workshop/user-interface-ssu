@@ -99,6 +99,15 @@
     android:textColor="@color/q_state_danger"
     android:visibility="gone" />
 
+  <TextView
+    android:id="@+id/add_save_error"
+    style="@style/QletterText.Xs"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="12dp"
+    android:textColor="@color/q_state_danger"
+    android:visibility="gone" />
+
   <LinearLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"

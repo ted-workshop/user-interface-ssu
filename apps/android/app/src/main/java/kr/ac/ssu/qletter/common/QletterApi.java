@@ -1,6 +1,7 @@
 package kr.ac.ssu.qletter.common;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.util.concurrent.TimeUnit;
 import okhttp3.Call;
 import okhttp3.HttpUrl;
@@ -50,6 +51,16 @@ public final class QletterApi {
                   return response;
                 })
             .build();
+  }
+
+  /**
+   * 화면이 직접 cancel()한 요청이면 true예요. 이때는 실패 문구를 보여 주지 않아요.
+   *
+   * <p>OkHttp는 callTimeout이 지나도 cancel()로 요청을 끊어서 isCanceled()만으로는 시간 초과와 구분할 수 없어요. 시간 초과는
+   * InterruptedIOException으로 오니 실패로 보여 줘야 해요.
+   */
+  public static boolean canceledByCaller(Call call, IOException error) {
+    return call.isCanceled() && !(error instanceof InterruptedIOException);
   }
 
   public HttpUrl.Builder endpoint(String... segments) {

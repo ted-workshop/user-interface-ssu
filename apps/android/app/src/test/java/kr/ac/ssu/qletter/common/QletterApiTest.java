@@ -3,8 +3,12 @@ package kr.ac.ssu.qletter.common;
 import static org.junit.Assert.*;
 
 import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.mockwebserver.Dispatcher;
@@ -129,5 +133,47 @@ public class QletterApiTest {
       assertEquals(503, response.code());
     }
     assertSame(first, active);
+  }
+
+  /** 비동기 요청이 실패할 때까지 기다렸다가 화면이 취소한 요청으로 보는지 돌려줘요. */
+  private boolean failAndCheck(OkHttpClient client, boolean cancelFirst) throws Exception {
+    Call call = client.newCall(new Request.Builder().url(server.url("/slow")).build());
+    AtomicReference<Boolean> canceled = new AtomicReference<>();
+    CountDownLatch done = new CountDownLatch(1);
+    call.enqueue(
+        new Callback() {
+          @Override
+          public void onFailure(Call failed, IOException error) {
+            canceled.set(QletterApi.canceledByCaller(failed, error));
+            done.countDown();
+          }
+
+          @Override
+          public void onResponse(Call ok, Response response) {
+            response.close();
+            done.countDown();
+          }
+        });
+    if (cancelFirst) {
+      server.takeRequest(1, TimeUnit.SECONDS);
+      call.cancel();
+    }
+    assertTrue(done.await(5, TimeUnit.SECONDS));
+    return canceled.get();
+  }
+
+  @Test
+  public void 시간_초과는_화면이_취소한_요청으로_보지_않아요() throws Exception {
+    server.enqueue(new MockResponse().setHeadersDelay(3, TimeUnit.SECONDS));
+    OkHttpClient client =
+        new OkHttpClient.Builder().callTimeout(300, TimeUnit.MILLISECONDS).build();
+    // OkHttp는 callTimeout이 지나도 cancel()로 끊어서 isCanceled()가 true가 돼요.
+    assertFalse(failAndCheck(client, false));
+  }
+
+  @Test
+  public void 화면이_직접_취소한_요청은_취소로_봐요() throws Exception {
+    server.enqueue(new MockResponse().setHeadersDelay(3, TimeUnit.SECONDS));
+    assertTrue(failAndCheck(new OkHttpClient(), true));
   }
 }

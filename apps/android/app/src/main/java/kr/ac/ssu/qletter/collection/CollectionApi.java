@@ -114,7 +114,7 @@ final class CollectionApi {
         new Callback() {
           @Override
           public void onFailure(Call call, IOException error) {
-            if (call.isCanceled()) return;
+            if (QletterApi.canceledByCaller(call, error)) return;
             result.onError(failureMessage(error));
           }
 

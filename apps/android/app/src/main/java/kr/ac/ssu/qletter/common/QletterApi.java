@@ -48,6 +48,8 @@ public final class QletterApi {
                   } catch (IOException error) {
                     // 서버가 닫은 keep-alive 연결을 다시 쓰다 실패하면 조회만 새 연결로 한 번 더 보내요.
                     if (!safeToRetry(authorized) || chain.call().isCanceled()) throw error;
+                    // 첫 요청 중 로그아웃·계정 전환·만료가 일어났으면 이전 토큰으로 다시 보내지 않아요(ADR-0038).
+                    if (sent != sessions.current()) throw new IOException("세션이 변경됐어요.");
                     response = chain.proceed(authorized);
                   }
                   if (sent != sessions.current()) {

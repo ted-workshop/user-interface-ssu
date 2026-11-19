@@ -165,4 +165,21 @@ public class QletterApiTest {
     assertThrows(IOException.class, save::execute);
     assertEquals(2, server.getRequestCount());
   }
+
+  @Test
+  public void 첫_조회_중_세션이_바뀌면_이전_토큰으로_다시_보내지_않아요() throws Exception {
+    Session replacement = new Session("next-test-token", Long.MAX_VALUE);
+    server.setDispatcher(
+        new Dispatcher() {
+          @Override
+          public MockResponse dispatch(RecordedRequest request) {
+            // 첫 요청을 받는 사이에 계정이 바뀌고, 서버는 응답 없이 연결을 끊어요.
+            active = replacement;
+            return new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST);
+          }
+        });
+    IOException error = assertThrows(IOException.class, () -> request().execute());
+    assertEquals("세션이 변경됐어요.", error.getMessage());
+    assertEquals(1, server.getRequestCount());
+  }
 }

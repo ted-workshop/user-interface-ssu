@@ -1,45 +1,91 @@
 package kr.ac.ssu.qletter.collection;
 
+import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
-import java.util.ArrayList;
-import java.util.List;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
 import kr.ac.ssu.qletter.R;
+import kr.ac.ssu.qletter.common.QletterApplication;
 import kr.ac.ssu.qletter.databinding.FragmentReportCommentsBinding;
-import okhttp3.Call;
 
 /**
  * 피그마 61:265 리포트 상세 맨 아래 댓글 영역이에요. 리포트 상세(#28)가 생기면 그 화면 아래에 끼워 넣어요.
  *
- * <p>쓰는 도구: CommentApi(목록·작성·삭제·내 닉네임), CommentAdapter(목록), CommentDeleteDialog(삭제 확인).
+ * <p>쓰는 도구: ReportCommentsViewModel(목록·요청 보관), CommentAdapter(목록), CommentDeleteDialog(삭제 확인).
  */
 public class ReportCommentsFragment extends Fragment {
   private static final String ARG_REPORT_ID = "reportId";
 
   private FragmentReportCommentsBinding binding;
-  private final List<Comment> comments = new ArrayList<>();
   private CommentAdapter adapter;
   private CommentApi commentApi;
-  private Call loadCall;
+  private ReportCommentsViewModel model;
+  // 이 화면의 어댑터가 반영한 마지막 변경 번호예요.
+  private int appliedSeq;
 
-  // TODO ⑤-1: newInstance(String reportId)를 만들어요.
-  //  Bundle에 ARG_REPORT_ID로 넣고 setArguments(...)로 붙여서 돌려줘요. (Lab12 FavoritesFragment.newInstance)
+  public static ReportCommentsFragment newInstance(String reportId) {
+    ReportCommentsFragment fragment = new ReportCommentsFragment();
+    Bundle args = new Bundle();
+    args.putString(ARG_REPORT_ID, reportId);
+    fragment.setArguments(args);
+    return fragment;
+  }
 
-  // TODO ⑤-2: onCreateView에서 FragmentReportCommentsBinding.inflate(inflater, container, false)로 만들고
-  //  getRoot()를 돌려줘요.
+  @Nullable
+  @Override
+  public View onCreateView(
+      @NonNull LayoutInflater inflater,
+      @Nullable ViewGroup container,
+      @Nullable Bundle savedInstanceState) {
+    binding = FragmentReportCommentsBinding.inflate(inflater, container, false);
+    return binding.getRoot();
+  }
 
-  // TODO ⑤-3: onViewCreated에서
-  //  - commentList에 LinearLayoutManager와 CommentAdapter(comments, this::confirmDelete)를 붙여요.
-  //  - QletterApplication에서 api()를 꺼내 new CommentApi(app.api(), getResources())를 만들어요.
-  //  - commentSubmit 클릭 → submitComment(), 그리고 loadComments(), loadNote()를 불러요.
-  //  - 삭제 확인 결과 받기: getChildFragmentManager().setFragmentResultListener(
-  //      CommentDeleteDialog.REQUEST_KEY, getViewLifecycleOwner(), (key, result) -> ...)
-  //    result.getString(CommentDeleteDialog.RESULT_ID)로 댓글 id를 꺼내 deleteComment(id)를 불러요.
+  @Override
+  public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
+    super.onViewCreated(view, savedInstanceState);
+    QletterApplication app = (QletterApplication) requireActivity().getApplication();
+    commentApi = new CommentApi(app.api(), getResources());
+    // Fragment 범위 ViewModel이라 회전해도 같은 목록과 요청을 이어 받아요.
+    model = new ViewModelProvider(this).get(ReportCommentsViewModel.class);
+    model.start(commentApi, reportId());
 
-  // TODO ⑤-4: onDestroyView에서 loadCall을 취소하고 binding = null로 비워요.
+    binding.commentList.setLayoutManager(new LinearLayoutManager(requireContext()));
+    adapter = new CommentAdapter(model.comments(), this::confirmDelete);
+    binding.commentList.setAdapter(adapter);
+    // 새 어댑터는 지금 목록을 통째로 그리니 지금까지의 변경은 이미 반영한 셈이에요.
+    appliedSeq = model.seq();
+    updateCount();
 
-  /** 삭제를 누르면 확인창부터 띄워요. 삭제하기를 누르면 ⑤-3의 결과 받기로 돌아와요. */
+    binding.commentSubmit.setOnClickListener(v -> submitComment());
+    binding.commentRetry.setOnClickListener(v -> model.load());
+    loadNote();
+
+    model.changes().observe(getViewLifecycleOwner(), this::applyChange);
+    model.status().observe(getViewLifecycleOwner(), this::renderStatus);
+    model.notice().observe(getViewLifecycleOwner(), this::renderNotice);
+
+    getChildFragmentManager()
+        .setFragmentResultListener(
+            CommentDeleteDialog.REQUEST_KEY,
+            getViewLifecycleOwner(),
+            (key, result) -> model.delete(result.getString(CommentDeleteDialog.RESULT_ID)));
+  }
+
+  @Override
+  public void onDestroyView() {
+    super.onDestroyView();
+    binding = null;
+  }
+
+  /** 삭제를 누르면 확인창부터 띄워요. 삭제하기를 누르면 삭제 결과 받기로 돌아와요. */
   private void confirmDelete(Comment comment) {
+    if (model.isDeleting(comment.getId())) return;
     CommentDeleteDialog.open(getChildFragmentManager(), comment.getId());
   }
 
@@ -47,22 +93,70 @@ public class ReportCommentsFragment extends Fragment {
     return requireArguments().getString(ARG_REPORT_ID);
   }
 
-  // TODO ⑥-1: loadComments()
-  //  - 로딩 보이기 → commentApi.list(reportId(), new CommentApi.Result<List<Comment>>() { ... })
-  //  - onSuccess: 메인 스레드로 넘겨서(runOnUiThread 또는 view.post) binding null 확인 →
-  //    comments 비우고 채우기 → notifyDataSetChanged → 개수(commentCount) 갱신 → 비었으면 commentEmpty 보이기
-  //  - onNoAccess: 메인 스레드에서 showNoAccess(message)
-  //  - onError: 메인 스레드에서 commentMessage에 문장 보이기
+  /** 목록이 바뀐 만큼 어댑터에 알려요. 화면이 보이지 않는 동안 놓친 변경이 있으면 전체를 다시 그려요. */
+  private void applyChange(@Nullable ReportCommentsViewModel.Change change) {
+    if (change == null || change.seq <= appliedSeq) return;
+    boolean missed = change.seq != appliedSeq + 1;
+    appliedSeq = change.seq;
+    if (missed || change.kind == ReportCommentsViewModel.RELOADED) {
+      adapter.notifyDataSetChanged();
+    } else if (change.kind == ReportCommentsViewModel.INSERTED) {
+      adapter.notifyItemInserted(change.position);
+      binding.commentList.scrollToPosition(change.position);
+    } else {
+      adapter.notifyItemRemoved(change.position);
+    }
+    updateCount();
+  }
 
-  // TODO ⑥-2: submitComment()
-  //  - commentInput 글자를 trim, 비었으면 showError(R.string.comment_body_required)
-  //  - 등록 버튼 잠그고 commentApi.create(...) → 성공하면 메인 스레드에서
-  //    comments.add(새 댓글) → notifyItemInserted(comments.size() - 1) → 입력칸 비우기 → 개수·빈 안내 갱신
-  //  - 실패하면 버튼 풀고 showError(message)
+  private void renderStatus(ReportCommentsViewModel.Status status) {
+    if (status.noAccess != null) {
+      showNoAccess(status.noAccess);
+      return;
+    }
+    binding.commentLoading.setVisibility(status.loading ? View.VISIBLE : View.GONE);
+    boolean failed = status.loadError != null;
+    binding.commentState.setVisibility(failed ? View.VISIBLE : View.GONE);
+    binding.commentRetry.setVisibility(failed ? View.VISIBLE : View.GONE);
+    if (failed) binding.commentMessage.setText(status.loadError);
+    binding.commentList.setVisibility(failed ? View.GONE : View.VISIBLE);
+    setSubmitting(status.submitting);
+    updateCount();
+  }
 
-  // TODO ⑥-3: deleteComment(String commentId)
-  //  - commentApi.delete(reportId(), commentId, ...) → 성공하면 메인 스레드에서
-  //    comments에서 그 id의 위치를 찾아 remove → notifyItemRemoved(위치) → 개수·빈 안내 갱신
+  /** 등록 성공·실패 같은 한 번만 보여 줄 알림이에요. 보여 준 뒤 비워서 회전해도 다시 뜨지 않아요. */
+  private void renderNotice(@Nullable ReportCommentsViewModel.Notice notice) {
+    if (notice == null) return;
+    if (notice.submitted) binding.commentInput.setText("");
+    if (notice.error != null) showError(notice.error);
+    model.consumeNotice();
+  }
+
+  private void updateCount() {
+    ReportCommentsViewModel.Status status = model.status().getValue();
+    boolean ready = status != null && !status.loading && status.loadError == null;
+    // 불러오기 전이나 실패했을 때 "댓글 0"으로 보이지 않게 개수를 비워 둬요.
+    binding.commentCount.setText(ready ? String.valueOf(adapter.getItemCount()) : "");
+    binding.commentEmpty.setVisibility(
+        ready && adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
+  }
+
+  /** 입력한 댓글을 서버에 남겨요. 결과는 ViewModel이 목록에 붙이고 알려 줘요. */
+  private void submitComment() {
+    String body = binding.commentInput.getText().toString().trim();
+    if (body.isEmpty()) {
+      showError(R.string.comment_body_required);
+      return;
+    }
+    binding.commentError.setVisibility(View.GONE);
+    model.submit(body);
+  }
+
+  /** 등록 중에는 같은 댓글을 두 번 보내지 않게 입력칸과 버튼을 잠가요. */
+  private void setSubmitting(boolean submitting) {
+    binding.commentInput.setEnabled(!submitting);
+    binding.commentSubmit.setEnabled(!submitting);
+  }
 
   /** 안내 문구에 내 닉네임을 넣어요. 실패하면 닉네임 없이 보여 줘요. */
   private void loadNote() {
@@ -88,21 +182,20 @@ public class ReportCommentsFragment extends Fragment {
         });
   }
 
-  /** ⑦ 권한이 없으면(404) 목록과 입력칸을 숨기고 안내만 보여 줘요. 메인 스레드에서 불러 주세요. */
+  /** 권한이 없으면(404) 목록과 입력칸을 숨기고 안내만 보여 줘요. */
   private void showNoAccess(String message) {
-    if (binding == null) return;
     binding.commentLoading.setVisibility(View.GONE);
     binding.commentList.setVisibility(View.GONE);
     binding.commentEmpty.setVisibility(View.GONE);
     binding.commentForm.setVisibility(View.GONE);
     binding.commentNote.setVisibility(View.GONE);
+    binding.commentRetry.setVisibility(View.GONE);
     binding.commentMessage.setText(message);
-    binding.commentMessage.setVisibility(View.VISIBLE);
+    binding.commentState.setVisibility(View.VISIBLE);
   }
 
-  /** 입력칸 아래 빨간 안내예요. 메인 스레드에서 불러 주세요. */
+  /** 입력칸 아래 빨간 안내예요. */
   private void showError(String message) {
-    if (binding == null) return;
     binding.commentError.setText(message);
     binding.commentError.setVisibility(View.VISIBLE);
   }

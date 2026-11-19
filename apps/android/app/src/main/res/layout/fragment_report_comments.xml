@@ -60,14 +60,32 @@
       android:text="@string/comment_empty"
       android:visibility="gone" />
 
-    <TextView
-      android:id="@+id/comment_message"
-      style="@style/QletterText.Sm"
+    <!-- 실패·권한 없음 안내예요. 불러오기 실패일 때만 등록 버튼과 같은 모양의 다시 시도를 보여요. -->
+    <LinearLayout
+      android:id="@+id/comment_state"
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:gravity="center"
+      android:gravity="center_horizontal"
+      android:orientation="vertical"
       android:padding="16dp"
-      android:visibility="gone" />
+      android:visibility="gone">
+
+      <TextView
+        android:id="@+id/comment_message"
+        style="@style/QletterText.Sm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center" />
+
+      <Button
+        android:id="@+id/comment_retry"
+        style="@style/QletterButton.Default"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/collection_retry"
+        android:visibility="gone" />
+    </LinearLayout>
   </FrameLayout>
 
   <!-- 피그마 Signup Pill: 알약 입력칸 안 오른쪽에 등록 버튼 -->

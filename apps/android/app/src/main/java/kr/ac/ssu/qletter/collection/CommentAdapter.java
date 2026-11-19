@@ -1,6 +1,8 @@
 package kr.ac.ssu.qletter.collection;
 
+import android.content.Context;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -31,8 +33,9 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.ViewHold
     ViewHolder holder = new ViewHolder(binding);
     binding.commentDelete.setOnClickListener(
         view -> {
-          // TODO ④-1: 누른 순간의 위치를 다시 읽고(NO_POSITION이면 무시),
-          //  그 위치의 댓글을 deleteListener.onDeleteClick(...)으로 Fragment에 넘겨요.
+          int position = holder.getBindingAdapterPosition();
+          if (position == RecyclerView.NO_POSITION) return;
+          else deleteListener.onDeleteClick(items.get(position));
         });
     return holder;
   }
@@ -40,10 +43,17 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.ViewHold
   @Override
   public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
     Comment item = items.get(position);
-    // TODO ④-2: 작성자 닉네임(commentAuthor), 본문(commentBody)을 채워요.
-    // TODO ④-3: 시간(commentTime)은 CommentTime.label(context, item.getCreatedAtMillis())로 채워요.
-    // TODO ④-4: item.canDelete()가 true면 "내 댓글"(commentMine)과 "삭제"(commentDelete)를 VISIBLE,
-    //  아니면 둘 다 GONE으로 해요. (else를 빼먹으면 줄이 재사용될 때 남의 댓글에 삭제가 보여요.)
+    holder.binding.commentAuthor.setText(item.getAuthorNickname());
+    holder.binding.commentBody.setText(item.getBody());
+    Context context = holder.itemView.getContext();
+    holder.binding.commentTime.setText(CommentTime.label(context, item.getCreatedAtMillis()));
+    if (item.canDelete()) {
+      holder.binding.commentDelete.setVisibility(View.VISIBLE);
+      holder.binding.commentMine.setVisibility(View.VISIBLE);
+    } else {
+      holder.binding.commentDelete.setVisibility(View.GONE);
+      holder.binding.commentMine.setVisibility(View.GONE);
+    }
   }
 
   @Override

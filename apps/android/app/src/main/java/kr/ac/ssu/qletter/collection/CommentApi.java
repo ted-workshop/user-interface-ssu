@@ -47,7 +47,7 @@ final class CommentApi {
     this.resources = resources;
   }
 
-  /** 댓글을 오래된 순서로 최대 100개 불러와요. */
+  /** 최근 댓글 100개를 오래된 순서로 불러와요. */
   Call list(String reportId, Result<List<Comment>> result) {
     Request request =
         new Request.Builder()
@@ -102,7 +102,7 @@ final class CommentApi {
         new Callback() {
           @Override
           public void onFailure(Call call, IOException error) {
-            if (call.isCanceled()) return;
+            if (QletterApi.canceledByCaller(call, error)) return;
             result.onError(failureMessage(error));
           }
 
@@ -131,7 +131,8 @@ final class CommentApi {
   private static List<Comment> parseList(String json) throws JSONException {
     JSONArray items = new JSONObject(json).getJSONArray("items");
     List<Comment> comments = new ArrayList<>();
-    for (int i = 0; i < items.length(); i++) comments.add(toComment(items.getJSONObject(i)));
+    // 서버는 최신순으로 줘요. 피그마처럼 오래된 댓글이 위, 새 댓글이 아래에 오도록 뒤집어요.
+    for (int i = items.length() - 1; i >= 0; i--) comments.add(toComment(items.getJSONObject(i)));
     return comments;
   }
 

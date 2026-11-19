@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 61:265 리포트 상세 맨 아래 댓글 영역(빈 상태 61:329). 리포트 상세(#28) 안에 끼워 넣는 Fragment예요. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical">
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal">
+
+    <TextView
+      style="@style/QletterText.Subhead"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/comment_title" />
+
+    <TextView
+      android:id="@+id/comment_count"
+      style="@style/QletterText.Subhead"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="6dp"
+      android:textColor="@color/q_ink_muted"
+      tools:text="2" />
+  </LinearLayout>
+
+  <FrameLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="12dp">
+
+    <!-- 리포트 상세가 스크롤을 맡으니 목록은 자기 높이만큼만 그려요. -->
+    <androidx.recyclerview.widget.RecyclerView
+      android:id="@+id/comment_list"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:nestedScrollingEnabled="false" />
+
+    <ProgressBar
+      android:id="@+id/comment_loading"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_gravity="center"
+      android:visibility="gone" />
+
+    <!-- 피그마 Empty: 연회색 둥근 상자 안내 -->
+    <TextView
+      android:id="@+id/comment_empty"
+      style="@style/QletterText.Sm"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:background="@drawable/q_soft_box"
+      android:paddingStart="20dp"
+      android:paddingTop="16dp"
+      android:paddingEnd="20dp"
+      android:paddingBottom="16dp"
+      android:text="@string/comment_empty"
+      android:visibility="gone" />
+
+    <TextView
+      android:id="@+id/comment_message"
+      style="@style/QletterText.Sm"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:gravity="center"
+      android:padding="16dp"
+      android:visibility="gone" />
+  </FrameLayout>
+
+  <!-- 피그마 Signup Pill: 알약 입력칸 안 오른쪽에 등록 버튼 -->
+  <LinearLayout
+    android:id="@+id/comment_form"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="12dp"
+    android:background="@drawable/q_pill_input"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="18dp"
+    android:paddingEnd="5dp">
+
+    <EditText
+      android:id="@+id/comment_input"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:background="@null"
+      android:hint="@string/comment_hint"
+      android:importantForAutofill="no"
+      android:inputType="textMultiLine"
+      android:maxLength="2000"
+      android:maxLines="4"
+      android:minHeight="48dp"
+      android:textColor="@color/q_ink_strong"
+      android:textColorHint="@color/q_ink_muted"
+      android:textSize="17sp" />
+
+    <Button
+      android:id="@+id/comment_submit"
+      style="@style/QletterButton.Default"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/comment_submit" />
+  </LinearLayout>
+
+  <TextView
+    android:id="@+id/comment_error"
+    style="@style/QletterText.Xs"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:textColor="@color/q_state_danger"
+    android:visibility="gone" />
+
+  <TextView
+    android:id="@+id/comment_note"
+    style="@style/QletterText.Xs"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="12dp"
+    tools:text="찬형 닉네임으로 남겨요. 이메일은 보이지 않아요." />
+</LinearLayout>

@@ -42,16 +42,10 @@ public class CollectionsFragment extends Fragment {
         .setFragmentResultListener(
             CollectionNameSheet.REQUEST_KEY,
             this,
-            (key, result) -> {
-              // 저장 중에 화면이 돌아가 결과를 놓쳤으면 서버 목록을 다시 불러와요.
-              if (result.getBoolean(CollectionNameSheet.RESULT_RELOAD)) {
-                if (binding != null) loadCollections();
-                return;
-              }
-              applySaved(
-                  CollectionNameSheet.collectionFrom(result),
-                  result.getBoolean(CollectionNameSheet.RESULT_CREATED));
-            });
+            (key, result) ->
+                applySaved(
+                    CollectionNameSheet.collectionFrom(result),
+                    result.getBoolean(CollectionNameSheet.RESULT_CREATED)));
     getChildFragmentManager()
         .setFragmentResultListener(
             CollectionDeleteDialog.REQUEST_KEY,

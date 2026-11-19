@@ -80,12 +80,6 @@ public class CollectionDetailActivity extends AppCompatActivity {
             this,
             (key, result) -> {
               if (sessionChanged()) return;
-              // 저장 중 회전으로 결과를 놓쳤으면 목록 화면이 다시 불러오게만 알려요.
-              if (result.getBoolean(CollectionNameSheet.RESULT_RELOAD)) {
-                changed = true;
-                setResult(RESULT_OK);
-                return;
-              }
               collection = CollectionNameSheet.collectionFrom(result);
               changed = true;
               showHeader();

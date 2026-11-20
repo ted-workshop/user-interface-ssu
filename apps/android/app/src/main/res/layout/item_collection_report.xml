@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 Report Link: 썸네일 자리, 제목, 채널·날짜·출처·발송 상태 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:app="http://schemas.android.com/apk/res-auto"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:layout_marginBottom="4dp"
+  android:orientation="horizontal"
+  android:padding="8dp">
+
+  <View
+    android:layout_width="112dp"
+    android:layout_height="63dp"
+    android:background="@drawable/q_video_thumb" />
+
+  <LinearLayout
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="12dp"
+    android:layout_weight="1"
+    android:orientation="vertical">
+
+    <TextView
+      android:id="@+id/report_title"
+      style="@style/QletterText.SmStrong"
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:ellipsize="end"
+      android:maxLines="2"
+      tools:text="왜 앱의 80%가 사라진다고 말하는가" />
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="4dp"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/report_channel"
+        style="@style/QletterText.Xs"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        tools:text="@ycombinator · 오늘" />
+
+      <TextView
+        android:id="@+id/report_origin"
+        style="@style/QletterText.Xs"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:maxLines="1"
+        tools:text="직접 요약" />
+
+      <TextView
+        android:id="@+id/report_delivery_failed"
+        style="@style/QletterText.Xs"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        app:drawableStartCompat="@drawable/q_status_dot_danger"
+        android:drawablePadding="6dp"
+        android:maxLines="1"
+        android:text="@string/report_delivery_failed"
+        android:textColor="@color/q_state_danger"
+        android:visibility="gone" />
+    </LinearLayout>
+  </LinearLayout>
+</LinearLayout>

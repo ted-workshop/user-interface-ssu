@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 61:132 확인창: 제목, 설명, 오른쪽 취소·확인 버튼 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical"
+  android:padding="24dp">
+
+  <TextView
+    android:id="@+id/confirm_title"
+    style="@style/QletterText.Subhead"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    tools:text="이 모음을 삭제할까요?" />
+
+  <TextView
+    android:id="@+id/confirm_message"
+    style="@style/QletterText.Sm"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    tools:text="AI 공부 모음을 지워요. 안에 있던 리포트는 내 리포트에 그대로 남아요." />
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="20dp"
+    android:gravity="end"
+    android:orientation="horizontal">
+
+    <Button
+      android:id="@+id/confirm_cancel"
+      style="@style/QletterButton.Default"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/collection_cancel" />
+
+    <Button
+      android:id="@+id/confirm_ok"
+      style="@style/QletterButton.Primary"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="8dp"
+      tools:text="삭제하기" />
+  </LinearLayout>
+</LinearLayout>

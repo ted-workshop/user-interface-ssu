@@ -8,13 +8,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.mockwebserver.Dispatcher;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -175,5 +178,54 @@ public class QletterApiTest {
   public void 화면이_직접_취소한_요청은_취소로_봐요() throws Exception {
     server.enqueue(new MockResponse().setHeadersDelay(3, TimeUnit.SECONDS));
     assertTrue(failAndCheck(new OkHttpClient(), true));
+  }
+
+  @Test
+  public void 서버가_닫은_연결을_다시_쓰다_실패하면_새_연결로_보내요() throws Exception {
+    server.enqueue(
+        new MockResponse().setResponseCode(200).setSocketPolicy(SocketPolicy.DISCONNECT_AT_END));
+    server.enqueue(new MockResponse().setResponseCode(200));
+    try (Response response = request().execute()) {
+      assertEquals(200, response.code());
+    }
+    try (Response response = request().execute()) {
+      assertEquals(200, response.code());
+    }
+    assertEquals(2, server.getRequestCount());
+  }
+
+  @Test
+  public void 서버가_저장_요청을_받은_뒤_연결을_끊어도_다시_보내지_않아요() throws Exception {
+    server.enqueue(new MockResponse().setResponseCode(200));
+    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST));
+    server.enqueue(new MockResponse().setResponseCode(201));
+    try (Response response = request().execute()) {
+      assertEquals(200, response.code());
+    }
+    Call save =
+        api.newCall(
+            new Request.Builder()
+                .url(api.endpoint("collections").build())
+                .post(RequestBody.create("{}", MediaType.get("application/json")))
+                .build());
+    assertThrows(IOException.class, save::execute);
+    assertEquals(2, server.getRequestCount());
+  }
+
+  @Test
+  public void 첫_조회_중_세션이_바뀌면_이전_토큰으로_다시_보내지_않아요() throws Exception {
+    Session replacement = new Session("next-test-token", Long.MAX_VALUE);
+    server.setDispatcher(
+        new Dispatcher() {
+          @Override
+          public MockResponse dispatch(RecordedRequest request) {
+            // 첫 요청을 받는 사이에 계정이 바뀌고, 서버는 응답 없이 연결을 끊어요.
+            active = replacement;
+            return new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AFTER_REQUEST);
+          }
+        });
+    IOException error = assertThrows(IOException.class, () -> request().execute());
+    assertEquals("세션이 변경됐어요.", error.getMessage());
+    assertEquals(1, server.getRequestCount());
   }
 }

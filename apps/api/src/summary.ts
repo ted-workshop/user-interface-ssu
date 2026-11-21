@@ -108,8 +108,22 @@ export async function generateReport(
             ],
             store: false,
           },
-          // SDK 자동 재시도는 무료 한도를 한 번에 최대 5회 쓰고, 503 뒤 미실행을 확인할 수 없게 해요.
-          { signal, retries: { strategy: "none" } },
+          {
+            signal,
+            // 503만 같은 실행에서 지수 backoff로 두 번 더 시도해요.
+            // 429·연결 오류·시간 초과는 할당량과 중복 실행 위험 때문에 재시도하지 않아요.
+            retries: {
+              strategy: "attempt-count-backoff",
+              maxRetries: 2,
+              backoff: {
+                initialInterval: 1_000,
+                exponent: 2,
+                maxInterval: 8_000,
+              },
+              retryConnectionErrors: false,
+            },
+            retry_codes: ["503"],
+          },
         ),
       settings.timeoutMs,
     );

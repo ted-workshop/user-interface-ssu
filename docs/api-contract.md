@@ -187,7 +187,8 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | `provider_outcome_unknown` | 분석 timeout·연결 종료·알 수 없는 공급자 실패로 실행 여부가 불명확해요. retryable=false예요. |
 | `invalid_input`, `permanent` | 메일 입력·영구 거부. 주소·정책을 확인하고 자동 재발송하지 않아요. |
 | `ambiguous` | SMTP 접수 여부 불명. 증거 확인 전 retryable=false예요. |
-| `channel_inactive`, `recipient_inactive`, `access_revoked` | 현재 자동화·수신 설정 때문에 발송을 취소했어요. retryable=false예요. |
+| `channel_inactive` | 채널 중지·삭제로 대기 요약을 실패 처리하거나 대기 발송을 취소했어요. retryable=false예요. |
+| `recipient_inactive`, `access_revoked` | 현재 수신 설정·열람 권한 때문에 발송을 취소했어요. retryable=false예요. |
 
 ## 채널·수신 설정·발송: F-05~F-09
 
@@ -268,9 +269,16 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 - 활성 채널과 확인된 수신 주소가 모두 있을 때만 자동화를 시작해요. 주소 추가 시 자동으로 동의하지 않은
   이전 리포트를 보내지 않아요. 채널 결과가 저장되는 시점의 확인된 주소 목록을 발송 대상으로 고정해요.
   같은 `(reportId, recipientId)`는 한 번만 만들어요. 삭제 후 같은 주소를 재추가해도 과거 발송을 재생성하지 않아요.
+- 마지막 확인 주소 삭제 뒤 이미 접수한 채널 요약은 `queued`로 보류해요. 본인의 주소를 다시 확인하고
+  원래 구독이 활성 상태이면 같은 작업을 실행할 수 있어요. 주소 추가만으로 또는 타 계정의 주소 확인으로
+  재개하지 않아요. 확인 주소가 하나라도 남아 있으면 실행할 수 있어요.
+  다른 사용자의 실행 가능한 요청이 공통 분석을 완료하면 보류 요청도 결과·개인 열람 권한을 받지만,
+  저장 당시 확인 주소가 없는 사용자에게는 발송 행을 만들지 않으며 나중에 확인해도 소급 발송하지 않아요.
+  상세 경계는 [ADR-0040](decisions/0040-pending-channel-summary-policy.md)에 있어요.
 - 중지·삭제는 신규 확인과 대기/실패 발송 재시도를 멈춰요. 시작한 분석은 결과를 보관할 수 있지만
   발송 전 상태를 다시 확인해요. 이미 SMTP가 접수한 메시지를 회수할 수 있다고 보장하지 않아요.
   삭제는 DB tombstone이며 기존 리포트·시도·발송 이력을 보존해요.
+  채널 중지·삭제 당시 대기 요약은 `failed / channel_inactive`이고, 구독 재개·재등록으로 자동 재개하지 않아요.
 - 발송 상태는 `queued → sending → sent | failed | ambiguous`, 미발송 중단은 `cancelled`예요.
   `sent`는 SMTP 접수이며 받은편지함 도착·열람이 아니에요. 같은 UUID에서 만든 Message-ID도
   공급자의 중복 제거를 보장하지 않아요. `ambiguous`는 자동 재시도·새 ID 우회 발송을 막고

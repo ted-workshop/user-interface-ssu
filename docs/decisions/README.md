@@ -47,6 +47,7 @@
 | [ADR-0036](0036-null-provider-fields.md) | 공급자 응답의 누락 필드는 null로 저장해요 | 확정 | 2026-11-10 |
 | [ADR-0037](0037-channel-report-delivery.md) | 채널 리포트 발송 행을 리포트 저장과 함께 만들고 주소별로 재시도해요 | 확정 | 2026-11-13 |
 | [ADR-0039](0039-android-feature-packages.md) | Android 코드를 기능별 패키지로 나눠요 | 확정 | 2026-11-16 |
+| [ADR-0040](0040-pending-channel-summary-policy.md) | 수신 주소가 없는 대기 요약은 재확인까지 보류해요 | 확정 | 2026-11-21 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

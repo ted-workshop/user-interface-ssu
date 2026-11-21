@@ -83,3 +83,5 @@
 - 2026-11-08: WSL에서 Google API를 직접 호출해 `@GoogleDevelopers`의 채널 ID·제목과 존재하지 않는 핸들의 빈 응답을 확인했어요. 실제 Gmail 코드로 가입·수신 주소 인증이 각각 204였고, 수신 주소의 확인 시각과 코드 재사용 거절(`400 INVALID_TOKEN`)을 확인했어요.
 - 같은 날 로그인은 201이었지만 로컬 Worker의 채널 미리보기는 503이었어요. [Workers Request 문서](https://developers.cloudflare.com/workers/runtime-apis/request/#constructor)와 고정한 workerd 1.20261019.1 소스에서 `redirect: "error"`가 요청 생성 시 예외를 내는 것을 확인했어요. `manual`을 지정하고 기존 HTTP 상태 검사로 3xx를 거부해요. 회귀 테스트는 실제 런타임의 Request 생성과 302 응답 처리를 검사해요.
 - 수정 후 사용자 WSL의 로컬 Worker에서 로그인 201, 실제 채널 미리보기 200, 없는 핸들 400 INVALID_INPUT, 구독 등록 201, 목록 조회 200, 중복 등록 409 CHANNEL_EXISTS, 일시중지·재개 각 200, 삭제 204, 삭제 후 목록 확인 200, 세션 종료 204를 확인했어요. 저장소 스크립트 테스트 51개도 통과했어요.
+- 2026-11-21: PR #46에 남았던 마지막 주소 삭제 후 대기 요약 정책을 [ADR-0040](0040-pending-channel-summary-policy.md)에 확정했어요.
+  주소 재확인·계정 격리·채널 중지/삭제·공통 결과 완료·취소 발송 보존을 연결하는 회귀 검사 7개와 전체 API 검사가 통과했어요.

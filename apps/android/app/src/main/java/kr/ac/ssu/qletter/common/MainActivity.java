@@ -11,6 +11,7 @@ import androidx.fragment.app.Fragment;
 import java.io.IOException;
 import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.databinding.ActivityMainBinding;
+import kr.ac.ssu.qletter.report.ReportsTabFragment;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Request;
@@ -112,10 +113,12 @@ public class MainActivity extends AppCompatActivity {
     String tag = getResources().getResourceEntryName(id);
     Fragment current = getSupportFragmentManager().findFragmentById(R.id.tab_content);
     if (!refresh && current != null && tag.equals(current.getTag())) return;
+    Fragment screen = id == R.id.tab_reports ? new ReportsTabFragment() : TabFragment.create(id);
     getSupportFragmentManager()
         .beginTransaction()
         .setReorderingAllowed(true)
-        .replace(R.id.tab_content, TabFragment.create(id), tag)
+        .replace(R.id.tab_content, screen, tag)
+        .setPrimaryNavigationFragment(screen)
         .commitNow();
   }
 }

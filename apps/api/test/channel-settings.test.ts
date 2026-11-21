@@ -5,8 +5,13 @@ import { createApp } from "../src/app";
 import { sha256Hex } from "../src/auth";
 import { runAuthMail } from "../src/auth-mail";
 import type { EmailMessage } from "../src/email";
-import { enqueueAnalysis } from "../src/jobs/analysis";
-import { enqueueDelivery } from "../src/jobs/delivery";
+import {
+  claimAnalysis,
+  completeAnalysis,
+  enqueueAnalysis,
+  markAnalysisDispatched,
+} from "../src/jobs/analysis";
+import { claimDelivery, enqueueDelivery } from "../src/jobs/delivery";
 import { runBackgroundJobs } from "../src/jobs/runner";
 
 const now = 1_800_000_000;
@@ -131,6 +136,260 @@ async function mailCode() {
     message: messages[0],
   };
 }
+
+async function verifyRecipient(id: string, secret = token) {
+  expect(
+    (await call("POST", `/recipients/${id}/verifications`, undefined, secret))
+      .status,
+  ).toBe(202);
+  const code = await mailCode();
+  expect(
+    (
+      await call(
+        "POST",
+        "/recipient-verifications/confirm",
+        { token: code.token },
+        secret,
+      )
+    ).status,
+  ).toBe(204);
+}
+
+async function queueChannelSummary() {
+  const channel = await addChannel();
+  const recipient = await addRecipient();
+  await sql(
+    "UPDATE recipients SET verified_at = ? WHERE id = ?",
+    clock,
+    recipient.id,
+  ).run();
+  const videoId = "jNQXAC9IVRw";
+  await env.DB.batch([
+    sql(
+      "INSERT INTO videos (id,channel_id) SELECT ?, channel_id FROM channel_subscriptions WHERE id = ?",
+      videoId,
+      channel.id,
+    ),
+    sql(
+      "UPDATE channel_subscriptions SET baseline_initialized_at = ? WHERE id = ?",
+      clock - 1,
+      channel.id,
+    ),
+    sql(
+      "INSERT INTO subscription_videos (subscription_id,video_id,is_baseline) VALUES (?,?,0)",
+      channel.id,
+      videoId,
+    ),
+  ]);
+  const request = await enqueueAnalysis(
+    env.DB,
+    {
+      userId: owner,
+      url: `https://youtu.be/${videoId}`,
+      model: "gemini-3.6-flash",
+      subscriptionId: channel.id,
+    },
+    clock,
+  );
+  expect(request).toMatchObject({ status: "queued", attempt: 0 });
+  return { channel, recipient, request };
+}
+
+async function completeNextAnalysis() {
+  const claim = await claimAnalysis(env.DB, clock);
+  if (!claim) throw new Error("실행할 분석 작업이 없어요.");
+  expect(await markAnalysisDispatched(env.DB, claim, clock)).toBe(true);
+  expect(
+    await completeAnalysis(
+      env.DB,
+      claim,
+      {
+        title: "검사 영상",
+        channel: "검사 채널",
+        channelUrl: null,
+        markdown: "보존할 리포트",
+        model: "gemini-3.6-flash",
+        interactionId: "fixture",
+        usage: null,
+      },
+      clock,
+    ),
+  ).toBe(true);
+}
+
+test.each(["receiver@example.com", "replacement@example.com"])(
+  "마지막 주소 삭제 후 %s를 확인해야 대기 요약을 한 번 실행해요",
+  async (address) => {
+    const { recipient, request } = await queueChannelSummary();
+    expect((await call("DELETE", `/recipients/${recipient.id}`)).status).toBe(
+      204,
+    );
+    const another = await addRecipient("other@example.com", otherToken);
+    await verifyRecipient(another.id, otherToken);
+    expect(await claimAnalysis(env.DB, clock)).toBeNull();
+    clock += 60;
+    const replacement = await addRecipient(address);
+    expect(replacement.id).not.toBe(recipient.id);
+    expect(await claimAnalysis(env.DB, clock)).toBeNull();
+    expect(
+      await (await call("GET", `/summary-requests/${request.id}`)).json(),
+    ).toMatchObject({ status: "queued", attempt: 0, failureCode: null });
+    expect(
+      (
+        await call(
+          "GET",
+          `/summary-requests/${request.id}`,
+          undefined,
+          otherToken,
+        )
+      ).status,
+    ).toBe(404);
+    await verifyRecipient(replacement.id);
+    await completeNextAnalysis();
+    expect(
+      await (await call("GET", `/summary-requests/${request.id}`)).json(),
+    ).toMatchObject({ status: "completed", attempt: 1 });
+    expect(
+      (await sql("SELECT user_id, recipient_id, status FROM deliveries").all())
+        .results,
+    ).toEqual([
+      { user_id: owner, recipient_id: replacement.id, status: "queued" },
+    ]);
+    expect(await claimAnalysis(env.DB, clock)).toBeNull();
+    expect(
+      await sql("SELECT count(*) AS n FROM analysis_jobs").first("n"),
+    ).toBe(1);
+    expect(
+      await sql("SELECT count(*) AS n FROM analysis_attempts").first("n"),
+    ).toBe(1);
+  },
+);
+
+test("확인된 주소가 하나 남으면 삭제한 주소를 제외하고 대기 요약을 실행해요", async () => {
+  const { recipient } = await queueChannelSummary();
+  const remaining = await addRecipient("remaining@example.com");
+  await verifyRecipient(remaining.id);
+  expect((await call("DELETE", `/recipients/${recipient.id}`)).status).toBe(
+    204,
+  );
+  await completeNextAnalysis();
+  expect(
+    (await sql("SELECT recipient_id FROM deliveries").all()).results,
+  ).toEqual([{ recipient_id: remaining.id }]);
+});
+
+test.each(["paused", "deleted"])(
+  "수신 주소를 다시 확인해도 %s 구독의 대기 요약을 실행하지 않아요",
+  async (status) => {
+    const { channel, recipient, request } = await queueChannelSummary();
+    expect((await call("DELETE", `/recipients/${recipient.id}`)).status).toBe(
+      204,
+    );
+    if (status === "paused") {
+      expect(
+        (await call("PATCH", `/channels/${channel.id}`, { status })).status,
+      ).toBe(200);
+    } else {
+      expect((await call("DELETE", `/channels/${channel.id}`)).status).toBe(
+        204,
+      );
+      expect((await addChannel()).id).not.toBe(channel.id);
+    }
+    const replacement = await addRecipient();
+    await verifyRecipient(replacement.id);
+    expect(await claimAnalysis(env.DB, clock)).toBeNull();
+    expect(
+      await (await call("GET", `/summary-requests/${request.id}`)).json(),
+    ).toMatchObject({
+      status: "failed",
+      failureCode: "channel_inactive",
+      attempt: 0,
+      retryable: false,
+    });
+    if (status === "paused") {
+      expect(
+        (await call("PATCH", `/channels/${channel.id}`, { status: "active" }))
+          .status,
+      ).toBe(200);
+      expect(await claimAnalysis(env.DB, clock)).toBeNull();
+      expect(
+        await (await call("GET", `/summary-requests/${request.id}`)).json(),
+      ).toMatchObject({ status: "failed", failureCode: "channel_inactive" });
+    }
+    expect(
+      await sql("SELECT count(*) AS n FROM analysis_attempts").first("n"),
+    ).toBe(0);
+    expect(await sql("SELECT count(*) AS n FROM deliveries").first("n")).toBe(
+      0,
+    );
+  },
+);
+
+test("다른 계정의 직접 요약으로 공통 결과가 생겨도 주소 재확인 뒤 소급 발송하지 않아요", async () => {
+  const { recipient, request } = await queueChannelSummary();
+  expect((await call("DELETE", `/recipients/${recipient.id}`)).status).toBe(
+    204,
+  );
+  const direct = await enqueueAnalysis(
+    env.DB,
+    {
+      userId: other,
+      url: "https://youtu.be/jNQXAC9IVRw",
+      model: "gemini-3.6-flash",
+    },
+    clock,
+  );
+  await completeNextAnalysis();
+  const completed = await (
+    await call("GET", `/summary-requests/${request.id}`)
+  ).json<{ status: string; reportId: string }>();
+  expect(completed.status).toBe("completed");
+  expect(
+    await (
+      await call("GET", `/summary-requests/${direct.id}`, undefined, otherToken)
+    ).json(),
+  ).toMatchObject({ status: "completed", reportId: completed.reportId });
+  expect(await sql("SELECT count(*) AS n FROM deliveries").first("n")).toBe(0);
+  clock += 60;
+  const replacement = await addRecipient();
+  await verifyRecipient(replacement.id);
+  expect((await call("GET", `/reports/${completed.reportId}`)).status).toBe(
+    200,
+  );
+  expect(await claimAnalysis(env.DB, clock)).toBeNull();
+  expect(await claimDelivery(env.DB, clock)).toBeNull();
+  expect(await sql("SELECT count(*) AS n FROM deliveries").first("n")).toBe(0);
+  expect(await sql("SELECT count(*) AS n FROM reports").first("n")).toBe(1);
+});
+
+test("완료한 리포트의 취소 발송은 같은 주소를 다시 확인해도 되살리지 않아요", async () => {
+  const { recipient, request } = await queueChannelSummary();
+  await completeNextAnalysis();
+  expect((await call("DELETE", `/recipients/${recipient.id}`)).status).toBe(
+    204,
+  );
+  clock += 60;
+  const replacement = await addRecipient();
+  await verifyRecipient(replacement.id);
+  expect(await claimDelivery(env.DB, clock)).toBeNull();
+  expect(await claimAnalysis(env.DB, clock)).toBeNull();
+  expect(
+    (
+      await sql(
+        "SELECT recipient_id, status, failure_code FROM deliveries",
+      ).all()
+    ).results,
+  ).toEqual([
+    {
+      recipient_id: recipient.id,
+      status: "cancelled",
+      failure_code: "recipient_inactive",
+    },
+  ]);
+  expect(
+    await (await call("GET", `/summary-requests/${request.id}`)).json(),
+  ).toMatchObject({ status: "completed", attempt: 1 });
+});
 
 test("확인 메일은 로그인 주소 대신 수신 주소로 보내고 소유자만 한 번 확인해요", async () => {
   const recipient = await addRecipient();

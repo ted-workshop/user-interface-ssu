@@ -116,9 +116,9 @@ export async function generateReport(
               strategy: "attempt-count-backoff",
               maxRetries: 2,
               backoff: {
-                initialInterval: 1_000,
+                initialInterval: 5_000,
                 exponent: 2,
-                maxInterval: 8_000,
+                maxInterval: 10_000,
               },
               retryConnectionErrors: false,
             },

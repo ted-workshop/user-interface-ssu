@@ -30,7 +30,7 @@ GitHub 설정을 바꾼 뒤의 실제 Worker 반영은 별도 수동 배포가 �
 ## 2026-11-22 503 한정 지수 backoff
 
 ADR-0032의 단일 호출을 [ADR-0041](decisions/0041-gemini-503-backoff.md)로 대체했어요.
-`interactions.create`는 503에만 1초·2초 간격으로 최대 두 번 더 호출하고,
+`interactions.create`는 503에만 5초·10초 간격으로 최대 두 번 더 호출하고,
 429·500·502·504·연결 오류·시간 초과는 다시 보내지 않아요.
 배포된 Worker에서의 재시도 성공률과 Gemini 한도 소비는 아직 확인하지 않았어요.
 
@@ -293,7 +293,7 @@ mise exec -- bun run --cwd apps/api summary 'https://www.youtube.com/watch?v=jNQ
 모델은 명시한 값으로 고정하고 `gemini-3.5-flash-lite`·`gemini-3.6-flash`·`gemini-3.7-flash`만 받아요.
 기본 시간 제한은 600초이며 허용 범위는 1~600초예요.
 Interactions의 Agentic 영상 처리를 사용하며 출력 상한·temperature·thinking 옵션은 명시하지 않아요.
-2026-11-22부터 503만 1초·2초 지수 backoff로 최대 두 번 더 호출해요([ADR-0041](decisions/0041-gemini-503-backoff.md)).
+2026-11-22부터 503만 5초·10초 지수 backoff로 최대 두 번 더 호출해요([ADR-0041](decisions/0041-gemini-503-backoff.md)).
 429·500·502·504·연결 오류·시간 초과는 재시도하지 않아요. 이전 기록의 재시도 횟수는 당시 설정 기준이에요.
 다른 모델·API 경로로 자동 전환하지 않아요.
 시점이 붙은 입력도 영상 전체를 처리해요.

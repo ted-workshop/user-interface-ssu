@@ -111,7 +111,7 @@ export async function generateReport(
           {
             signal,
             // 503만 같은 실행에서 지수 backoff로 두 번 더 시도해요.
-            // 429·연결 오류·시간 초과는 할당량과 중복 실행 위험 때문에 재시도하지 않아요.
+            // 429·다른 5xx·연결 오류·시간 초과는 할당량과 중복 실행 위험 때문에 재시도하지 않아요.
             retries: {
               strategy: "attempt-count-backoff",
               maxRetries: 2,

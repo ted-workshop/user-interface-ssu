@@ -500,7 +500,7 @@ describe("공식 SDK의 영상 리포트 생성", () => {
     [404, "provider_rejected"],
     [403, "configuration"],
   ])(
-    "HTTP %i는 SDK가 다시 보내지 않고 %s로 기록해요",
+    "HTTP %i는 %s로 기록하고 503만 지수 backoff로 다시 보내요",
     async (status, reason) => {
       network.mockResolvedValue(
         Response.json(
@@ -518,7 +518,7 @@ describe("공식 SDK의 영상 리포트 생성", () => {
       expect(error).toMatchObject({ reason, httpStatus: status });
       expect(String(error)).not.toContain("private");
       expect(JSON.stringify(error)).not.toContain(settings.apiKey);
-      expect(network).toHaveBeenCalledTimes(1);
+      expect(network).toHaveBeenCalledTimes(status === 503 ? 3 : 1);
       const [call] = network.mock.calls;
       if (!call) throw new Error("SDK 요청을 확인하지 못했어요.");
       expect(await new Request(...call).json()).toMatchObject({
@@ -623,16 +623,31 @@ describe("리포트 생성 설정과 시간 링크", () => {
     },
   );
 
-  test("일시 오류 뒤 다음 응답이 성공이어도 SDK가 같은 요청을 다시 보내지 않아요", async () => {
+  test("503은 지수 backoff로 다시 보내고 다음 성공 응답을 사용해요", async () => {
     vi.useFakeTimers();
+    const unavailable = () =>
+      Response.json(
+        { error: { code: 503, message: "fixture failure" } },
+        { status: 503 },
+      );
     network
-      .mockResolvedValueOnce(
-        Response.json(
-          { error: { code: 503, message: "fixture failure" } },
-          { status: 503 },
-        ),
-      )
+      .mockResolvedValueOnce(unavailable())
+      .mockResolvedValueOnce(unavailable())
       .mockResolvedValue(interaction());
+    const pending = generateReport({ ...settings, timeoutMs: 60_000 }, video);
+    await vi.runAllTimersAsync();
+    expect((await pending).markdown).toContain("## 3줄 요약");
+    expect(network).toHaveBeenCalledTimes(3);
+  });
+
+  test("503이 세 번 이어지면 마지막 응답을 temporary로 반환해요", async () => {
+    vi.useFakeTimers();
+    network.mockResolvedValue(
+      Response.json(
+        { error: { code: 503, message: "fixture failure" } },
+        { status: 503 },
+      ),
+    );
     const pending = generateReport(
       { ...settings, timeoutMs: 60_000 },
       video,
@@ -641,6 +656,20 @@ describe("리포트 생성 설정과 시간 링크", () => {
     expect(await pending).toMatchObject({
       reason: "temporary",
       httpStatus: 503,
+    });
+    expect(network).toHaveBeenCalledTimes(3);
+  });
+
+  test("429는 할당량을 더 쓰지 않도록 다시 보내지 않아요", async () => {
+    network.mockResolvedValue(
+      Response.json(
+        { error: { code: 429, message: "fixture quota" } },
+        { status: 429 },
+      ),
+    );
+    await expect(generateReport(settings, video)).rejects.toMatchObject({
+      reason: "quota",
+      httpStatus: 429,
     });
     expect(network).toHaveBeenCalledTimes(1);
   });

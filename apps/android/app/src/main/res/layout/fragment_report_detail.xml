@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:orientation="vertical"
+  android:paddingStart="16dp"
+  android:paddingEnd="16dp">
+
+  <Button
+    android:id="@+id/report_back"
+    style="@style/QletterButton.Default"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:text="@string/report_back" />
+
+  <ProgressBar
+    android:id="@+id/detail_loading"
+    style="?android:attr/progressBarStyleHorizontal"
+    android:layout_width="match_parent"
+    android:layout_height="4dp"
+    android:indeterminate="true"
+    android:contentDescription="@string/report_loading"
+    android:visibility="gone" />
+
+  <TextView
+    android:id="@+id/detail_message"
+    style="@style/QletterText.Sm"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:accessibilityLiveRegion="polite"
+    android:visibility="gone"
+    android:paddingTop="16dp"
+    android:paddingBottom="16dp" />
+
+  <Button
+    android:id="@+id/detail_retry"
+    style="@style/QletterButton.Default"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="@string/report_retry"
+    android:visibility="gone" />
+
+  <androidx.core.widget.NestedScrollView
+    android:id="@+id/detail_content"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:fillViewport="true"
+    android:visibility="gone">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical"
+      android:paddingBottom="24dp">
+
+      <TextView
+        android:id="@+id/detail_title"
+        style="@style/QletterText.Title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp" />
+
+      <TextView
+        android:id="@+id/detail_metadata"
+        style="@style/QletterText.Xs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" />
+
+      <Button
+        android:id="@+id/detail_video"
+        style="@style/QletterButton.Default"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/report_video" />
+
+      <TextView
+        android:id="@+id/detail_verification"
+        style="@style/QletterText.Sm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/q_soft_box"
+        android:padding="12dp" />
+
+      <TextView
+        android:id="@+id/detail_body"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:textColor="@color/q_ink_default"
+        android:textColorLink="@color/q_ink_strong"
+        android:textSize="16sp"
+        android:lineSpacingExtra="6sp" />
+    </LinearLayout>
+  </androidx.core.widget.NestedScrollView>
+</LinearLayout>

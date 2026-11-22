@@ -12,6 +12,7 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
+import kr.ac.ssu.qletter.common.LocalNetworkPermission;
 
 public final class ConnectionActivity extends AppCompatActivity {
   @Override
@@ -19,6 +20,7 @@ public final class ConnectionActivity extends AppCompatActivity {
     super.onCreate(savedInstanceState);
     EdgeToEdge.enable(this);
     setContentView(R.layout.activity_connection);
+    LocalNetworkPermission.request(this);
     ViewCompat.setOnApplyWindowInsetsListener(
         findViewById(R.id.connection_root),
         (view, insets) -> {

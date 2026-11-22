@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/code_title"
+        style="@style/QletterText.Subhead"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/account_code_title" />
+
+    <TextView
+        android:id="@+id/code_message"
+        style="@style/QletterText.Sm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        tools:text="reader@example.com로 보낸 코드를 입력해 주세요." />
+
+    <EditText
+        android:id="@+id/code_input"
+        style="@style/QletterInput"
+        android:saveEnabled="false"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:autofillHints="oneTimeCode"
+        android:hint="@string/account_code_hint"
+        android:imeOptions="actionDone"
+        android:inputType="text" />
+
+    <TextView
+        android:id="@+id/code_message_state"
+        style="@style/QletterText.Notice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:visibility="gone"
+        tools:text="코드를 다시 보냈어요." />
+
+    <TextView
+        android:id="@+id/code_error"
+        style="@style/QletterText.Error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:visibility="gone"
+        tools:text="코드가 맞지 않거나 만료됐어요." />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/code_resend"
+            style="@style/QletterText.Link"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:minHeight="48dp"
+            android:gravity="center_vertical"
+            android:text="@string/account_code_resend" />
+
+        <Button
+            android:id="@+id/code_cancel"
+            style="@style/QletterButton.Default"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/common_cancel" />
+
+        <Button
+            android:id="@+id/code_confirm"
+            style="@style/QletterButton.Primary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/account_code_confirm" />
+    </LinearLayout>
+</LinearLayout>

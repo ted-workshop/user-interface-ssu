@@ -1,5 +1,6 @@
 package kr.ac.ssu.qletter.common;
 
+import android.content.Intent;
 import android.os.Bundle;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
@@ -10,23 +11,31 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import java.io.IOException;
 import kr.ac.ssu.qletter.R;
+import kr.ac.ssu.qletter.account.AccountFragment;
+import kr.ac.ssu.qletter.auth.AuthActivity;
+import kr.ac.ssu.qletter.channel.ChannelsFragment;
 import kr.ac.ssu.qletter.databinding.ActivityMainBinding;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Request;
 import okhttp3.Response;
 
+/** 로그인한 사용자의 홈·탭 화면이에요. 세션이 없으면 인증 화면으로 돌려보내요. */
 public class MainActivity extends AppCompatActivity {
-  private Session observed;
-  private boolean observedInitialSession;
+  private boolean openingAuth;
   private Call validation;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    if (!app().sessions().isSignedIn()) {
+      openAuth();
+      return;
+    }
     EdgeToEdge.enable(this);
     ActivityMainBinding binding = ActivityMainBinding.inflate(getLayoutInflater());
     setContentView(binding.getRoot());
+    LocalNetworkPermission.request(this);
     WindowInsetsControllerCompat bars =
         new WindowInsetsControllerCompat(getWindow(), binding.getRoot());
     bars.setAppearanceLightStatusBars(true);
@@ -46,29 +55,18 @@ public class MainActivity extends AppCompatActivity {
         });
     binding.tabs.setOnItemSelectedListener(
         item -> {
-          showTab(item.getItemId(), false);
+          showTab(item.getItemId());
           return true;
         });
-    if (savedInstanceState == null) showTab(R.id.tab_home, false);
-    SessionStore sessions = app().sessions();
-    observed = sessions.snapshot();
-    observedInitialSession = sessions.changes().getValue() != null;
-    sessions
+    if (savedInstanceState == null) showTab(R.id.tab_home);
+    app()
+        .sessions()
         .changes()
         .observe(
             this,
             ignored -> {
-              Session next = sessions.snapshot();
-              if (!observedInitialSession) {
-                observedInitialSession = true;
-                observed = next;
-                if (next != null) verifySession();
-              } else if (next != observed) {
-                observed = next;
-                if (binding.tabs.getSelectedItemId() == R.id.tab_home) showTab(R.id.tab_home, true);
-                else binding.tabs.setSelectedItemId(R.id.tab_home);
-                verifySession();
-              }
+              if (!app().sessions().isSignedIn()) openAuth();
+              else verifySession();
             });
   }
 
@@ -79,6 +77,11 @@ public class MainActivity extends AppCompatActivity {
   @Override
   protected void onStart() {
     super.onStart();
+    if (openingAuth) return;
+    if (!app().sessions().isSignedIn()) {
+      openAuth();
+      return;
+    }
     app().sessions().refreshExpiryAsync();
     verifySession();
   }
@@ -87,6 +90,14 @@ public class MainActivity extends AppCompatActivity {
   protected void onStop() {
     if (validation != null) validation.cancel();
     super.onStop();
+  }
+
+  /** 만료·로그아웃·현재 세션의 401이면 로그인 화면으로 돌아가 이전 계정 화면을 남기지 않아요. */
+  private void openAuth() {
+    if (openingAuth) return;
+    openingAuth = true;
+    startActivity(new Intent(this, AuthActivity.class));
+    finish();
   }
 
   private void verifySession() {
@@ -108,14 +119,18 @@ public class MainActivity extends AppCompatActivity {
         });
   }
 
-  private void showTab(int id, boolean refresh) {
+  private void showTab(int id) {
     String tag = getResources().getResourceEntryName(id);
     Fragment current = getSupportFragmentManager().findFragmentById(R.id.tab_content);
-    if (!refresh && current != null && tag.equals(current.getTag())) return;
+    if (current != null && tag.equals(current.getTag())) return;
+    Fragment next;
+    if (id == R.id.tab_channels) next = new ChannelsFragment();
+    else if (id == R.id.tab_account) next = new AccountFragment();
+    else next = TabFragment.create(id);
     getSupportFragmentManager()
         .beginTransaction()
         .setReorderingAllowed(true)
-        .replace(R.id.tab_content, TabFragment.create(id), tag)
+        .replace(R.id.tab_content, next, tag)
         .commitNow();
   }
 }

@@ -1,8 +1,13 @@
 package kr.ac.ssu.qletter.collection;
 
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
 import androidx.annotation.NonNull;
+import androidx.core.view.AccessibilityDelegateCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
 import kr.ac.ssu.qletter.R;
@@ -11,6 +16,9 @@ import kr.ac.ssu.qletter.databinding.ItemCollectionCheckBinding;
 /** 모음에 담기 시트의 체크 목록이에요. 줄을 누르면 그 모음의 체크를 바꿔요. */
 public class CollectionCheckAdapter
     extends RecyclerView.Adapter<CollectionCheckAdapter.ViewHolder> {
+  // payload가 있으면 같은 줄 View를 다시 써서 TalkBack 초점이 남아요.
+  private static final Object CHECK_CHANGED = new Object();
+
   private final List<CollectionCheck> items;
   private boolean enabled = true;
 
@@ -35,7 +43,26 @@ public class CollectionCheckAdapter
           if (!enabled || position == RecyclerView.NO_POSITION) return;
           CollectionCheck item = items.get(position);
           item.setChecked(!item.isChecked());
-          notifyItemChanged(position);
+          notifyItemChanged(position, CHECK_CHANGED);
+        });
+    // 체크 상자는 그림이라 줄 전체를 체크 상자로 읽어 줘요.
+    ViewCompat.setAccessibilityDelegate(
+        binding.checkRow,
+        new AccessibilityDelegateCompat() {
+          @Override
+          public void onInitializeAccessibilityNodeInfo(
+              @NonNull View host, @NonNull AccessibilityNodeInfoCompat info) {
+            super.onInitializeAccessibilityNodeInfo(host, info);
+            int position = holder.getBindingAdapterPosition();
+            if (position == RecyclerView.NO_POSITION) return;
+            info.setClassName(CheckBox.class.getName());
+            info.setCheckable(true);
+            info.setChecked(
+                items.get(position).isChecked()
+                    ? AccessibilityNodeInfoCompat.CHECKED_STATE_TRUE
+                    : AccessibilityNodeInfoCompat.CHECKED_STATE_FALSE);
+            info.setEnabled(enabled);
+          }
         });
     return holder;
   }
@@ -51,10 +78,10 @@ public class CollectionCheckAdapter
             .getString(R.string.add_to_collection_count, item.getCollection().getReportCount()));
     if (item.isChecked()) {
       holder.binding.checkBox.setBackgroundResource(R.drawable.q_check_on);
-      holder.binding.checkBox.setText(R.string.add_to_collection_check_mark);
+      holder.binding.checkBox.setImageResource(R.drawable.ic_check);
     } else {
       holder.binding.checkBox.setBackgroundResource(R.drawable.q_check_off);
-      holder.binding.checkBox.setText("");
+      holder.binding.checkBox.setImageDrawable(null);
     }
   }
 

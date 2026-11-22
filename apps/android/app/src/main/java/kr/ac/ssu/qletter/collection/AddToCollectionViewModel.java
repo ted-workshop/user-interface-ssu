@@ -58,11 +58,15 @@ public final class AddToCollectionViewModel extends ViewModel {
   static final class Notice {
     @Nullable final String newError;
     final boolean created;
+    // 서버에 하나라도 반영됐어요. 띄운 쪽에 알려요.
+    final boolean changed;
+    // 전부 반영돼서 시트를 닫아도 돼요.
     final boolean saved;
 
-    private Notice(@Nullable String newError, boolean created, boolean saved) {
+    private Notice(@Nullable String newError, boolean created, boolean changed, boolean saved) {
       this.newError = newError;
       this.created = created;
+      this.changed = changed;
       this.saved = saved;
     }
   }
@@ -80,6 +84,7 @@ public final class AddToCollectionViewModel extends ViewModel {
   private List<String> restoredUnchecked;
   private int pending;
   private String lastError;
+  private boolean anySaved;
   private int seq;
   private boolean hasMore;
   private boolean cleared;
@@ -190,7 +195,7 @@ public final class AddToCollectionViewModel extends ViewModel {
                   checks.add(0, check);
                   publish(INSERTED, 0);
                   status.setValue(new Status(false, null, false, null));
-                  notice.setValue(new Notice(null, true, false));
+                  notice.setValue(new Notice(null, true, false, false));
                 });
           }
 
@@ -199,7 +204,7 @@ public final class AddToCollectionViewModel extends ViewModel {
             onMain(
                 () -> {
                   setBusy(false, null);
-                  notice.setValue(new Notice(message, false, false));
+                  notice.setValue(new Notice(message, false, false, false));
                 });
           }
         });
@@ -214,6 +219,7 @@ public final class AddToCollectionViewModel extends ViewModel {
     setBusy(true, null);
     pending = changed.size();
     lastError = null;
+    anySaved = false;
     for (CollectionCheck check : changed) {
       CollectionApi.Result<Void> result =
           new CollectionApi.Result<Void>() {
@@ -234,13 +240,19 @@ public final class AddToCollectionViewModel extends ViewModel {
   }
 
   private void finishOne(CollectionCheck check, @Nullable String error) {
-    if (error == null) check.markSaved();
-    else lastError = error;
+    if (error == null) {
+      check.markSaved();
+      anySaved = true;
+    } else {
+      lastError = error;
+    }
     if (--pending > 0) return;
     if (lastError == null) {
-      notice.setValue(new Notice(null, false, true));
+      notice.setValue(new Notice(null, false, true, true));
       return;
     }
+    // 일부만 저장돼도 바로 알려요. 그 뒤 취소로 닫아도 띄운 쪽 화면이 서버와 어긋나지 않아요(ADR-0045).
+    if (anySaved) notice.setValue(new Notice(null, false, true, false));
     // 일부만 실패하면 성공한 모음은 새 기준이 되고, 실패한 모음만 바뀐 채로 남아 다시 보낼 수 있어요.
     setBusy(false, lastError);
   }

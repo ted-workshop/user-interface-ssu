@@ -38,6 +38,7 @@
 | [ADR-0027](0027-no-orm-typed-rows.md) | ORM을 도입하지 않고 행 타입을 한 곳에서 관리해요 | 확정 | 2026-11-02 |
 | [ADR-0028](0028-auth-http.md) | 인증 HTTP를 scrypt·암호화 메일 대기열·D1 요청 제한으로 구현해요 | 확정 | 2026-11-02 |
 | [ADR-0029](0029-collections-http.md) | 모음 항목은 본인의 보관 권한 행을 가리켜요 | 확정 | 2026-11-05 |
+| [ADR-0045](0045-android-add-to-collection-sheet.md) | 담기 시트는 일부만 저장돼도 바로 알려요 | 확정 | 2026-11-22 |
 | [ADR-0030](0030-channel-settings-http.md) | 공식 채널 조회와 개인 구독·수신 설정 HTTP를 연결해요 | 확정 | 2026-11-05 |
 | [ADR-0031](0031-channel-check-execution.md) | 채널 첫 기준과 새 영상 확인을 D1 Cron 대기열로 실행해요 | 확정 | 2026-11-13 |
 | [ADR-0032](0032-gemini-single-call.md) | Gemini는 한 번만 호출하고 503은 사용자가 다시 시도하게 해요 | 확정 | 2026-11-07 |

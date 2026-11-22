@@ -17,16 +17,15 @@
     android:paddingTop="12dp"
     android:paddingBottom="12dp">
 
-    <!-- 체크 여부는 어댑터에서 바탕(q_check_on, q_check_off)과 글자로 바꿔요. -->
-    <TextView
+    <!-- 체크 여부는 어댑터에서 바탕(q_check_on, q_check_off)과 그림으로 바꿔요. 글자가 아니라 큰 글꼴에서도 안 잘려요. -->
+    <ImageView
       android:id="@+id/check_box"
       android:layout_width="18dp"
       android:layout_height="18dp"
       android:background="@drawable/q_check_off"
-      android:gravity="center"
       android:importantForAccessibility="no"
-      android:textColor="@color/q_ink_on_ink"
-      android:textSize="12sp" />
+      android:padding="2dp"
+      tools:src="@drawable/ic_check" />
 
     <TextView
       android:id="@+id/check_name"

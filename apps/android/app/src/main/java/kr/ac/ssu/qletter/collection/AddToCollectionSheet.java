@@ -1,12 +1,15 @@
 package kr.ac.ssu.qletter.collection;
 
 import android.app.Dialog;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.inputmethod.EditorInfo;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.view.ViewCompat;
 import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -21,11 +24,15 @@ import kr.ac.ssu.qletter.databinding.BottomSheetAddToCollectionBinding;
 /**
  * 피그마 60:276 모음에 담기 시트예요. 리포트 상세(#28)의 "모음에 담기" 버튼에서 띄워요.
  *
- * <p>체크는 화면에서만 바꾸고, 완료를 누르면 바뀐 모음에만 담기(PUT)·빼기(DELETE)를 보내요. 다 반영되면 띄운 쪽에 Fragment Result로 알려요. 체크와
- * 요청은 AddToCollectionViewModel이 들고 있어서 회전해도 이어져요.
+ * <p>체크는 화면에서만 바꾸고, 완료를 누르면 바뀐 모음에만 담기(PUT)·빼기(DELETE)를 보내요. 하나라도 반영되면 띄운 쪽에 Fragment Result로 알리고,
+ * 다 반영되면 닫아요. 체크와 요청은 AddToCollectionViewModel이 들고 있어서 회전해도 이어져요.
  */
 public final class AddToCollectionSheet extends BottomSheetDialogFragment {
-  /** 저장이 끝나면 이 키로 결과를 보내요. 띄운 쪽은 모음 개수·담김 표시를 다시 불러오면 돼요. */
+  /**
+   * 저장 한 번에서 하나라도 반영되면 이 키로 결과를 한 번 보내요. 띄운 쪽은 모음 개수·담김 표시를 다시 불러오면 돼요.
+   *
+   * <p>일부만 실패하면 시트가 열린 채로 결과가 가요. 다시 저장해 성공하면 한 번 더 가요(ADR-0045).
+   */
   public static final String REQUEST_KEY = "add_to_collection_sheet";
 
   private static final String ARG_REPORT_ID = "reportId";
@@ -94,6 +101,14 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
     sheet.addCancelButton.setOnClickListener(v -> dismiss());
     sheet.addDoneButton.setOnClickListener(v -> save());
     sheet.addNewButton.setOnClickListener(v -> createCollection());
+    // 가로에서는 키보드가 시트를 덮으니 키보드의 완료로 바로 만들어요. false를 돌려줘야 키보드도 닫혀요.
+    sheet.addNewName.setOnEditorActionListener(
+        (field, action, event) -> {
+          if (action == EditorInfo.IME_ACTION_DONE && !field.getText().toString().trim().isEmpty())
+            createCollection();
+          return false;
+        });
+    ViewCompat.setAccessibilityPaneTitle(view, getString(R.string.add_to_collection_title));
 
     model.changes().observe(getViewLifecycleOwner(), this::applyChange);
     model.status().observe(getViewLifecycleOwner(), this::renderStatus);
@@ -133,7 +148,8 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
       adapter.notifyDataSetChanged();
     } else {
       adapter.notifyItemInserted(change.position);
-      sheet.addCollectionsList.scrollToPosition(change.position);
+      // 새 모음은 맨 위 줄이라 목록이 시작하는 곳으로 스크롤해요.
+      sheet.addScroll.scrollTo(0, sheet.addListFrame.getTop());
     }
   }
 
@@ -153,6 +169,7 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
       sheet.addSaveError.setText(
           getString(R.string.add_to_collection_save_failed, status.saveError));
       sheet.addSaveError.setVisibility(View.VISIBLE);
+      reveal(sheet.addSaveError);
     }
   }
 
@@ -166,10 +183,8 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
     model.consumeNotice();
     if (notice.newError != null) showNewError(notice.newError);
     if (notice.created) sheet.addNewName.setText("");
-    if (notice.saved) {
-      getParentFragmentManager().setFragmentResult(REQUEST_KEY, new Bundle());
-      dismiss();
-    }
+    if (notice.changed) getParentFragmentManager().setFragmentResult(REQUEST_KEY, new Bundle());
+    if (notice.saved) dismiss();
   }
 
   private void createCollection() {
@@ -179,6 +194,8 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
       return;
     }
     sheet.addNewError.setVisibility(View.GONE);
+    // 입력칸이 잠겼다 풀릴 때 포커스를 되찾으면 키보드가 다시 떠서 시트에 넘겨 둬요.
+    sheet.getRoot().requestFocus();
     model.create(name);
   }
 
@@ -203,6 +220,15 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
   private void showNewError(String message) {
     sheet.addNewError.setText(message);
     sheet.addNewError.setVisibility(View.VISIBLE);
+    reveal(sheet.addNewError);
+  }
+
+  /** 방금 보인 문구는 자리가 잡힌 다음에 그곳까지 스크롤해요. */
+  private void reveal(View message) {
+    message.post(
+        () ->
+            message.requestRectangleOnScreen(
+                new Rect(0, 0, message.getWidth(), message.getHeight()), true));
   }
 
   private void showMessage(String message) {

@@ -1,5 +1,6 @@
 package kr.ac.ssu.qletter.collection;
 
+import android.app.Dialog;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -9,6 +10,8 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import com.google.android.material.bottomsheet.BottomSheetBehavior;
+import com.google.android.material.bottomsheet.BottomSheetDialog;
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
 import java.util.ArrayList;
 import kr.ac.ssu.qletter.R;
@@ -50,6 +53,16 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
     return R.style.ThemeOverlay_Qletter_BottomSheet;
   }
 
+  @NonNull
+  @Override
+  public Dialog onCreateDialog(@Nullable Bundle savedInstanceState) {
+    BottomSheetDialog dialog = (BottomSheetDialog) super.onCreateDialog(savedInstanceState);
+    // 반만 펼치면 아래쪽 입력칸과 완료 버튼이 화면 밖이라 처음부터 다 펼쳐요.
+    dialog.getBehavior().setSkipCollapsed(true);
+    dialog.getBehavior().setState(BottomSheetBehavior.STATE_EXPANDED);
+    return dialog;
+  }
+
   @Nullable
   @Override
   public View onCreateView(
@@ -71,6 +84,8 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
         savedInstanceState == null ? null : savedInstanceState.getStringArrayList(STATE_CHECKED),
         savedInstanceState == null ? null : savedInstanceState.getStringArrayList(STATE_UNCHECKED));
 
+    // 입력칸이 켜지면서 포커스를 가져가지 않게 시트가 먼저 잡아요. 사용자가 누르면 그때 키보드가 떠요.
+    view.requestFocus();
     adapter = new CollectionCheckAdapter(model.checks());
     sheet.addCollectionsList.setLayoutManager(new LinearLayoutManager(requireContext()));
     sheet.addCollectionsList.setAdapter(adapter);
@@ -129,6 +144,11 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
       showMessage(getString(R.string.collection_empty));
     else sheet.addMessage.setVisibility(View.GONE);
     setSaving(status.busy);
+    sheet.addNewButton.setEnabled(status.canCreate());
+    sheet.addNewName.setEnabled(status.canCreate());
+    sheet.addMore.setVisibility(model.hasMore() ? View.VISIBLE : View.GONE);
+    sheet.addMore.setText(
+        getString(R.string.collection_more_collections, CollectionApi.PAGE_LIMIT));
     if (status.saveError != null) {
       sheet.addSaveError.setText(
           getString(R.string.add_to_collection_save_failed, status.saveError));
@@ -178,8 +198,6 @@ public final class AddToCollectionSheet extends BottomSheetDialogFragment {
     adapter.setEnabled(!saving);
     sheet.addCancelButton.setEnabled(!saving);
     sheet.addDoneButton.setEnabled(!saving);
-    sheet.addNewButton.setEnabled(!saving);
-    sheet.addNewName.setEnabled(!saving);
   }
 
   private void showNewError(String message) {

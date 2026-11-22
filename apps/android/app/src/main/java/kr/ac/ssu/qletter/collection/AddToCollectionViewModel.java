@@ -47,6 +47,11 @@ public final class AddToCollectionViewModel extends ViewModel {
       this.busy = busy;
       this.saveError = saveError;
     }
+
+    /** 목록을 다 받은 뒤에만 새 모음을 만들어요. 먼저 만들면 뒤늦게 온 목록이 새 모음의 체크를 덮어써요. */
+    boolean canCreate() {
+      return !loading && message == null && !busy;
+    }
   }
 
   /** 한 번만 처리할 알림이에요. 화면이 반영한 뒤 consumeNotice()로 비워요. */
@@ -76,6 +81,7 @@ public final class AddToCollectionViewModel extends ViewModel {
   private int pending;
   private String lastError;
   private int seq;
+  private boolean hasMore;
   private boolean cleared;
 
   /**
@@ -121,6 +127,11 @@ public final class AddToCollectionViewModel extends ViewModel {
     notice.setValue(null);
   }
 
+  /** 서버에 한 번에 받는 개수보다 모음이 더 있는지예요. */
+  boolean hasMore() {
+    return hasMore;
+  }
+
   boolean hasChanges() {
     for (CollectionCheck check : checks) if (check.isChanged()) return true;
     return false;
@@ -138,6 +149,7 @@ public final class AddToCollectionViewModel extends ViewModel {
                     () -> {
                       checks.clear();
                       checks.addAll(page.items);
+                      hasMore = page.hasMore;
                       restoreChecks();
                       publish(RELOADED, -1);
                       status.setValue(new Status(false, null, false, null));
@@ -164,7 +176,7 @@ public final class AddToCollectionViewModel extends ViewModel {
 
   /** 시트 안에서 새 모음을 만들면 맨 위에 체크된 채로 넣어요. 완료를 눌러야 이 리포트가 담겨요. */
   void create(String name) {
-    if (current().busy) return;
+    if (!current().canCreate()) return;
     setBusy(true, null);
     api.create(
         name,

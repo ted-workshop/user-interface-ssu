@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 피그마 60:276 모음에 담기 시트: 제목, 설명, 모음 체크 목록, 새 모음 입력, 취소·완료 -->
+<!-- 첫 포커스는 시트가 받아요. 입력칸이 받으면 가로 화면에서 키보드가 저절로 떠서 시트를 덮어요. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   android:layout_width="match_parent"
   android:layout_height="wrap_content"
+  android:focusableInTouchMode="true"
   android:orientation="vertical"
   android:paddingStart="24dp"
   android:paddingTop="24dp"
@@ -28,9 +30,11 @@
     android:layout_marginTop="12dp"
     android:background="@color/q_line_default" />
 
+  <!-- 높이는 목록만큼이고, 시트에 다 안 들어가면 weight가 있는 이 목록만 줄어서 스크롤돼요. -->
   <FrameLayout
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="0dp"
+    android:layout_weight="1"
     android:minHeight="96dp">
 
     <androidx.recyclerview.widget.RecyclerView
@@ -55,6 +59,14 @@
       android:padding="16dp"
       android:visibility="gone" />
   </FrameLayout>
+
+  <TextView
+    android:id="@+id/add_more"
+    style="@style/QletterText.Xs"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:visibility="gone" />
 
   <!-- 피그마 Signup Pill: 알약 입력칸 안 오른쪽에 만들기 버튼 -->
   <LinearLayout

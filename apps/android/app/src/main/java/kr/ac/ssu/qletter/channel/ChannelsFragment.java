@@ -32,7 +32,6 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
   private final List<Channel> channels = new ArrayList<>();
   private ChannelAdapter adapter;
   private ChannelPreview preview;
-  private Channel pendingDelete;
   private Call loadCall;
   private Call previewCall;
   private Call actionCall;
@@ -49,8 +48,9 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
             REQUEST_DELETE_CHANNEL,
             this,
             (key, result) -> {
-              if (result.getBoolean(ConfirmDialog.RESULT_CONFIRMED) && pendingDelete != null)
-                deleteChannel(pendingDelete);
+              String id = result.getString(ConfirmDialog.RESULT_ID);
+              if (result.getBoolean(ConfirmDialog.RESULT_CONFIRMED) && id != null)
+                deleteChannel(id);
             });
   }
 
@@ -298,7 +298,7 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
                     () -> {
                       if (binding == null) return;
                       setMutating(null);
-                      if (error.is("NOT_FOUND")) remove(channel);
+                      if (error.is("NOT_FOUND")) remove(channel.id());
                       else
                         showToast(
                             ChannelErrors.message(
@@ -308,13 +308,13 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
             });
   }
 
-  private void deleteChannel(Channel channel) {
+  private void deleteChannel(String id) {
     if (binding == null || mutating) return;
-    setMutating(channel.id());
+    setMutating(id);
     actionCall = cancel(actionCall);
     actionCall =
         api.delete(
-            channel.id(),
+            id,
             new JsonCall.Result<Void>() {
               @Override
               public void onSuccess(Void ignored) {
@@ -323,7 +323,7 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
                     () -> {
                       if (binding == null) return;
                       setMutating(null);
-                      remove(channel);
+                      remove(id);
                     });
               }
 
@@ -334,7 +334,7 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
                     () -> {
                       if (binding == null) return;
                       setMutating(null);
-                      if (error.is("NOT_FOUND")) remove(channel);
+                      if (error.is("NOT_FOUND")) remove(id);
                       else
                         showToast(
                             ChannelErrors.message(
@@ -354,9 +354,9 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
     }
   }
 
-  private void remove(Channel channel) {
+  private void remove(String id) {
     for (int i = 0; i < channels.size(); i++) {
-      if (channels.get(i).id().equals(channel.id())) {
+      if (channels.get(i).id().equals(id)) {
         channels.remove(i);
         adapter.notifyItemRemoved(i);
         break;
@@ -401,14 +401,14 @@ public final class ChannelsFragment extends Fragment implements ChannelAdapter.L
   @Override
   public void onDelete(Channel channel) {
     if (mutating) return;
-    pendingDelete = channel;
     ConfirmDialog.show(
         getChildFragmentManager(),
         TAG_DELETE_CHANNEL,
         REQUEST_DELETE_CHANNEL,
         getString(R.string.channel_delete_title),
         getString(R.string.channel_delete_message, channel.title()),
-        getString(R.string.channel_delete_confirm));
+        getString(R.string.channel_delete_confirm),
+        channel.id());
   }
 
   @Override

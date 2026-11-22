@@ -26,12 +26,12 @@ public final class RecipientCodeDialog extends DialogFragment {
   private static final String ARG_EMAIL = "email";
   private static final String TAG = "recipient_code_dialog";
 
-  static void show(FragmentManager manager, Recipient recipient) {
+  static void show(FragmentManager manager, String id, String email) {
     if (manager.findFragmentByTag(TAG) != null) return;
     RecipientCodeDialog dialog = new RecipientCodeDialog();
     Bundle args = new Bundle();
-    args.putString(ARG_ID, recipient.id());
-    args.putString(ARG_EMAIL, recipient.email());
+    args.putString(ARG_ID, id);
+    args.putString(ARG_EMAIL, email);
     dialog.setArguments(args);
     dialog.show(manager, TAG);
   }

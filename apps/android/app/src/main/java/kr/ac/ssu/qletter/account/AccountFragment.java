@@ -30,6 +30,8 @@ import okhttp3.Call;
 public final class AccountFragment extends Fragment implements RecipientAdapter.Listener {
   private static final String REQUEST_DELETE_RECIPIENT = "account_delete_recipient";
   private static final String TAG_DELETE_RECIPIENT = "account_delete_recipient_dialog";
+  private static final String STATE_PENDING_CODE_ID = "pendingCodeId";
+  private static final String STATE_PENDING_CODE_EMAIL = "pendingCodeEmail";
 
   private static final int[] INTERVALS = {60, 360, 1440};
   private static final int[] INTERVAL_LABELS = {
@@ -50,19 +52,25 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
   private int recipientsGeneration;
   private int settingsGeneration;
   private final List<Call> actionCalls = new ArrayList<>();
-  private Recipient pendingDelete;
+  @Nullable private String pendingCodeId;
+  @Nullable private String pendingCodeEmail;
   private boolean mutating;
 
   @Override
   public void onCreate(@Nullable Bundle savedInstanceState) {
     super.onCreate(savedInstanceState);
+    if (savedInstanceState != null) {
+      pendingCodeId = savedInstanceState.getString(STATE_PENDING_CODE_ID);
+      pendingCodeEmail = savedInstanceState.getString(STATE_PENDING_CODE_EMAIL);
+    }
     getChildFragmentManager()
         .setFragmentResultListener(
             REQUEST_DELETE_RECIPIENT,
             this,
             (key, result) -> {
-              if (result.getBoolean(ConfirmDialog.RESULT_CONFIRMED) && pendingDelete != null)
-                deleteRecipient(pendingDelete);
+              String id = result.getString(ConfirmDialog.RESULT_ID);
+              if (result.getBoolean(ConfirmDialog.RESULT_CONFIRMED) && id != null)
+                deleteRecipient(id);
             });
     getChildFragmentManager()
         .setFragmentResultListener(
@@ -82,6 +90,25 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
       @Nullable Bundle savedInstanceState) {
     binding = FragmentAccountBinding.inflate(inflater, container, false);
     return binding.getRoot();
+  }
+
+  @Override
+  public void onResume() {
+    super.onResume();
+    if (pendingCodeId != null && pendingCodeEmail != null && binding != null) {
+      String id = pendingCodeId;
+      String email = pendingCodeEmail;
+      pendingCodeId = null;
+      pendingCodeEmail = null;
+      RecipientCodeDialog.show(getChildFragmentManager(), id, email);
+    }
+  }
+
+  @Override
+  public void onSaveInstanceState(@NonNull Bundle outState) {
+    super.onSaveInstanceState(outState);
+    outState.putString(STATE_PENDING_CODE_ID, pendingCodeId);
+    outState.putString(STATE_PENDING_CODE_EMAIL, pendingCodeEmail);
   }
 
   @Override
@@ -336,10 +363,7 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
               public void onSuccess(Void ignored) {
                 Ui.on(
                     AccountFragment.this,
-                    () -> {
-                      if (binding == null || !recipients.contains(recipient)) return;
-                      RecipientCodeDialog.show(getChildFragmentManager(), recipient);
-                    });
+                    () -> showRecipientCode(recipient.id(), recipient.email()));
               }
 
               @Override
@@ -354,12 +378,12 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
             }));
   }
 
-  private void deleteRecipient(Recipient recipient) {
-    if (mutating) return;
+  private void deleteRecipient(String id) {
+    if (mutating || id == null) return;
     setMutating(true);
     actionCalls.add(
         api.deleteRecipient(
-            recipient.id(),
+            id,
             new JsonCall.Result<Void>() {
               @Override
               public void onSuccess(Void ignored) {
@@ -368,7 +392,7 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
                     () -> {
                       if (binding == null) return;
                       setMutating(false);
-                      removeRecipient(recipient);
+                      removeRecipient(id);
                     });
               }
 
@@ -379,7 +403,7 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
                     () -> {
                       if (binding == null) return;
                       setMutating(false);
-                      if (error.is("NOT_FOUND")) removeRecipient(recipient);
+                      if (error.is("NOT_FOUND")) removeRecipient(id);
                       else
                         showToast(
                             AccountErrors.message(
@@ -389,9 +413,9 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
             }));
   }
 
-  private void removeRecipient(Recipient recipient) {
+  private void removeRecipient(String id) {
     for (int i = 0; i < recipients.size(); i++) {
-      if (recipients.get(i).id().equals(recipient.id())) {
+      if (recipients.get(i).id().equals(id)) {
         recipients.remove(i);
         adapter.notifyItemRemoved(i);
         break;
@@ -517,20 +541,32 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
   @Override
   public void onVerify(Recipient recipient) {
     if (mutating) return;
-    RecipientCodeDialog.show(getChildFragmentManager(), recipient);
+    showRecipientCode(recipient.id(), recipient.email());
   }
 
   @Override
   public void onDelete(Recipient recipient) {
     if (mutating) return;
-    pendingDelete = recipient;
     ConfirmDialog.show(
         getChildFragmentManager(),
         TAG_DELETE_RECIPIENT,
         REQUEST_DELETE_RECIPIENT,
         getString(R.string.account_delete_recipient_title),
         getString(R.string.account_delete_recipient_message, recipient.email()),
-        getString(R.string.account_delete_recipient_confirm));
+        getString(R.string.account_delete_recipient_confirm),
+        recipient.id());
+  }
+
+  void showRecipientCode(String id, String email) {
+    if (binding == null) return;
+    if (!isResumed() || getChildFragmentManager().isStateSaved()) {
+      pendingCodeId = id;
+      pendingCodeEmail = email;
+      return;
+    }
+    pendingCodeId = null;
+    pendingCodeEmail = null;
+    RecipientCodeDialog.show(getChildFragmentManager(), id, email);
   }
 
   @Override

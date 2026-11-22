@@ -697,6 +697,20 @@ const comments = async (reportId: string, query = "", secret = token) => {
   return response.json<{ items: CommentItem[]; nextCursor: string | null }>();
 };
 
+const changeNickname = (nickname: string, secret = token) =>
+  app.request(
+    "/v1/me",
+    {
+      method: "PATCH",
+      headers: {
+        authorization: `Bearer ${secret}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ nickname }),
+    },
+    settings,
+  );
+
 test("같은 영상을 요청한 두 사용자는 같은 리포트에서 댓글을 주고받아요", async () => {
   await saveReport(owner, videoIds[0], now);
   await saveReport(other, videoIds[0], now + 1);
@@ -730,6 +744,25 @@ test("같은 영상을 요청한 두 사용자는 같은 리포트에서 댓글�
     ["좋은 정리예요", false],
   ]);
   expect(rest.nextCursor).toBeNull();
+});
+
+test("닉네임을 바꾸면 기존·새 댓글의 작성자 표시가 새 이름을 읽어요", async () => {
+  await saveReport(owner, videoIds[0], now);
+  const [item] = (await list()).items;
+  const id = item?.id ?? "";
+  expect((await comment(id, "바뀌기 전 댓글")).status).toBe(201);
+
+  const changed = await changeNickname("새이름");
+  expect(changed.status).toBe(200);
+  expect(await changed.json()).toMatchObject({ nickname: "새이름" });
+  vi.spyOn(Date, "now").mockReturnValue((now + 5) * 1000);
+  expect((await comment(id, "바뀐 뒤 댓글")).status).toBe(201);
+
+  const page = await comments(id);
+  expect(page.items.map((item) => [item.body, item.author.nickname])).toEqual([
+    ["바뀐 뒤 댓글", "새이름"],
+    ["바뀌기 전 댓글", "새이름"],
+  ]);
 });
 
 test("리포트 권한이 없는 사용자는 댓글을 읽거나 쓸 수 없어요", async () => {

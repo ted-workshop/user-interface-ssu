@@ -99,3 +99,5 @@ Android에는 인증 화면과 계정·채널 탭이 없었어요. 기존 공통
 - 2026-11-22: 2차 리뷰에서 확인 코드 창의 `dismiss()` 상태 손실, 회전 중 인증 요청 취소,
   비밀번호 변경 뒤 남은 `START_FORGOT` Intent, debug 바로가기 위치를 지적받아 모두 반영했어요.
   인증 요청을 화면 ViewModel로 옮기고, 확인 성공은 재개 때 닫으며, 바로가기를 `AuthActivity`로 옮겼어요.
+- 2026-11-22: [#76](https://github.com/ted-workshop/user-interface-ssu/issues/76)에서 `PATCH /v1/me`를
+  [ADR-0044](0044-nickname-change-http.md)로 추가했어요. 이 기록의 화면 결정은 그대로이고 Android 연결은 후속이에요.

@@ -287,6 +287,11 @@ accounts.delete("/auth/session", requireSession, async (c) => {
   return c.body(null, 204);
 });
 
+// requireSession이 이메일 확인을 이미 검사해요.
+function accountResource(row: AccountRow) {
+  return { ...row, emailVerified: true };
+}
+
 accounts.get("/me", requireSession, async (c) => {
   rejectQuery(c);
   const user = await statement(
@@ -295,8 +300,30 @@ accounts.get("/me", requireSession, async (c) => {
     c.get("userId"),
   ).first<AccountRow>();
   if (!user) return c.json({ error: { code: "AUTHENTICATION_REQUIRED" } }, 401);
-  // requireSession이 이메일 확인을 이미 검사해요.
-  return c.json({ ...user, emailVerified: true });
+  return c.json(accountResource(user));
+});
+
+// 가입과 같은 닉네임 규칙을 쓰고, 세션의 사용자 행만 바꿔요.
+accounts.patch("/me", requireSession, jsonBodyLimit, async (c) => {
+  const input = await body(c, z.strictObject({ nickname }));
+  const userId = c.get("userId");
+  // 변경과 응답 조회를 한 batch에 넣어 동시 요청에도 이번에 쓴 값을 돌려줘요.
+  const rows = await c.env.DB.batch<AccountRow>([
+    statement(
+      c.env.DB,
+      "UPDATE users SET nickname = ? WHERE id = ?",
+      input.nickname,
+      userId,
+    ),
+    statement(
+      c.env.DB,
+      "SELECT id, email, nickname FROM users WHERE id = ?",
+      userId,
+    ),
+  ]);
+  const user = rows[1]?.results[0];
+  if (!user) return c.json({ error: { code: "AUTHENTICATION_REQUIRED" } }, 401);
+  return c.json(accountResource(user));
 });
 
 accounts.post(

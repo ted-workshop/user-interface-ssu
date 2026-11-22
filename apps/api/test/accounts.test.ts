@@ -55,6 +55,8 @@ const login = (input: object = {}, headers = {}) =>
     { email: address, password, ...input },
     headers,
   );
+const changeNickname = (nickname: unknown, session: string) =>
+  call("PATCH", "/me", { nickname }, { authorization: `Bearer ${session}` });
 
 // 실제 실행기로 인증 메일을 보내고 본문에서 코드를 꺼내요.
 async function deliverMail() {
@@ -181,6 +183,181 @@ test("가입 → 메일 확인 → 로그인 → 내 정보 → 로그아웃이 
     bearer(created.sessionToken),
   );
   expect(after.status).toBe(401);
+});
+
+test("닉네임을 바꾸면 갱신된 계정을 돌려주고 내 정보에 반영해요", async () => {
+  await verifiedAccount();
+  const session = await loginToken();
+  const before = await (
+    await call("GET", "/me", undefined, { authorization: `Bearer ${session}` })
+  ).json<{ id: string }>();
+
+  // 가입과 같은 NFC·앞뒤 공백 제거 규칙을 적용해요.
+  const changed = await changeNickname("  한글  ", session);
+  expect(changed.status).toBe(200);
+  expect(changed.headers.get("cache-control")).toBe("no-store");
+  expect(await changed.json()).toEqual({
+    id: before.id,
+    email: address,
+    nickname: "한글",
+    emailVerified: true,
+  });
+  expect(
+    await sql("SELECT nickname FROM users WHERE email = ?", address).first(
+      "nickname",
+    ),
+  ).toBe("한글");
+
+  const me = await call("GET", "/me", undefined, {
+    authorization: `Bearer ${session}`,
+  });
+  expect(await me.json()).toMatchObject({ nickname: "한글" });
+  // 닉네임 변경은 자격 증명 변경이 아니므로 기존 세션과 새 로그인 모두 유효해요.
+  const next = await loginToken();
+  expect(
+    (
+      await call("GET", "/me", undefined, {
+        authorization: `Bearer ${next}`,
+      })
+    ).status,
+  ).toBe(200);
+});
+
+test("동시 닉네임 변경은 각 요청이 쓴 값과 최종 상태가 일관돼요", async () => {
+  await verifiedAccount();
+  const session = await loginToken();
+  const names = ["첫이름", "둘이름"];
+  const responses = await Promise.all(
+    names.map((name) => changeNickname(name, session)),
+  );
+  expect(responses.map((response) => response.status)).toEqual([200, 200]);
+  const written = await Promise.all(
+    responses.map((response) => response.json<{ nickname: string }>()),
+  );
+  expect(written.map((user) => user.nickname).sort()).toEqual(
+    [...names].sort(),
+  );
+
+  const me = await (
+    await call("GET", "/me", undefined, {
+      authorization: `Bearer ${session}`,
+    })
+  ).json<{ nickname: string }>();
+  const stored = await sql(
+    "SELECT nickname FROM users WHERE email = ?",
+    address,
+  ).first<string>("nickname");
+  expect(names).toContain(stored);
+  expect(me.nickname).toBe(stored);
+});
+
+test.each([
+  ["빈 문자열", ""],
+  ["1자", "가"],
+  ["21자", "가".repeat(21)],
+  ["제어문자", "이름\u0000"],
+  ["줄바꿈", "줄\n바꿈"],
+  ["문자열 아님", 7],
+  ["누락", undefined],
+])(
+  "닉네임 변경의 %s 입력은 fields.nickname과 함께 400이에요",
+  async (_name, value) => {
+    await verifiedAccount();
+    const session = await loginToken();
+    const response = await changeNickname(value, session);
+    expect(response.status).toBe(400);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const body = await response.json<{
+      error: { code: string; fields?: Record<string, string> };
+    }>();
+    expect(body.error.code).toBe("INVALID_INPUT");
+    expect(body.error.fields?.nickname).toBeTruthy();
+    expect(
+      await sql("SELECT nickname FROM users WHERE email = ?", address).first(
+        "nickname",
+      ),
+    ).toBe("읽는사람");
+  },
+);
+
+test("세션이 없거나 만료되면 닉네임을 바꿀 수 없어요", async () => {
+  await verifiedAccount();
+  const missing = await call("PATCH", "/me", { nickname: "새이름" });
+  expect(missing.status).toBe(401);
+  expect(await missing.json()).toEqual({
+    error: { code: "AUTHENTICATION_REQUIRED" },
+  });
+
+  const session = await loginToken();
+  clock += 30 * 86_400;
+  const expired = await changeNickname("새이름", session);
+  expect(expired.status).toBe(401);
+  expect(expired.headers.get("cache-control")).toBe("no-store");
+  expect(
+    await sql("SELECT nickname FROM users WHERE email = ?", address).first(
+      "nickname",
+    ),
+  ).toBe("읽는사람");
+});
+
+test("본문의 userId·email로는 다른 사용자의 닉네임을 바꿀 수 없어요", async () => {
+  await verifiedAccount();
+  const session = await loginToken();
+  const other = "other@example.com";
+  await register({ email: other, nickname: "다른사람" });
+  const token = await deliverMail();
+  await call("POST", "/auth/email-verifications/confirm", { token, password });
+  const otherId = await sql(
+    "SELECT id FROM users WHERE email = ?",
+    other,
+  ).first<string>("id");
+
+  for (const extra of [{ userId: otherId }, { email: other }])
+    expect(
+      (
+        await call(
+          "PATCH",
+          "/me",
+          { nickname: "가로채기", ...extra },
+          { authorization: `Bearer ${session}` },
+        )
+      ).status,
+    ).toBe(400);
+
+  expect(
+    await sql("SELECT nickname FROM users WHERE email = ?", address).first(
+      "nickname",
+    ),
+  ).toBe("읽는사람");
+  expect(
+    await sql("SELECT nickname FROM users WHERE email = ?", other).first(
+      "nickname",
+    ),
+  ).toBe("다른사람");
+
+  expect((await changeNickname("내이름", session)).status).toBe(200);
+  expect(
+    await sql("SELECT nickname FROM users WHERE email = ?", other).first(
+      "nickname",
+    ),
+  ).toBe("다른사람");
+});
+
+test("닉네임 변경도 알 수 없는 query와 큰 본문을 거부해요", async () => {
+  await verifiedAccount();
+  const session = await loginToken();
+  const headers = { authorization: `Bearer ${session}` };
+  expect(
+    (await call("PATCH", "/me?x=1", { nickname: "새이름" }, headers)).status,
+  ).toBe(400);
+  const large = await call(
+    "PATCH",
+    "/me",
+    { nickname: "가".repeat(20_000) },
+    headers,
+  );
+  expect(large.status).toBe(413);
+  expect(large.headers.get("cache-control")).toBe("no-store");
 });
 
 test("비밀값은 저장소와 메일 대기열에 원문으로 남지 않아요", async () => {

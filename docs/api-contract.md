@@ -5,7 +5,7 @@
 F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아래 `summary-requests`의
 접수·목록·상세·재시도 경로를 구현했어요. [ADR-0024](decisions/0024-direct-summary-http.md)에 구현 경계를 남겨요.
 `GET /v1/reports`의 검색·필터·페이지와 `GET /v1/reports/{id}`도 구현했고 경계는 [ADR-0026](decisions/0026-report-read-http.md)에 남겨요.
-계정·인증 경로도 구현했고 경계는 [ADR-0028](decisions/0028-auth-http.md)에 남겨요. Android 연결은 후속 작업이에요.
+계정·인증 경로와 닉네임 변경도 구현했고 경계는 [ADR-0028](decisions/0028-auth-http.md)·[ADR-0044](decisions/0044-nickname-change-http.md)에 남겨요. Android 연결은 후속 작업이에요.
 리포트 모음 경로도 구현했고 경계는 [ADR-0029](decisions/0029-collections-http.md)에 남겨요.
 채널 미리보기·구독 관리·수신 주소 확인·주기 설정도 구현했고 경계는 [ADR-0030](decisions/0030-channel-settings-http.md)에 남겨요.
 새 영상 확인·첫 기준·예약 실행과 지금 확인 경로도 구현했고 경계는 [ADR-0031](decisions/0031-channel-check-execution.md)에 남겨요.
@@ -67,6 +67,7 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
 | `POST /v1/auth/sessions` | `email`, `password` | `201`, 아래 세션 객체 |
 | `DELETE /v1/auth/session` | 현재 Bearer 토큰 | 현재 세션 폐기 후 `204` |
 | `GET /v1/me` | Bearer 토큰 | `200 {"id":"…","email":"…","nickname":"…","emailVerified":true}` |
+| `PATCH /v1/me` | Bearer 토큰, `nickname` | `200`, `GET /v1/me`와 같은 갱신된 계정 객체 |
 | `POST /v1/auth/password-resets` | `email` | 존재 여부와 무관하게 `202 {"status":"accepted"}` |
 | `POST /v1/auth/password-resets/confirm` | `token`, `password` | 비밀번호 교체·모든 세션 폐기 후 `204` |
 
@@ -78,6 +79,12 @@ F-01~F-09·F-11을 구현할 때 따르는 계약이에요. `GET /health`와 아
   Gmail의 점·`+tag`를 제거하거나 서로 다른 주소를 합치지 않아요. 로그인 이메일 변경은 이 범위에 없어요.
 - 닉네임은 NFC·앞뒤 공백 제거 후 Unicode code point 2~20자이며 제어문자·줄바꿈은 거부해요.
   중복은 허용하고 소유자는 UUID로 구별해요. 리포트·댓글 #23은 이메일 대신 이 값을 사용해요.
+- `PATCH /v1/me`는 현재 세션의 사용자 닉네임만 바꿔요. 본문은 `nickname` 하나만 받고 `userId`·`email` 같은
+  필드는 거부해요. 가입과 같은 검증을 적용해 잘못된 값은 `400 INVALID_INPUT`과 `fields.nickname`이에요.
+  성공하면 `200`으로 `GET /v1/me`와 같은 계정 객체를 돌려주고 `Cache-Control: no-store`를 유지해요.
+  닉네임 변경은 자격 증명 변경이 아니므로 기존 세션을 폐기하지 않아요.
+- 댓글 작성자 표시는 저장 시점 스냅샷이 아니라 조회할 때 현재 `users.nickname`을 읽어요.
+  그래서 닉네임을 바꾸면 기존 댓글과 이후 댓글 모두 새 이름이 보여요.
 - MFA 없는 비밀번호는 Unicode code point 8~128자, 공백·유니코드를 허용해요. trim·자르기·대소문자
   변환을 하지 않아요. 한 글자만 반복한 비밀번호는 거부해요. 과제 범위에서 유출·흔한 비밀번호 검사는 하지 않고 임의의 특수문자 조합·주기적 교체도 강제하지 않아요.
   비밀번호 확인은 Android가 비교하고 서버에는 `password` 하나만 보내요.

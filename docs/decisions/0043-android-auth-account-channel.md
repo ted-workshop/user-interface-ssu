@@ -27,6 +27,13 @@ Android에는 인증 화면과 계정·채널 탭이 없었어요. 기존 공통
   로그인 성공 뒤에는 `CLEAR_TASK`로 새 task를 시작해 이전 계정의 화면·back stack을 남기지 않아요.
 - 로그인·회원가입·이메일 확인·비밀번호 찾기를 `AuthActivity`의 화면으로 두고,
   비밀번호는 다음 확인 화면까지 Activity 범위 `ViewModel`에만 보관해요. 토큰·비밀번호는 로그에 남기지 않아요.
+- 로그인·가입·확인·재설정 요청은 화면 범위 `AuthRequestViewModel`이 소유해요. 화면 회전으로 View가 다시 만들어져도 요청과 결과가
+  유지되고, 화면을 실제로 떠나 ViewModel이 정리될 때 요청을 취소해요.
+- 수신 주소 확인 코드 창은 성공 응답이 Activity 상태 저장 뒤 도착하면 바로 `dismiss()`하지 않고 재개 때 닫아요.
+  결과 ID는 Fragment Result에 먼저 남겨 부모가 목록을 다시 읽게 해요.
+- 비밀번호 변경 뒤 로그인·회원가입 화면의 뒤로 가기는 `openedForPasswordChange`만 기준으로 삼아,
+  이전에 열었던 `START_FORGOT` Intent가 남아 Activity를 닫는 일을 막아요.
+- debug 개발 서버 연결 바로가기는 앱 launcher가 된 `AuthActivity`에 등록해요.
 - 계정 탭은 `GET /v1/me`로 이메일·닉네임을 읽고 로그아웃을 제공해요.
   닉네임 변경은 API가 없어 읽기 전용으로 두고, 비밀번호 바꾸기는 서버가 지원하는 재설정 코드 흐름을 재사용해요.
 - 계정 탭에서 수신 주소 목록·추가·확인 코드·재발송·삭제와 확인 주기를 제공해요.
@@ -66,9 +73,14 @@ Android에는 인증 화면과 계정·채널 탭이 없었어요. 기존 공통
 
 - `mise run android:check`: 통과. Spotless·lint·JVM 테스트·debug APK를 확인했어요.
 - `:app:assembleRelease`: 통과. release APK에는 `ACCESS_LOCAL_NETWORK`가 없고 debug에만 있어요.
-- `:app:connectedDebugAndroidTest`: Pixel 7 AVD(Android 17, API 37)에서 11개 통과.
+- `:app:connectedDebugAndroidTest`: Pixel 7 AVD(Android 17, API 37)에서 13개 통과.
   로그인 화면 표시, 탭 선택·회전 복원, 세션 저장·복원·만료,
-  상태 저장 뒤 화면 전환·확인 코드 창이 재개 때 한 번 열리는지, 삭제 확인창의 대상 ID가 회전 뒤에도 유지되는지를 확인했어요.
+  상태 저장 뒤 화면 전환·확인 코드 창이 재개 때 한 번 열리는지, 확인 성공이 상태 저장 뒤면 재개 때 닫히는지,
+  삭제 확인창의 대상 ID가 회전 뒤에도 유지되는지, 비밀번호 변경 뒤 회원가입의 뒤로 가기가 로그인으로 돌아오는지를 확인했어요.
+- debug APK를 설치한 뒤 `cmd shortcut get-shortcuts`에서 `개발 서버 연결` 바로가기가
+  `AuthActivity`에 등록된 것을 확인했어요.
+- 가입·수신 주소 확인 중 홈 이동 뒤 성공 응답이 오는 경로는 Activity 상태 저장 뒤 전환 요청을 재현하는 기기 검사로 확인했어요.
+  실제 SMTP·YouTube 키가 필요한 메일·채널 검증은 여전히 미확인이에요.
 - 로컬 Worker와 Pixel 7 AVD에서 가입 202 → 확인 코드 204 → 로그인 201 → 앱 재실행 뒤 세션 유지,
   계정·수신 주소·확인 주기·채널 목록 조회, 주소 추가 201·확인 요청 202·확인 204·삭제 204,
   채널 일시 중지·재개·삭제 204와 DB tombstone, 로그아웃 204를 확인했어요.
@@ -84,3 +96,6 @@ Android에는 인증 화면과 계정·채널 탭이 없었어요. 기존 공통
 - 2026-11-22: 리뷰에서 상태 저장 뒤 `commit()`과 회전 뒤 삭제 대상 소실을 지적받아,
   화면 전환·확인 코드 창을 pending으로 보관해 재개 때 적용하고 삭제 확인창 결과에 대상 ID를 담았어요.
   해당 생명주기 재현 검사를 추가하고, 삭제 확인창 회전 뒤 DELETE가 한 번만 나가는 것을 로컬 API로 확인했어요.
+- 2026-11-22: 2차 리뷰에서 확인 코드 창의 `dismiss()` 상태 손실, 회전 중 인증 요청 취소,
+  비밀번호 변경 뒤 남은 `START_FORGOT` Intent, debug 바로가기 위치를 지적받아 모두 반영했어요.
+  인증 요청을 화면 ViewModel로 옮기고, 확인 성공은 재개 때 닫으며, 바로가기를 `AuthActivity`로 옮겼어요.

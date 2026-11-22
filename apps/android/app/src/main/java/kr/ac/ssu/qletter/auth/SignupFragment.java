@@ -12,16 +12,13 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.ApiError;
-import kr.ac.ssu.qletter.common.JsonCall;
 import kr.ac.ssu.qletter.common.QletterApplication;
-import kr.ac.ssu.qletter.common.Ui;
 import kr.ac.ssu.qletter.databinding.FragmentSignupBinding;
-import okhttp3.Call;
 
 public final class SignupFragment extends Fragment {
   private FragmentSignupBinding binding;
   private AuthApi api;
-  private Call call;
+  private AuthRequestViewModel requests;
   private boolean submitting;
 
   @Nullable
@@ -38,6 +35,7 @@ public final class SignupFragment extends Fragment {
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     api = new AuthApi(((QletterApplication) requireActivity().getApplication()).api());
+    requests = new ViewModelProvider(this).get(AuthRequestViewModel.class);
     binding.signupBack.setOnClickListener(ignored -> ((AuthActivity) requireActivity()).back());
     binding.signupLogin.setOnClickListener(
         ignored -> ((AuthActivity) requireActivity()).showLogin(null, null));
@@ -62,6 +60,28 @@ public final class SignupFragment extends Fragment {
     clearOnEdit(binding.signupPasswordConfirm);
     binding.signupAgree.setOnCheckedChangeListener(
         (button, checked) -> binding.signupError.setVisibility(View.GONE));
+    requests
+        .signup()
+        .observe(
+            getViewLifecycleOwner(),
+            state -> {
+              if (state == null) return;
+              if (state.loading) {
+                setBusy(true);
+                return;
+              }
+              if (state.error != null) {
+                setBusy(false);
+                showError(state.error);
+              } else {
+                AuthViewModel auth =
+                    new ViewModelProvider(requireActivity()).get(AuthViewModel.class);
+                String email = auth.pendingEmail();
+                if (email != null) ((AuthActivity) requireActivity()).showVerify(email);
+                else setBusy(false);
+              }
+              requests.clearSignup();
+            });
   }
 
   private boolean next(int action, EditText target) {
@@ -110,31 +130,11 @@ public final class SignupFragment extends Fragment {
       return;
     }
 
+    new ViewModelProvider(requireActivity())
+        .get(AuthViewModel.class)
+        .holdCredentials(email, password);
     setBusy(true);
-    call =
-        api.register(
-            email,
-            password,
-            nickname,
-            new JsonCall.Result<Void>() {
-              @Override
-              public void onSuccess(Void ignored) {
-                Ui.on(
-                    SignupFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      new ViewModelProvider(requireActivity())
-                          .get(AuthViewModel.class)
-                          .holdCredentials(email, password);
-                      ((AuthActivity) requireActivity()).showVerify(email);
-                    });
-              }
-
-              @Override
-              public void onError(ApiError error) {
-                Ui.on(SignupFragment.this, () -> showError(error));
-              }
-            });
+    requests.startSignup(api, email, password, nickname);
   }
 
   private void showError(ApiError error) {
@@ -182,8 +182,6 @@ public final class SignupFragment extends Fragment {
   @Override
   public void onDestroyView() {
     super.onDestroyView();
-    if (call != null) call.cancel();
-    call = null;
     binding = null;
   }
 }

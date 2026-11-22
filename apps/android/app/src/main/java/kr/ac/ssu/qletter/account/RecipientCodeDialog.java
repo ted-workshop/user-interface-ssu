@@ -24,7 +24,8 @@ public final class RecipientCodeDialog extends DialogFragment {
 
   private static final String ARG_ID = "id";
   private static final String ARG_EMAIL = "email";
-  private static final String TAG = "recipient_code_dialog";
+  private static final String STATE_DISMISS = "dismissWhenResumed";
+  static final String TAG = "recipient_code_dialog";
 
   static void show(FragmentManager manager, String id, String email) {
     if (manager.findFragmentByTag(TAG) != null) return;
@@ -40,6 +41,23 @@ public final class RecipientCodeDialog extends DialogFragment {
   private AccountApi api;
   private Call call;
   private boolean submitting;
+  private boolean dismissWhenResumed;
+
+  @Override
+  public void onCreate(@Nullable Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    if (savedInstanceState != null)
+      dismissWhenResumed = savedInstanceState.getBoolean(STATE_DISMISS);
+  }
+
+  @Override
+  public void onResume() {
+    super.onResume();
+    if (dismissWhenResumed) {
+      dismissWhenResumed = false;
+      dismiss();
+    }
+  }
 
   @NonNull
   @Override
@@ -98,14 +116,7 @@ public final class RecipientCodeDialog extends DialogFragment {
             new JsonCall.Result<Void>() {
               @Override
               public void onSuccess(Void ignored) {
-                Ui.on(
-                    RecipientCodeDialog.this,
-                    () -> {
-                      Bundle result = new Bundle();
-                      result.putString(RESULT_ID, requireArguments().getString(ARG_ID));
-                      getParentFragmentManager().setFragmentResult(REQUEST_KEY, result);
-                      dismiss();
-                    });
+                Ui.on(RecipientCodeDialog.this, () -> completeVerification());
               }
 
               @Override
@@ -172,6 +183,28 @@ public final class RecipientCodeDialog extends DialogFragment {
     binding.codeConfirm.setText(busy ? R.string.common_working : R.string.account_code_confirm);
     binding.codeResend.setEnabled(!busy);
     binding.codeCancel.setEnabled(!busy);
+  }
+
+  private void dismissWhenSafe() {
+    if (isStateSaved() || !isResumed()) {
+      dismissWhenResumed = true;
+      return;
+    }
+    dismiss();
+  }
+
+  /** 서버 확인 성공 결과를 부모에 넘기고, 상태 저장 중이면 재개할 때 닫아요. */
+  void completeVerification() {
+    Bundle result = new Bundle();
+    result.putString(RESULT_ID, requireArguments().getString(ARG_ID));
+    getParentFragmentManager().setFragmentResult(REQUEST_KEY, result);
+    dismissWhenSafe();
+  }
+
+  @Override
+  public void onSaveInstanceState(@NonNull Bundle outState) {
+    super.onSaveInstanceState(outState);
+    outState.putBoolean(STATE_DISMISS, dismissWhenResumed);
   }
 
   @Override

@@ -9,13 +9,11 @@ import android.widget.EditText;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.ApiError;
-import kr.ac.ssu.qletter.common.JsonCall;
 import kr.ac.ssu.qletter.common.QletterApplication;
-import kr.ac.ssu.qletter.common.Ui;
 import kr.ac.ssu.qletter.databinding.FragmentForgotPasswordBinding;
-import okhttp3.Call;
 
 /** 이메일로 받은 코드와 새 비밀번호로 계정 비밀번호를 다시 정해요. */
 public final class ForgotPasswordFragment extends Fragment {
@@ -26,7 +24,7 @@ public final class ForgotPasswordFragment extends Fragment {
 
   private FragmentForgotPasswordBinding binding;
   private AuthApi api;
-  private Call call;
+  private AuthRequestViewModel requests;
   private String requestedEmail;
   private boolean resetStep;
   private boolean submitting;
@@ -54,6 +52,7 @@ public final class ForgotPasswordFragment extends Fragment {
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     super.onViewCreated(view, savedInstanceState);
     api = new AuthApi(((QletterApplication) requireActivity().getApplication()).api());
+    requests = new ViewModelProvider(this).get(AuthRequestViewModel.class);
     binding.forgotTitle.setText(
         requireArguments().getBoolean(ARG_CHANGE)
             ? R.string.account_change_password
@@ -92,6 +91,44 @@ public final class ForgotPasswordFragment extends Fragment {
       resetStep = savedInstanceState.getBoolean(STATE_RESET);
       if (resetStep && requestedEmail != null) showResetStep(requestedEmail);
     }
+    requests
+        .resetRequest()
+        .observe(
+            getViewLifecycleOwner(),
+            state -> {
+              if (state == null) return;
+              if (state.loading) {
+                setBusy(true);
+                return;
+              }
+              setBusy(false);
+              if (state.error != null) {
+                showResetRequestError(state.error);
+              } else if (requestedEmail != null) {
+                showResetStep(requestedEmail);
+              }
+              requests.clearResetRequest();
+            });
+    requests
+        .resetConfirm()
+        .observe(
+            getViewLifecycleOwner(),
+            state -> {
+              if (state == null) return;
+              if (state.loading) {
+                setBusy(true);
+                return;
+              }
+              if (state.error != null) {
+                setBusy(false);
+                showResetConfirmError(state.error);
+              } else if (requestedEmail != null) {
+                ((AuthActivity) requireActivity()).clearedAfterPasswordChange(requestedEmail);
+              } else {
+                setBusy(false);
+              }
+              requests.clearResetConfirm();
+            });
   }
 
   private boolean next(int action, EditText target) {
@@ -113,44 +150,9 @@ public final class ForgotPasswordFragment extends Fragment {
       binding.forgotEmail.requestFocus();
       return;
     }
+    requestedEmail = email;
     setBusy(true);
-    call =
-        api.requestPasswordReset(
-            email,
-            new JsonCall.Result<Void>() {
-              @Override
-              public void onSuccess(Void ignored) {
-                Ui.on(
-                    ForgotPasswordFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      setBusy(false);
-                      showResetStep(email);
-                    });
-              }
-
-              @Override
-              public void onError(ApiError error) {
-                Ui.on(
-                    ForgotPasswordFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      setBusy(false);
-                      String emailError = error.field("email");
-                      if (emailError != null) binding.forgotEmail.setError(emailError);
-                      String message =
-                          AuthErrors.message(
-                              getResources(), error, getString(R.string.auth_error_request_failed));
-                      if (resetStep) {
-                        binding.forgotError.setText(message);
-                        binding.forgotError.setVisibility(View.VISIBLE);
-                      } else {
-                        binding.forgotRequestError.setText(message);
-                        binding.forgotRequestError.setVisibility(View.VISIBLE);
-                      }
-                    });
-              }
-            });
+    requests.startResetRequest(api, email);
   }
 
   private void submitReset() {
@@ -181,39 +183,33 @@ public final class ForgotPasswordFragment extends Fragment {
       requestedEmail = AuthInput.email(binding.forgotEmail.getText().toString());
     }
     setBusy(true);
-    call =
-        api.confirmPasswordReset(
-            code,
-            password,
-            new JsonCall.Result<Void>() {
-              @Override
-              public void onSuccess(Void ignored) {
-                Ui.on(
-                    ForgotPasswordFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      ((AuthActivity) requireActivity()).clearedAfterPasswordChange(requestedEmail);
-                    });
-              }
+    requests.startResetConfirm(api, code, password);
+  }
 
-              @Override
-              public void onError(ApiError error) {
-                Ui.on(
-                    ForgotPasswordFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      setBusy(false);
-                      String tokenError = error.field("token");
-                      if (tokenError != null) binding.forgotCode.setError(tokenError);
-                      String passwordError = error.field("password");
-                      if (passwordError != null) binding.forgotPassword.setError(passwordError);
-                      binding.forgotError.setText(
-                          AuthErrors.message(
-                              getResources(), error, getString(R.string.auth_error_reset_failed)));
-                      binding.forgotError.setVisibility(View.VISIBLE);
-                    });
-              }
-            });
+  private void showResetRequestError(ApiError error) {
+    if (binding == null) return;
+    String emailError = error.field("email");
+    if (emailError != null) binding.forgotEmail.setError(emailError);
+    String message =
+        AuthErrors.message(getResources(), error, getString(R.string.auth_error_request_failed));
+    if (resetStep) {
+      binding.forgotError.setText(message);
+      binding.forgotError.setVisibility(View.VISIBLE);
+    } else {
+      binding.forgotRequestError.setText(message);
+      binding.forgotRequestError.setVisibility(View.VISIBLE);
+    }
+  }
+
+  private void showResetConfirmError(ApiError error) {
+    if (binding == null) return;
+    String tokenError = error.field("token");
+    if (tokenError != null) binding.forgotCode.setError(tokenError);
+    String passwordError = error.field("password");
+    if (passwordError != null) binding.forgotPassword.setError(passwordError);
+    binding.forgotError.setText(
+        AuthErrors.message(getResources(), error, getString(R.string.auth_error_reset_failed)));
+    binding.forgotError.setVisibility(View.VISIBLE);
   }
 
   private void setBusy(boolean busy) {
@@ -262,8 +258,6 @@ public final class ForgotPasswordFragment extends Fragment {
   @Override
   public void onDestroyView() {
     super.onDestroyView();
-    if (call != null) call.cancel();
-    call = null;
     binding = null;
   }
 }

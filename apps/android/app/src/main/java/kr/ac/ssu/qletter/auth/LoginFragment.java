@@ -12,11 +12,8 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.ApiError;
-import kr.ac.ssu.qletter.common.JsonCall;
 import kr.ac.ssu.qletter.common.QletterApplication;
-import kr.ac.ssu.qletter.common.Ui;
 import kr.ac.ssu.qletter.databinding.FragmentLoginBinding;
-import okhttp3.Call;
 
 public final class LoginFragment extends Fragment {
   private static final String ARG_EMAIL = "email";
@@ -24,7 +21,7 @@ public final class LoginFragment extends Fragment {
 
   private FragmentLoginBinding binding;
   private AuthApi api;
-  private Call call;
+  private AuthRequestViewModel requests;
   private boolean submitting;
 
   static LoginFragment newInstance(@Nullable String email, @Nullable String notice) {
@@ -51,6 +48,7 @@ public final class LoginFragment extends Fragment {
     super.onViewCreated(view, savedInstanceState);
     QletterApplication app = (QletterApplication) requireActivity().getApplication();
     api = new AuthApi(app.api());
+    requests = new ViewModelProvider(this).get(AuthRequestViewModel.class);
     binding.loginEmail.setText(requireArguments().getString(ARG_EMAIL));
     String notice = requireArguments().getString(ARG_NOTICE);
     if (notice != null && !notice.isEmpty()) {
@@ -80,6 +78,28 @@ public final class LoginFragment extends Fragment {
         });
     clearFieldErrorOnEdit(binding.loginEmail);
     clearFieldErrorOnEdit(binding.loginPassword);
+    requests
+        .login()
+        .observe(
+            getViewLifecycleOwner(),
+            state -> {
+              if (state == null) return;
+              if (state.loading) {
+                setBusy(true);
+                return;
+              }
+              if (state.error != null) {
+                setBusy(false);
+                AuthViewModel auth =
+                    new ViewModelProvider(requireActivity()).get(AuthViewModel.class);
+                showError(state.error, auth.pendingEmail(), auth.pendingPassword());
+              } else if (state.value != null) {
+                saveSession(state.value);
+              } else {
+                setBusy(false);
+              }
+              requests.clearLogin();
+            });
   }
 
   private void submit() {
@@ -99,22 +119,11 @@ public final class LoginFragment extends Fragment {
       binding.loginPassword.requestFocus();
       return;
     }
+    new ViewModelProvider(requireActivity())
+        .get(AuthViewModel.class)
+        .holdCredentials(email, password);
     setBusy(true);
-    call =
-        api.login(
-            email,
-            password,
-            new JsonCall.Result<AuthApi.Login>() {
-              @Override
-              public void onSuccess(AuthApi.Login login) {
-                Ui.on(LoginFragment.this, () -> saveSession(login));
-              }
-
-              @Override
-              public void onError(ApiError error) {
-                Ui.on(LoginFragment.this, () -> showError(error, email, password));
-              }
-            });
+    requests.startLogin(api, email, password);
   }
 
   private void saveSession(AuthApi.Login login) {
@@ -135,14 +144,18 @@ public final class LoginFragment extends Fragment {
             });
   }
 
-  private void showError(ApiError error, String email, String password) {
+  private void showError(ApiError error, @Nullable String email, @Nullable String password) {
     if (binding == null) return;
     setBusy(false);
     if (error.is("EMAIL_VERIFICATION_REQUIRED")) {
-      new ViewModelProvider(requireActivity())
-          .get(AuthViewModel.class)
-          .holdCredentials(email, password);
-      ((AuthActivity) requireActivity()).showVerify(email);
+      if (email != null && password != null) {
+        new ViewModelProvider(requireActivity())
+            .get(AuthViewModel.class)
+            .holdCredentials(email, password);
+        ((AuthActivity) requireActivity()).showVerify(email);
+      } else {
+        showMessage(getString(R.string.auth_error_verify_needed));
+      }
       return;
     }
     String emailError = error.field("email");
@@ -185,8 +198,6 @@ public final class LoginFragment extends Fragment {
   @Override
   public void onDestroyView() {
     super.onDestroyView();
-    if (call != null) call.cancel();
-    call = null;
     binding = null;
   }
 }

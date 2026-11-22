@@ -1,6 +1,7 @@
 package kr.ac.ssu.qletter.auth;
 
 import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
@@ -8,6 +9,7 @@ import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.junit.Assert.assertTrue;
 
 import android.app.UiAutomation;
+import android.content.Context;
 import android.os.Build;
 import androidx.lifecycle.Lifecycle;
 import androidx.test.core.app.ActivityScenario;
@@ -72,6 +74,18 @@ public class AuthActivityLifecycleTest {
           .check(
               matches(
                   withText(app().getString(R.string.auth_verify_subtitle, "reader@example.com"))));
+    }
+  }
+
+  @Test
+  public void 비밀번호_변경_뒤_회원가입에서_뒤로_가면_로그인으로_돌아와요() {
+    Context context = InstrumentationRegistry.getInstrumentation().getTargetContext();
+    try (ActivityScenario<AuthActivity> scenario =
+        ActivityScenario.launch(AuthActivity.passwordChangeIntent(context, "reader@example.com"))) {
+      scenario.onActivity(activity -> activity.clearedAfterPasswordChange("reader@example.com"));
+      onView(withId(R.id.login_signup)).perform(click());
+      onView(withId(R.id.signup_back)).perform(click());
+      onView(withId(R.id.login_email)).check(matches(isDisplayed()));
     }
   }
 }

@@ -11,11 +11,8 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.ApiError;
-import kr.ac.ssu.qletter.common.JsonCall;
 import kr.ac.ssu.qletter.common.QletterApplication;
-import kr.ac.ssu.qletter.common.Ui;
 import kr.ac.ssu.qletter.databinding.FragmentVerifyEmailBinding;
-import okhttp3.Call;
 
 /** 가입 또는 로그인 응답 뒤에 메일로 받은 코드로 이메일을 확인해요. */
 public final class VerifyEmailFragment extends Fragment {
@@ -23,7 +20,7 @@ public final class VerifyEmailFragment extends Fragment {
 
   private FragmentVerifyEmailBinding binding;
   private AuthApi api;
-  private Call call;
+  private AuthRequestViewModel requests;
   private String email;
   private String password;
   private boolean submitting;
@@ -56,6 +53,7 @@ public final class VerifyEmailFragment extends Fragment {
     email = requireArguments().getString(ARG_EMAIL, "");
     password = new ViewModelProvider(requireActivity()).get(AuthViewModel.class).pendingPassword();
     api = new AuthApi(((QletterApplication) requireActivity().getApplication()).api());
+    requests = new ViewModelProvider(this).get(AuthRequestViewModel.class);
     binding.verifySubtitle.setText(getString(R.string.auth_verify_subtitle, email));
     binding.verifyBack.setOnClickListener(ignored -> ((AuthActivity) requireActivity()).back());
     binding.verifySubmit.setOnClickListener(ignored -> submit());
@@ -81,6 +79,49 @@ public final class VerifyEmailFragment extends Fragment {
             binding.verifyCode.setError(null);
           }
         });
+    requests
+        .verify()
+        .observe(
+            getViewLifecycleOwner(),
+            state -> {
+              if (state == null) return;
+              if (state.loading) {
+                setBusy(true);
+                return;
+              }
+              if (state.error != null) {
+                setBusy(false);
+                showError(state.error);
+              } else {
+                new ViewModelProvider(requireActivity())
+                    .get(AuthViewModel.class)
+                    .clearCredentials();
+                ((AuthActivity) requireActivity())
+                    .showLogin(email, getString(R.string.auth_verify_success));
+              }
+              requests.clearVerify();
+            });
+    requests
+        .resend()
+        .observe(
+            getViewLifecycleOwner(),
+            state -> {
+              if (state == null) return;
+              if (state.loading) {
+                setBusy(true);
+                return;
+              }
+              setBusy(false);
+              if (state.error != null) {
+                showMessage(
+                    AuthErrors.message(
+                        getResources(), state.error, getString(R.string.auth_error_resend_failed)));
+              } else {
+                binding.verifyNotice.setText(R.string.auth_verify_resend_done);
+                binding.verifyNotice.setVisibility(View.VISIBLE);
+              }
+              requests.clearResend();
+            });
   }
 
   private void submit() {
@@ -98,30 +139,7 @@ public final class VerifyEmailFragment extends Fragment {
       return;
     }
     setBusy(true);
-    call =
-        api.confirmEmail(
-            code,
-            password,
-            new JsonCall.Result<Void>() {
-              @Override
-              public void onSuccess(Void ignored) {
-                Ui.on(
-                    VerifyEmailFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      new ViewModelProvider(requireActivity())
-                          .get(AuthViewModel.class)
-                          .clearCredentials();
-                      ((AuthActivity) requireActivity())
-                          .showLogin(email, getString(R.string.auth_verify_success));
-                    });
-              }
-
-              @Override
-              public void onError(ApiError error) {
-                Ui.on(VerifyEmailFragment.this, () -> showError(error));
-              }
-            });
+    requests.startVerify(api, code, password);
   }
 
   private void resend() {
@@ -129,35 +147,7 @@ public final class VerifyEmailFragment extends Fragment {
     binding.verifyError.setVisibility(View.GONE);
     binding.verifyNotice.setVisibility(View.GONE);
     setBusy(true);
-    call =
-        api.resendVerification(
-            email,
-            new JsonCall.Result<Void>() {
-              @Override
-              public void onSuccess(Void ignored) {
-                Ui.on(
-                    VerifyEmailFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      setBusy(false);
-                      binding.verifyNotice.setText(R.string.auth_verify_resend_done);
-                      binding.verifyNotice.setVisibility(View.VISIBLE);
-                    });
-              }
-
-              @Override
-              public void onError(ApiError error) {
-                Ui.on(
-                    VerifyEmailFragment.this,
-                    () -> {
-                      if (binding == null) return;
-                      setBusy(false);
-                      showMessage(
-                          AuthErrors.message(
-                              getResources(), error, getString(R.string.auth_error_resend_failed)));
-                    });
-              }
-            });
+    requests.startResend(api, email);
   }
 
   private void showError(ApiError error) {
@@ -185,8 +175,6 @@ public final class VerifyEmailFragment extends Fragment {
   @Override
   public void onDestroyView() {
     super.onDestroyView();
-    if (call != null) call.cancel();
-    call = null;
     binding = null;
     password = null;
   }

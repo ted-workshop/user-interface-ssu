@@ -273,10 +273,7 @@ public final class AuthActivity extends AppCompatActivity {
     if (openedMain) return;
     Fragment current = getSupportFragmentManager().findFragmentById(R.id.auth_content);
     // 계정 화면에서 연 비밀번호 찾기는 뒤로 가면 계정으로 돌아가요.
-    if (current == null
-        || current instanceof LoginFragment
-        || openedForPasswordChange
-        || START_FORGOT.equals(getIntent().getStringExtra(EXTRA_START))) {
+    if (current == null || current instanceof LoginFragment || openedForPasswordChange) {
       finish();
       return;
     }

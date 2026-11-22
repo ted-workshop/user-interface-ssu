@@ -49,6 +49,8 @@
 | [ADR-0039](0039-android-feature-packages.md) | Android 코드를 기능별 패키지로 나눠요 | 확정 | 2026-11-16 |
 | [ADR-0040](0040-pending-channel-summary-policy.md) | 수신 주소가 없는 대기 요약은 재확인까지 보류해요 | 확정 | 2026-11-21 |
 | [ADR-0041](0041-gemini-503-backoff.md) | Gemini 503만 지수 backoff로 두 번 더 호출해요 | 확정 | 2026-11-22 |
+| [ADR-0042](0042-android-local-network-permission.md) | debug 앱의 로컬 API 접속에 Android 17 네트워크 권한을 써요 | 확정 | 2026-11-22 |
+| [ADR-0043](0043-android-auth-account-channel.md) | 인증 게이트와 계정·채널 화면을 API 계약에 맞춰 연결해요 | 확정 | 2026-11-22 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

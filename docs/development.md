@@ -80,6 +80,8 @@ Android Studio에서 debug variant로 Run하면 홈 탭이 열려요. Android 7.
 adb shell am start -n kr.ac.ssu.qletter.debug/kr.ac.ssu.qletter.ConnectionActivity
 ```
  에뮬레이터 기본 주소는 http://10.0.2.2:3000/예요. 이 화면은 제품 로그인·요약 기능과 별개인 개발 확인 도구예요.
+Android 17(API 37)부터 debug 앱은 `10.0.2.2` 로컬 API에 접속하려고 `ACCESS_LOCAL_NETWORK` 런타임 권한을 요청해요.
+첫 실행에서 허용하지 않으면 로그인·가입 요청이 연결 오류로 끝나요. release에는 이 권한을 선언하지 않아요([ADR-0042](decisions/0042-android-local-network-permission.md)).
 
 실제 기기에서는 USB debugging을 켜고 장치를 승인한 뒤 포트를 연결해요.
 
@@ -104,7 +106,10 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 - **로그인 성공.** #27의 인증 화면에서 서버 응답을 받은 뒤 `app.sessions().signInAsync(session.token, session.expiresAt, error -> { ... })`을 호출해요. `app`은 `(QletterApplication) requireActivity().getApplication()`이에요. 디스크·Keystore 저장은 내부 작업 스레드에서 실행해요. 콜백은 메인 스레드에서 호출돼요. 화면이 살아 있고 오류가 없을 때 다음 화면으로 이동하고, 저장 오류가 나면 재시도를 제공해요. 토큰을 화면 인자나 로그에 넣지 않아요.
 - **개인 API.** `app.api().endpoint("reports").addQueryParameter("limit", "20").build()`로 URL을 만들고 `app.api().newCall(new Request.Builder().url(url).build())`을 실행해요. `execute()`는 작업 스레드에서 사용하고 `Response`는 닫아요. 앱 시작 시 세션 파일 읽기와 Keystore 복호화는 작업 스레드에서 실행해요. 복원이 끝나면 세션 변경을 알리고, 유효한 세션이 있으면 `GET /v1/me`로 확인해요.
 - **세션 변경.** `app.sessions().changes().observe(getViewLifecycleOwner(), ...)`에서 `isSignedIn()`을 읽어요. 앱이 다시 보일 때 절전 중 지난 만료 시각도 확인해요. 새 로그인·만료·현재 세션의 401·로컬 로그아웃 시 이전 계정의 화면 데이터를 비워요. 명시적 로그아웃은 #27에서 `DELETE /v1/auth/session`을 처리한 뒤 `clear()`를 호출해요. 요청 실패 시 사용자에게 서버 폐기 결과를 알려야 해요.
+- **계정·채널 화면.** 로그인 전에는 `AuthActivity`가 로그인·가입·비밀번호 찾기를 보여 주고, 세션이 준비되면 `MainActivity`로 이동해요. 계정 탭은 `AccountFragment`, 채널 탭은 `ChannelsFragment`가 맡아요. 로그아웃·세션 만료·401이면 `MainActivity`가 스스로 끝나고 `AuthActivity`로 돌아가요.
 - **검증.** 기본 검사는 `mise run android:check`예요. 기기를 연결하고 `mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest`로 탭 복원과 Android Keystore 저장·복원을 확인해요. 로그인 화면 통합 뒤에는 로그인 → 앱 재시작 → 로그아웃을 실제 계정으로 확인해요.
+  2026-11-22 Pixel 7 AVD(Android 17, API 37)에서 가입 → 이메일 확인 코드 → 로그인 → 앱 재시작 → 계정·채널 화면 → 로그아웃과 비밀번호 재설정을 로컬 API로 확인했어요.
+  로컬 `.dev.vars`에 SMTP·YouTube 키가 없어 실제 메일 수신과 실제 채널 조회·등록은 확인하지 않았어요.
 
 ## 로컬 D1과 환경 타입
 

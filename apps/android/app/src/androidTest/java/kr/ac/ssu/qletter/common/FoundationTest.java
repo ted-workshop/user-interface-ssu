@@ -3,12 +3,14 @@ package kr.ac.ssu.qletter.common;
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.click;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
 import static androidx.test.espresso.matcher.ViewMatchers.withId;
 import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.junit.Assert.*;
 
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.os.Build;
 import android.os.Looper;
 import androidx.lifecycle.Observer;
 import androidx.test.core.app.ActivityScenario;
@@ -23,6 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import kr.ac.ssu.qletter.R;
+import kr.ac.ssu.qletter.auth.AuthActivity;
+import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -48,18 +53,54 @@ public class FoundationTest {
     };
   }
 
+  private static QletterApplication app() {
+    return (QletterApplication)
+        InstrumentationRegistry.getInstrumentation().getTargetContext().getApplicationContext();
+  }
+
+  @After
+  public void 로그인_상태를_정리해요() {
+    app().sessions().clear();
+  }
+
+  @BeforeClass
+  public static void 로컬_네트워크_권한을_미리_허용해요() {
+    if (Build.VERSION.SDK_INT < 37) return;
+    try {
+      InstrumentationRegistry.getInstrumentation()
+          .getUiAutomation()
+          .grantRuntimePermission(
+              InstrumentationRegistry.getInstrumentation().getTargetContext().getPackageName(),
+              "android.permission.ACCESS_LOCAL_NETWORK");
+    } catch (RuntimeException ignored) {
+      // 권한이 없는 이전 빌드에서는 네트워크 요청이 실패해도 화면 제목 검사는 계속해요.
+    }
+  }
+
   @Test
-  public void 탭을_바꾸고_화면을_다시_만들어도_선택을_유지해요() {
+  public void 탭을_바꾸고_화면을_다시_만들어도_선택을_유지해요() throws Exception {
+    app().sessions().signIn(TOKEN, EXPIRY);
     try (ActivityScenario<MainActivity> page = ActivityScenario.launch(MainActivity.class)) {
       onView(withId(R.id.tab_title)).check(matches(withText(R.string.tab_home)));
       onView(withId(R.id.tab_summary)).perform(click());
       onView(withId(R.id.tab_title)).check(matches(withText(R.string.page_summary)));
       onView(withId(R.id.tab_reports)).perform(click());
       onView(withId(R.id.tab_channels)).perform(click());
+      onView(withId(R.id.channel_title)).check(matches(withText(R.string.channel_title)));
       page.recreate();
-      onView(withId(R.id.tab_title)).check(matches(withText(R.string.tab_channels)));
+      onView(withId(R.id.channel_title)).check(matches(withText(R.string.channel_title)));
       onView(withId(R.id.tab_account)).perform(click());
-      onView(withId(R.id.tab_title)).check(matches(withText(R.string.tab_account)));
+      onView(withId(R.id.account_title)).check(matches(withText(R.string.account_title)));
+    }
+  }
+
+  @Test
+  public void 로그인하지_않으면_로그인_화면을_보여요() throws Exception {
+    app().sessions().signIn(TOKEN, EXPIRY);
+    app().sessions().clear();
+    try (ActivityScenario<AuthActivity> page = ActivityScenario.launch(AuthActivity.class)) {
+      onView(withId(R.id.login_email)).check(matches(isDisplayed()));
+      onView(withId(R.id.login_submit)).check(matches(withText(R.string.auth_login)));
     }
   }
 

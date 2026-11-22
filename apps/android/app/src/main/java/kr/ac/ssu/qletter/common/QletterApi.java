@@ -20,17 +20,22 @@ public final class QletterApi {
   private final HttpUrl base;
   private final Sessions sessions;
   private final OkHttpClient client;
+  private final OkHttpClient publicClient;
 
   QletterApi(String baseUrl, Sessions sessions) {
     base = HttpUrl.get(baseUrl).newBuilder().addPathSegment("v1").addPathSegment("").build();
     this.sessions = sessions;
-    client =
+    OkHttpClient.Builder builder =
         new OkHttpClient.Builder()
             .callTimeout(15, TimeUnit.SECONDS)
             // 저장 요청이 자동으로 두 번 가지 않게 OkHttp 전체 재시도는 꺼요(ADR-0038).
             .retryOnConnectionFailure(false)
             .followRedirects(false)
-            .followSslRedirects(false)
+            .followSslRedirects(false);
+    // 로그인·가입·비밀번호 재설정 요청은 세션이 없어도 보낼 수 있어요.
+    publicClient = builder.build();
+    client =
+        builder
             .addInterceptor(
                 chain -> {
                   Request request = chain.request();
@@ -85,7 +90,17 @@ public final class QletterApi {
   }
 
   public Call newCall(Request request) {
-    HttpUrl url = request.url();
+    checkBase(request.url());
+    return client.newCall(request.newBuilder().tag(Session.class, sessions.current()).build());
+  }
+
+  /** 로그인 전에 쓰는 공개 API 요청이에요. 세션 토큰을 붙이지 않아요. */
+  public Call newPublicCall(Request request) {
+    checkBase(request.url());
+    return publicClient.newCall(request.newBuilder().header("Accept", "application/json").build());
+  }
+
+  private void checkBase(HttpUrl url) {
     if (!base.scheme().equals(url.scheme())
         || !base.host().equals(url.host())
         || base.port() != url.port()
@@ -94,6 +109,5 @@ public final class QletterApi {
         || !url.password().isEmpty()
         || url.fragment() != null)
       throw new IllegalArgumentException("지정한 Qletter API 주소를 사용해 주세요.");
-    return client.newCall(request.newBuilder().tag(Session.class, sessions.current()).build());
   }
 }

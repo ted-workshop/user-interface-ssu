@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp">
+
+        <TextView
+            android:id="@+id/verify_back"
+            style="@style/QletterText.Link"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:drawableStartCompat="@drawable/ic_arrow_back"
+            android:drawablePadding="4dp"
+            android:gravity="center_vertical"
+            android:minHeight="48dp"
+            android:text="@string/auth_back_login" />
+
+        <TextView
+            style="@style/QletterText.Title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/auth_verify_title" />
+
+        <TextView
+            android:id="@+id/verify_subtitle"
+            style="@style/QletterText.Sm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            tools:text="reader@example.com로 보낸 확인 코드를 입력해 주세요." />
+
+        <TextView
+            style="@style/QletterText.Xs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="@string/auth_verify_help" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="@string/auth_code"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <EditText
+            android:id="@+id/verify_code"
+            style="@style/QletterInput"
+            android:saveEnabled="false"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:autofillHints="oneTimeCode"
+            android:hint="@string/auth_code_hint"
+            android:imeOptions="actionDone"
+            android:inputType="text" />
+
+        <TextView
+            android:id="@+id/verify_notice"
+            style="@style/QletterText.Notice"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:accessibilityLiveRegion="polite"
+            android:visibility="gone"
+            tools:text="확인 메일을 다시 보냈어요." />
+
+        <TextView
+            android:id="@+id/verify_error"
+            style="@style/QletterText.Error"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:accessibilityLiveRegion="polite"
+            android:visibility="gone"
+            tools:text="코드가 맞지 않거나 만료됐어요." />
+
+        <Button
+            android:id="@+id/verify_submit"
+            style="@style/QletterButton.Primary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/auth_verify_submit" />
+
+        <TextView
+            android:id="@+id/verify_resend"
+            style="@style/QletterText.Link"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:gravity="center"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="12dp"
+            android:padding="8dp"
+            android:text="@string/auth_verify_resend" />
+
+        <TextView
+            style="@style/QletterText.Xs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:gravity="center"
+            android:text="@string/auth_verify_note" />
+    </LinearLayout>
+</ScrollView>

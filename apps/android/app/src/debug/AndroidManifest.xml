@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- debug 앱은 개발 PC의 로컬 API(10.0.2.2)에 접속해요. Android 17부터 로컬 네트워크 권한이 필요해요. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <application android:networkSecurityConfig="@xml/network_security_config">
-        <activity android:name=".common.MainActivity">
+        <activity android:name=".auth.AuthActivity">
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/debug_shortcuts" />
         </activity>
         <activity android:name=".ConnectionActivity" android:exported="true" />

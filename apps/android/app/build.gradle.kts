@@ -78,7 +78,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.espresso.core)
     androidTestImplementation(libs.ext.junit)
-    debugImplementation(libs.lifecycle.viewmodel)
+    implementation(libs.lifecycle.viewmodel)
     implementation(libs.lifecycle.livedata)
     implementation(libs.okhttp)
     debugImplementation(libs.moshi)

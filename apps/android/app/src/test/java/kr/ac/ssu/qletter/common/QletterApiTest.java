@@ -98,6 +98,25 @@ public class QletterApiTest {
   }
 
   @Test
+  public void 로그인_전_공개_요청에는_세션을_붙이지_않아요() throws Exception {
+    active = null;
+    server.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
+    Call call =
+        api.newPublicCall(
+            new Request.Builder()
+                .url(api.endpoint("auth", "sessions").build())
+                .post(RequestBody.create("{}", MediaType.get("application/json")))
+                .build());
+    try (Response response = call.execute()) {
+      assertEquals(200, response.code());
+    }
+    RecordedRequest sent = server.takeRequest(1, TimeUnit.SECONDS);
+    assertNotNull(sent);
+    assertEquals("/api/v1/auth/sessions", sent.getPath());
+    assertNull(sent.getHeader("Authorization"));
+  }
+
+  @Test
   public void 계정_전환_전에_만든_요청을_새_계정으로_보내지_않아요() {
     Call call = request();
     active = new Session("next-test-token", Long.MAX_VALUE);

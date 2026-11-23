@@ -17,6 +17,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -54,6 +55,9 @@ public class ReportCommentsFragmentTest {
   private TestApi api;
   private volatile long listDelay;
   private volatile long postDelay;
+  private volatile boolean listFails;
+  // 서버가 새 댓글을 저장하는 시각이에요. 이보다 먼저 온 목록 요청에는 새 댓글이 없어요.
+  private volatile long committedAt = Long.MAX_VALUE;
 
   @BeforeClass
   public static void 로컬_네트워크_권한을_미리_허용해요() {
@@ -80,16 +84,21 @@ public class ReportCommentsFragmentTest {
             if (!path.contains("/comments")) return json("{\"nickname\":\"찬형\"}");
             if ("POST".equals(request.getMethod())) {
               posts.add(request.getBody().readUtf8());
+              committedAt = SystemClock.uptimeMillis() + Math.min(200, postDelay);
               return json(comment("new", "새 댓글", true))
                   .setResponseCode(201)
                   .setHeadersDelay(postDelay, TimeUnit.MILLISECONDS);
             }
             lists.incrementAndGet();
+            if (listFails) return json("{}").setResponseCode(500);
+            boolean saved = SystemClock.uptimeMillis() >= committedAt;
             // 서버처럼 최신순으로 20개를 주고, cursor가 있으면 그보다 오래된 댓글을 줘요.
             boolean older = request.getRequestUrl().queryParameter("cursor") != null;
             int from = older ? TOTAL - 21 : TOTAL - 1;
             int to = older ? 0 : TOTAL - 20;
             StringBuilder items = new StringBuilder();
+            // 저장된 새 댓글은 가장 최신이라 첫 페이지 맨 앞에 와요.
+            if (!older && saved) items.append(comment("new", "새 댓글", true)).append(",");
             for (int i = from; i >= to; i--)
               items.append(i == from ? "" : ",").append(comment("c" + i, "댓글 " + i, false));
             String next = older ? "null" : "\"older\"";
@@ -176,6 +185,56 @@ public class ReportCommentsFragmentTest {
     }
   }
 
+  @Test
+  public void 등록_중에_다시_불러온_목록이_먼저_와도_새_댓글은_한_번만_남아요() {
+    postDelay = 1500;
+    try (ActivityScenario<MainActivity> screen = open()) {
+      await(screen, activity -> rows(activity) == 20);
+      screen.onActivity(
+          activity -> {
+            ((EditText) view(activity, R.id.comment_input)).setText("새 댓글");
+            view(activity, R.id.comment_submit).performClick();
+          });
+      // 서버가 새 댓글을 저장한 뒤, 등록 응답이 오기 전에 다시 불러와요(삭제 404와 같은 경로).
+      SystemClock.sleep(600);
+      screen.onActivity(activity -> model(activity).load());
+      await(screen, activity -> posts.size() == 1 && count(activity, "새 댓글") >= 1);
+      SystemClock.sleep(2500);
+      screen.onActivity(
+          activity -> {
+            assertEquals(1, count(activity, "새 댓글"));
+            assertEquals(21, rows(activity));
+          });
+    }
+  }
+
+  @Test
+  public void 목록_실패_뒤_등록_중에_다시_시도해도_새_댓글이_남아요() {
+    listFails = true;
+    postDelay = 1500;
+    try (ActivityScenario<MainActivity> screen = open()) {
+      await(screen, activity -> view(activity, R.id.comment_retry).getVisibility() == View.VISIBLE);
+      listFails = false;
+      // 다시 받은 목록이 등록 응답보다 늦게 와요. 등록 전에 보낸 목록이면 새 댓글이 없어요.
+      listDelay = 2500;
+      screen.onActivity(
+          activity -> {
+            ((EditText) view(activity, R.id.comment_input)).setText("새 댓글");
+            view(activity, R.id.comment_submit).performClick();
+            view(activity, R.id.comment_retry).performClick();
+          });
+      await(screen, activity -> rows(activity) == 21);
+      SystemClock.sleep(1000);
+      screen.onActivity(
+          activity -> {
+            assertEquals(1, count(activity, "새 댓글"));
+            assertEquals(21, rows(activity));
+            assertEquals(View.VISIBLE, view(activity, R.id.comment_list).getVisibility());
+          });
+      assertEquals(1, posts.size());
+    }
+  }
+
   /** 리포트 상세 자리에 넣는 테스트용 화면이에요. 스크롤 안에 댓글 영역을 붙여서 실제 상세처럼 모든 줄을 그려요. */
   public static final class DetailHost extends Fragment {
     @Override
@@ -239,6 +298,23 @@ public class ReportCommentsFragmentTest {
 
   private static View view(MainActivity activity, int id) {
     return root(activity).findViewById(id);
+  }
+
+  private static ReportCommentsViewModel model(MainActivity activity) {
+    Fragment comments =
+        activity
+            .getSupportFragmentManager()
+            .findFragmentByTag("detail")
+            .getChildFragmentManager()
+            .findFragmentByTag(TAG);
+    return new ViewModelProvider(comments).get(ReportCommentsViewModel.class);
+  }
+
+  /** 목록에서 같은 내용의 댓글이 몇 줄인지 세요. */
+  private static int count(MainActivity activity, String text) {
+    int found = 0;
+    for (int i = 0; i < rows(activity); i++) if (text.equals(body(activity, i))) found++;
+    return found;
   }
 
   private static String text(MainActivity activity, int id) {

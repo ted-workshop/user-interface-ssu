@@ -116,6 +116,8 @@ public final class ReportCommentsViewModel extends ViewModel {
   @Nullable private String cursor;
   // 다시 불러오면 1 늘려서, 그 전에 보낸 이전 댓글 요청의 응답을 버려요.
   private int generation;
+  // 등록 중에 다시 불러오기를 요청받았어요. 등록이 끝나면 그때 받아요.
+  private boolean reloadAfterSubmit;
   private int seq;
   private boolean cleared;
 
@@ -161,12 +163,21 @@ public final class ReportCommentsViewModel extends ViewModel {
     return deleting.contains(commentId);
   }
 
-  /** 최신 댓글부터 다시 받아요. 이어 받던 이전 댓글 요청은 버려요. */
+  /**
+   * 최신 댓글부터 다시 받아요. 이어 받던 이전 댓글 요청은 버려요.
+   *
+   * <p>등록 중이면 등록이 끝난 뒤에 받아요. 겹치면 등록 전 목록이 새 댓글을 지우거나, 새 댓글이 든 목록에 같은 댓글이 한 번 더 붙어요.
+   */
   void load() {
     if (loadCall != null) loadCall.cancel();
     if (olderCall != null) olderCall.cancel();
     int request = ++generation;
     status.setValue(current().loading(true, null));
+    if (current().submitting) {
+      reloadAfterSubmit = true;
+      return;
+    }
+    reloadAfterSubmit = false;
     loadCall =
         track(
             api.list(
@@ -266,9 +277,13 @@ public final class ReportCommentsViewModel extends ViewModel {
                 onMain(
                     () -> {
                       status.setValue(current().submitting(false));
-                      comments.add(comment);
-                      publish(INSERTED, comments.size() - 1, 1);
+                      // 이미 목록에 있는 댓글이면 다시 붙이지 않아요.
+                      if (indexOf(comment.getId()) == -1) {
+                        comments.add(comment);
+                        publish(INSERTED, comments.size() - 1, 1);
+                      }
                       notice.setValue(new Notice(null, true));
+                      reloadIfWaiting();
                     });
               }
 
@@ -277,6 +292,7 @@ public final class ReportCommentsViewModel extends ViewModel {
                 onMain(
                     () -> {
                       status.setValue(current().submitting(false));
+                      reloadAfterSubmit = false;
                       showNoAccess(message);
                     });
               }
@@ -287,6 +303,7 @@ public final class ReportCommentsViewModel extends ViewModel {
                     () -> {
                       status.setValue(current().submitting(false));
                       notice.setValue(new Notice(message, false));
+                      reloadIfWaiting();
                     });
               }
             }));
@@ -340,6 +357,11 @@ public final class ReportCommentsViewModel extends ViewModel {
     cleared = true;
     for (Call call : calls) call.cancel();
     main.removeCallbacksAndMessages(null);
+  }
+
+  /** 등록 중에 미뤄 둔 다시 불러오기를 이제 보내요. */
+  private void reloadIfWaiting() {
+    if (reloadAfterSubmit) load();
   }
 
   private Status current() {

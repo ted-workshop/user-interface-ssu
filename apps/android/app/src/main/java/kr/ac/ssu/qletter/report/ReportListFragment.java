@@ -32,8 +32,8 @@ public final class ReportListFragment extends Fragment {
   }
 
   @Override
-  public void onViewCreated(@NonNull View view, @Nullable Bundle saved) {
-    binding = FragmentReportListBinding.bind(view);
+  public void onCreate(@Nullable Bundle saved) {
+    super.onCreate(saved);
     model = new ViewModelProvider(this).get(ReportListViewModel.class);
     if (!model.initialized && saved != null) {
       model.query =
@@ -43,6 +43,11 @@ public final class ReportListFragment extends Fragment {
               saved.getString("delivery", ""),
               saved.getString("channel", ""));
     }
+  }
+
+  @Override
+  public void onViewCreated(@NonNull View view, @Nullable Bundle saved) {
+    binding = FragmentReportListBinding.bind(view);
     restoring = true;
     binding.reportSearch.setText(model.query.title);
     binding.reportOrigin.setAdapter(

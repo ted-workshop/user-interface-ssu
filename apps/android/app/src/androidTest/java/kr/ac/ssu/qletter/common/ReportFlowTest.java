@@ -2,6 +2,7 @@ package kr.ac.ssu.qletter.common;
 
 import static androidx.test.espresso.Espresso.onView;
 import static androidx.test.espresso.action.ViewActions.*;
+import static androidx.test.espresso.assertion.ViewAssertions.doesNotExist;
 import static androidx.test.espresso.assertion.ViewAssertions.matches;
 import static androidx.test.espresso.matcher.ViewMatchers.*;
 import static org.hamcrest.Matchers.containsString;
@@ -9,6 +10,7 @@ import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
 
 import android.graphics.Bitmap;
+import android.os.Build;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -47,6 +49,10 @@ public class ReportFlowTest {
     app =
         (QletterApplication)
             InstrumentationRegistry.getInstrumentation().getTargetContext().getApplicationContext();
+    if (Build.VERSION.SDK_INT >= 37)
+      InstrumentationRegistry.getInstrumentation()
+          .getUiAutomation()
+          .grantRuntimePermission(app.getPackageName(), "android.permission.ACCESS_LOCAL_NETWORK");
     server = new MockWebServer();
     server.setDispatcher(
         new Dispatcher() {
@@ -129,6 +135,7 @@ public class ReportFlowTest {
                   .check(matches(withText(containsString("기기 검증 본문")))));
       capture("report-detail");
       screen.recreate();
+      screen.recreate();
       awaitCheck(
           () ->
               onView(withId(R.id.detail_body))
@@ -177,6 +184,7 @@ public class ReportFlowTest {
       screen.recreate();
       onView(withId(R.id.new_collection_button)).check(matches(isDisplayed()));
       capture("reports-collections");
+      screen.recreate();
       onView(withText(R.string.report_mine)).perform(click());
       awaitText("첫 번째 리포트");
     }
@@ -199,13 +207,10 @@ public class ReportFlowTest {
       onView(withId(R.id.report_search_button)).perform(click());
       capture("reports-loading");
       app.sessions().clear();
-      awaitCheck(() -> onView(withId(R.id.tab_title)).check(matches(withText(R.string.tab_home))));
+      awaitCheck(() -> onView(withId(R.id.login_email)).check(matches(isDisplayed())));
       Thread.sleep(1200);
-      onView(withId(R.id.tab_reports)).perform(click());
-      awaitCheck(
-          () ->
-              onView(withId(R.id.report_message))
-                  .check(matches(withText(R.string.report_sign_in))));
+      onView(withId(R.id.login_email)).check(matches(isDisplayed()));
+      onView(withId(R.id.tab_reports)).check(doesNotExist());
       capture("reports-signed-out");
     }
   }

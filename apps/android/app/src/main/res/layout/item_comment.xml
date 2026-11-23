@@ -13,46 +13,54 @@
     android:gravity="center_vertical"
     android:orientation="horizontal">
 
-    <TextView
-      android:id="@+id/comment_author"
-      style="@style/QletterText.SmStrong"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:maxLines="1"
-      tools:text="찬형" />
-
-    <TextView
-      android:id="@+id/comment_time"
-      style="@style/QletterText.Xs"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginStart="8dp"
-      tools:text="방금" />
-
-    <!-- 내 댓글일 때만 보여요(서버의 canDelete). -->
-    <TextView
-      android:id="@+id/comment_mine"
-      style="@style/QletterText.Xs"
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      android:layout_marginStart="8dp"
-      android:text="@string/comment_mine"
-      android:visibility="gone" />
-
-    <View
+    <!-- 닉네임이 길거나 글꼴이 커도 삭제 버튼이 밀려나지 않게 왼쪽 묶음만 줄어들어요. -->
+    <LinearLayout
       android:layout_width="0dp"
-      android:layout_height="1dp"
-      android:layout_weight="1" />
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:gravity="center_vertical"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/comment_author"
+        style="@style/QletterText.SmStrong"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:maxLines="1"
+        tools:text="찬형" />
+
+      <TextView
+        android:id="@+id/comment_time"
+        style="@style/QletterText.Xs"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:maxLines="1"
+        tools:text="방금" />
+
+      <!-- 내 댓글일 때만 보여요(서버의 canDelete). -->
+      <TextView
+        android:id="@+id/comment_mine"
+        style="@style/QletterText.Xs"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:maxLines="1"
+        android:text="@string/comment_mine"
+        android:visibility="gone" />
+    </LinearLayout>
 
     <TextView
       android:id="@+id/comment_delete"
       style="@style/QletterText.Xs"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
+      android:layout_marginStart="8dp"
       android:background="?attr/selectableItemBackground"
+      android:gravity="center_vertical|end"
       android:minWidth="48dp"
       android:minHeight="48dp"
-      android:gravity="center_vertical|end"
       android:text="@string/comment_delete"
       android:textColor="@color/q_state_danger"
       android:visibility="gone" />

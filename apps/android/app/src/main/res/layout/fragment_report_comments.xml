@@ -27,6 +27,28 @@
       tools:text="2" />
   </LinearLayout>
 
+  <!-- 서버에 더 오래된 댓글이 있을 때만 보여요. 누르면 목록 맨 위에 붙어요. -->
+  <Button
+    android:id="@+id/comment_older"
+    style="@style/QletterButton.Default"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center_horizontal"
+    android:layout_marginTop="12dp"
+    android:text="@string/comment_older"
+    android:textColor="@color/q_button_default_text"
+    android:visibility="gone" />
+
+  <TextView
+    android:id="@+id/comment_older_error"
+    style="@style/QletterText.Xs"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:accessibilityLiveRegion="polite"
+    android:gravity="center"
+    android:textColor="@color/q_state_danger"
+    android:visibility="gone" />
+
   <FrameLayout
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -72,6 +94,7 @@
 
       <TextView
         android:id="@+id/comment_message"
+        android:accessibilityLiveRegion="polite"
         style="@style/QletterText.Sm"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -126,6 +149,7 @@
 
   <TextView
     android:id="@+id/comment_error"
+    android:accessibilityLiveRegion="polite"
     style="@style/QletterText.Xs"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"

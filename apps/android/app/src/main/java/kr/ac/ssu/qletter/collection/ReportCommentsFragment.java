@@ -64,6 +64,7 @@ public class ReportCommentsFragment extends Fragment {
 
     binding.commentSubmit.setOnClickListener(v -> submitComment());
     binding.commentRetry.setOnClickListener(v -> model.load());
+    binding.commentOlder.setOnClickListener(v -> model.loadOlder());
     loadNote();
 
     model.changes().observe(getViewLifecycleOwner(), this::applyChange);
@@ -100,6 +101,9 @@ public class ReportCommentsFragment extends Fragment {
     appliedSeq = change.seq;
     if (missed || change.kind == ReportCommentsViewModel.RELOADED) {
       adapter.notifyDataSetChanged();
+    } else if (change.kind == ReportCommentsViewModel.PREPENDED) {
+      // 이전 댓글은 "이전 댓글 보기" 바로 아래, 목록 맨 위에 붙어요.
+      adapter.notifyItemRangeInserted(0, change.count);
     } else if (change.kind == ReportCommentsViewModel.INSERTED) {
       adapter.notifyItemInserted(change.position);
       binding.commentList.scrollToPosition(change.position);
@@ -120,8 +124,21 @@ public class ReportCommentsFragment extends Fragment {
     binding.commentRetry.setVisibility(failed ? View.VISIBLE : View.GONE);
     if (failed) binding.commentMessage.setText(status.loadError);
     binding.commentList.setVisibility(failed ? View.GONE : View.VISIBLE);
-    setSubmitting(status.submitting);
+    setSubmitting(status);
+    renderOlder(status);
     updateCount();
+  }
+
+  /** 서버에 더 오래된 댓글이 있으면 목록 위에 "이전 댓글 보기"를 보여 줘요. */
+  private void renderOlder(ReportCommentsViewModel.Status status) {
+    boolean show = model.hasOlder() && !status.loading && status.loadError == null;
+    binding.commentOlder.setVisibility(show ? View.VISIBLE : View.GONE);
+    binding.commentOlder.setEnabled(!status.olderLoading);
+    binding.commentOlder.setText(
+        status.olderLoading ? R.string.comment_older_loading : R.string.comment_older);
+    boolean failed = show && status.olderError != null;
+    binding.commentOlderError.setVisibility(failed ? View.VISIBLE : View.GONE);
+    if (failed) binding.commentOlderError.setText(status.olderError);
   }
 
   /** 등록 성공·실패 같은 한 번만 보여 줄 알림이에요. 보여 준 뒤 비워서 회전해도 다시 뜨지 않아요. */
@@ -136,7 +153,11 @@ public class ReportCommentsFragment extends Fragment {
     ReportCommentsViewModel.Status status = model.status().getValue();
     boolean ready = status != null && !status.loading && status.loadError == null;
     // 불러오기 전이나 실패했을 때 "댓글 0"으로 보이지 않게 개수를 비워 둬요.
-    binding.commentCount.setText(ready ? String.valueOf(adapter.getItemCount()) : "");
+    // 서버가 전체 개수를 주지 않아서, 이전 댓글이 더 있으면 받은 개수 뒤에 +를 붙여요.
+    int count = adapter.getItemCount();
+    String label =
+        model.hasOlder() ? getString(R.string.comment_count_more, count) : String.valueOf(count);
+    binding.commentCount.setText(ready ? label : "");
     binding.commentEmpty.setVisibility(
         ready && adapter.getItemCount() == 0 ? View.VISIBLE : View.GONE);
   }
@@ -152,10 +173,10 @@ public class ReportCommentsFragment extends Fragment {
     model.submit(body);
   }
 
-  /** 등록 중에는 같은 댓글을 두 번 보내지 않게 입력칸과 버튼을 잠가요. */
-  private void setSubmitting(boolean submitting) {
-    binding.commentInput.setEnabled(!submitting);
-    binding.commentSubmit.setEnabled(!submitting);
+  /** 등록 중에는 같은 댓글을 두 번 보내지 않게 잠가요. 목록을 받는 중에도 등록 버튼은 잠가요. */
+  private void setSubmitting(ReportCommentsViewModel.Status status) {
+    binding.commentInput.setEnabled(!status.submitting);
+    binding.commentSubmit.setEnabled(status.canSubmit());
   }
 
   /** 안내 문구에 내 닉네임을 넣어요. 실패하면 닉네임 없이 보여 줘요. */
@@ -187,6 +208,8 @@ public class ReportCommentsFragment extends Fragment {
     binding.commentLoading.setVisibility(View.GONE);
     binding.commentList.setVisibility(View.GONE);
     binding.commentEmpty.setVisibility(View.GONE);
+    binding.commentOlder.setVisibility(View.GONE);
+    binding.commentOlderError.setVisibility(View.GONE);
     binding.commentForm.setVisibility(View.GONE);
     binding.commentNote.setVisibility(View.GONE);
     binding.commentRetry.setVisibility(View.GONE);

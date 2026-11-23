@@ -5,6 +5,10 @@
     <string name="comment_submit">등록</string>
     <string name="comment_mine">내 댓글</string>
     <string name="comment_delete">삭제</string>
+    <string name="comment_delete_description">내 댓글 삭제: %1$s</string>
+    <string name="comment_count_more">%1$d+</string>
+    <string name="comment_older">이전 댓글 보기</string>
+    <string name="comment_older_loading">불러오는 중…</string>
     <string name="comment_note">%1$s 닉네임으로 남겨요. 이메일은 보이지 않아요.</string>
     <string name="comment_note_plain">닉네임으로 남겨요. 이메일은 보이지 않아요.</string>
     <string name="comment_body_required">댓글을 입력해 주세요.</string>

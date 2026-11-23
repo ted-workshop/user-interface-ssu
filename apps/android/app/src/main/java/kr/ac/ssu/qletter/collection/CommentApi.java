@@ -1,10 +1,12 @@
 package kr.ac.ssu.qletter.collection;
 
 import android.content.res.Resources;
+import androidx.annotation.Nullable;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
@@ -12,6 +14,7 @@ import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.QletterApi;
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -37,6 +40,20 @@ final class CommentApi {
     T parse(String body) throws JSONException;
   }
 
+  /** 한 번에 받은 댓글(오래된 것이 위)과, 더 오래된 댓글을 받을 cursor예요. 더 없으면 null이에요. */
+  static final class Page {
+    final List<Comment> items;
+    @Nullable final String nextCursor;
+
+    Page(List<Comment> items, @Nullable String nextCursor) {
+      this.items = Collections.unmodifiableList(items);
+      this.nextCursor = nextCursor;
+    }
+  }
+
+  /** 서버 기본값과 같아요. 리포트 상세 아래에 붙으니 한 번에 많이 그리지 않아요. */
+  static final int PAGE_LIMIT = 20;
+
   private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
   private final QletterApi api;
@@ -47,16 +64,14 @@ final class CommentApi {
     this.resources = resources;
   }
 
-  /** 최근 댓글 100개를 오래된 순서로 불러와요. */
-  Call list(String reportId, Result<List<Comment>> result) {
-    Request request =
-        new Request.Builder()
-            .url(
-                api.endpoint("reports", reportId, "comments")
-                    .addQueryParameter("limit", "100")
-                    .build())
-            .build();
-    return send(request, CommentApi::parseList, R.string.comment_error_load, result);
+  /** cursor가 null이면 최신 댓글부터, 아니면 그보다 오래된 댓글을 PAGE_LIMIT개 불러와요. */
+  Call list(String reportId, @Nullable String cursor, Result<Page> result) {
+    HttpUrl.Builder url =
+        api.endpoint("reports", reportId, "comments")
+            .addQueryParameter("limit", String.valueOf(PAGE_LIMIT));
+    if (cursor != null) url.addQueryParameter("cursor", cursor);
+    Request request = new Request.Builder().url(url.build()).build();
+    return send(request, CommentApi::parsePage, R.string.comment_error_load, result);
   }
 
   /** 댓글을 남기고 서버가 저장한 댓글을 돌려줘요. */
@@ -128,12 +143,13 @@ final class CommentApi {
     return call;
   }
 
-  private static List<Comment> parseList(String json) throws JSONException {
-    JSONArray items = new JSONObject(json).getJSONArray("items");
+  private static Page parsePage(String json) throws JSONException {
+    JSONObject page = new JSONObject(json);
+    JSONArray items = page.getJSONArray("items");
     List<Comment> comments = new ArrayList<>();
     // 서버는 최신순으로 줘요. 피그마처럼 오래된 댓글이 위, 새 댓글이 아래에 오도록 뒤집어요.
     for (int i = items.length() - 1; i >= 0; i--) comments.add(toComment(items.getJSONObject(i)));
-    return comments;
+    return new Page(comments, page.isNull("nextCursor") ? null : page.getString("nextCursor"));
   }
 
   private static Comment toComment(JSONObject item) throws JSONException {

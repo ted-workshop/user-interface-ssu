@@ -7,6 +7,7 @@ import android.view.ViewGroup;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.List;
+import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.databinding.ItemCommentBinding;
 
 /** 리포트 댓글 목록이에요. 내 댓글에만 "내 댓글"과 "삭제"를 보여요. */
@@ -48,6 +49,9 @@ public class CommentAdapter extends RecyclerView.Adapter<CommentAdapter.ViewHold
     Context context = holder.itemView.getContext();
     holder.binding.commentTime.setText(CommentTime.label(context, item.getCreatedAtMillis()));
     if (item.canDelete()) {
+      // TalkBack이 "삭제"만 읽으면 어느 댓글인지 몰라서 본문 앞부분을 같이 읽어요.
+      holder.binding.commentDelete.setContentDescription(
+          context.getString(R.string.comment_delete_description, item.getBody()));
       holder.binding.commentDelete.setVisibility(View.VISIBLE);
       holder.binding.commentMine.setVisibility(View.VISIBLE);
     } else {

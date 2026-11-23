@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.material)
     testImplementation(libs.junit)
     androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.mockwebserver)
     androidTestImplementation(libs.ext.junit)
     implementation(libs.lifecycle.viewmodel)
     implementation(libs.lifecycle.livedata)

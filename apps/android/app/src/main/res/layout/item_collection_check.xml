@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 Check/AI 공부: 체크 상자, 모음 이름, 리포트 수, 아래 구분선 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical">
+
+  <LinearLayout
+    android:id="@+id/check_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:minHeight="48dp"
+    android:orientation="horizontal"
+    android:paddingTop="12dp"
+    android:paddingBottom="12dp">
+
+    <!-- 체크 여부는 어댑터에서 바탕(q_check_on, q_check_off)과 그림으로 바꿔요. 글자가 아니라 큰 글꼴에서도 안 잘려요. -->
+    <ImageView
+      android:id="@+id/check_box"
+      android:layout_width="18dp"
+      android:layout_height="18dp"
+      android:background="@drawable/q_check_off"
+      android:importantForAccessibility="no"
+      android:padding="2dp"
+      tools:src="@drawable/ic_check" />
+
+    <TextView
+      android:id="@+id/check_name"
+      style="@style/QletterText.Sm"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="12dp"
+      android:layout_weight="1"
+      android:ellipsize="end"
+      android:maxLines="1"
+      android:textColor="@color/q_ink_strong"
+      tools:text="AI 공부" />
+
+    <TextView
+      android:id="@+id/check_count"
+      style="@style/QletterText.Xs"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="12dp"
+      tools:text="2편" />
+  </LinearLayout>
+
+  <View
+    android:layout_width="match_parent"
+    android:layout_height="1dp"
+    android:background="@color/q_line_default" />
+</LinearLayout>

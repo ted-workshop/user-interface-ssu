@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 60:276 모음에 담기 시트: 제목, 설명, 모음 체크 목록, 새 모음 입력, 취소·완료 -->
+<!-- 첫 포커스는 시트가 받아요. 입력칸이 받으면 가로 화면에서 키보드가 저절로 떠서 시트를 덮어요. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:focusableInTouchMode="true"
+  android:orientation="vertical"
+  android:paddingStart="24dp"
+  android:paddingTop="24dp"
+  android:paddingEnd="24dp"
+  android:paddingBottom="28dp">
+
+  <!--
+    높이는 내용만큼이고, 시트에 다 안 들어가면 weight가 있는 이 영역만 줄어서 스크롤돼요.
+    제목·설명도 같이 스크롤해야 가로 + 큰 글꼴에서 목록과 아래 버튼이 안 잘려요(ADR-0045).
+  -->
+  <androidx.core.widget.NestedScrollView
+    android:id="@+id/add_scroll"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1">
+
+    <LinearLayout
+      android:layout_width="match_parent"
+      android:layout_height="wrap_content"
+      android:orientation="vertical">
+
+      <TextView
+        style="@style/QletterText.Subhead"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/add_to_collection_title" />
+
+      <TextView
+        style="@style/QletterText.Sm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/add_to_collection_description" />
+
+      <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="12dp"
+        android:background="@color/q_line_default" />
+
+      <FrameLayout
+        android:id="@+id/add_list_frame"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="96dp">
+
+        <!-- 모음은 100개까지만 받아서 목록을 펼쳐 놓고 바깥에서 스크롤해요. -->
+        <androidx.recyclerview.widget.RecyclerView
+          android:id="@+id/add_collections_list"
+          android:layout_width="match_parent"
+          android:layout_height="wrap_content"
+          android:nestedScrollingEnabled="false" />
+
+        <ProgressBar
+          android:id="@+id/add_loading"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_gravity="center"
+          android:visibility="gone" />
+
+        <TextView
+          android:id="@+id/add_message"
+          style="@style/QletterText.Sm"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_gravity="center"
+          android:accessibilityLiveRegion="polite"
+          android:gravity="center"
+          android:padding="16dp"
+          android:visibility="gone" />
+      </FrameLayout>
+
+      <!-- 오류도 같이 스크롤해야 큰 글꼴에서 목록을 밀어내지 않아요. 뜰 때 시트가 여기로 스크롤해요. -->
+      <TextView
+        android:id="@+id/add_new_error"
+        style="@style/QletterText.Xs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:textColor="@color/q_state_danger"
+        android:visibility="gone" />
+
+      <TextView
+        android:id="@+id/add_save_error"
+        style="@style/QletterText.Xs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:textColor="@color/q_state_danger"
+        android:visibility="gone" />
+    </LinearLayout>
+  </androidx.core.widget.NestedScrollView>
+
+  <TextView
+    android:id="@+id/add_more"
+    style="@style/QletterText.Xs"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:visibility="gone" />
+
+  <!-- 피그마 Signup Pill: 알약 입력칸 안 오른쪽에 만들기 버튼 -->
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:background="@drawable/q_pill_input"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="18dp"
+    android:paddingEnd="5dp">
+
+    <EditText
+      android:id="@+id/add_new_name"
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:background="@null"
+      android:hint="@string/add_to_collection_new_hint"
+      android:imeOptions="actionDone"
+      android:importantForAutofill="no"
+      android:inputType="text"
+      android:maxLength="30"
+      android:minHeight="48dp"
+      android:textColor="@color/q_ink_strong"
+      android:textColorHint="@color/q_ink_muted"
+      android:textSize="17sp" />
+
+    <Button
+      android:id="@+id/add_new_button"
+      style="@style/QletterButton.Default"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/collection_create"
+      android:textColor="@color/q_button_default_text" />
+  </LinearLayout>
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="16dp"
+    android:gravity="end"
+    android:orientation="horizontal">
+
+    <Button
+      android:id="@+id/add_cancel_button"
+      style="@style/QletterButton.Default"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="@string/collection_cancel"
+      android:textColor="@color/q_button_default_text" />
+
+    <Button
+      android:id="@+id/add_done_button"
+      style="@style/QletterButton.Primary"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginStart="8dp"
+      android:text="@string/add_to_collection_done" />
+  </LinearLayout>
+</LinearLayout>

@@ -4,13 +4,13 @@
 - 작성·확정일: 2026-11-22
 - 확정 근거: [#76](https://github.com/ted-workshop/user-interface-ssu/issues/76)의 승인된 API 범위에서 자율적으로 정한 구현 판단이에요.
 - 관련 기록: [ADR-0028](0028-auth-http.md)의 닉네임 검증·세션·no-store를 재사용하고, [ADR-0027](0027-no-orm-typed-rows.md)의 행 타입과 [ADR-0043](0043-android-auth-account-channel.md)이 남긴 후속 API 요구를 이어요. [API 계약](../api-contract.md)의 계정 섹션을 갱신해요.
-- 구현·검증 상태: API 구현과 workerd·로컬 D1 회귀 검사까지 마쳤어요. 원격 배포, 실제 기기, Android 계정 화면 연결은 확인하지 않았어요.
+- 구현·검증 상태: API와 Android 계정 화면 연결까지 구현했고 workerd·Android 검사로 확인했어요. 원격 Worker 배포와 실제 기기(에뮬레이터가 아닌) 수동 확인은 하지 않았어요.
 
 ## 문제와 현재 상태
 
 [#27](https://github.com/ted-workshop/user-interface-ssu/issues/27) 계정 화면 목업에는 닉네임 변경이 있지만,
 [#9](https://github.com/ted-workshop/user-interface-ssu/issues/9)에서 구현한 인증 API에는 경로가 없어요.
-Android는 [ADR-0043](0043-android-auth-account-channel.md)에 따라 닉네임을 읽기 전용으로 보여 줘요.
+Android는 [ADR-0043](0043-android-auth-account-channel.md)에 따라 이 결정 전까지 닉네임을 읽기 전용으로 보여 줬어요.
 
 `users.nickname`은 가입 때 저장한 뒤 바뀌지 않고, 댓글 작성자 표시는 조회할 때 `users.nickname`을 조인해 읽어요.
 그래서 계정 행 하나를 바꾸면 기존 댓글도 새 이름을 보여 주는 구조예요.
@@ -55,21 +55,32 @@ Android는 [ADR-0043](0043-android-auth-account-channel.md)에 따라 닉네임�
   소유자 판단은 계속 UUID로 해요.
 - DB 스키마·마이그레이션·기존 호출부 변경은 없어요.
   `users.nickname`의 CHECK 제약은 그대로이고 애플리케이션 검증이 제어문자를 추가로 막아요.
-- Android 계정 화면은 이 변경 뒤에도 읽기 전용이에요. 수정 UI 연결은 후속 PR로 남아 있어요.
+- Android 계정 화면은 같은 가입 규칙으로 먼저 검증한 뒤 `PATCH /v1/me`를 보내고,
+  성공하면 다이얼로그를 닫고 화면의 닉네임을 새 값으로 바꿔요. 실패하면 서버의 `fields.nickname`을
+  입력 오류로, 그 밖의 오류는 다이얼로그 안내로 보여 줘요.
+  닉네임 변경은 자격 증명 변경이 아니므로 로컬 세션을 폐기하지 않아요.
 
 ## 검증과 재검토 조건
 
 - 2026-11-22 `mise run api:check`가 통과했어요(workerd 474개, `tools` 16개, `scripts` 51개).
   실제 workerd·로컬 D1 검사이고 원격 배포 검증은 아니에요.
+- 2026-11-23 `mise run android:check`가 통과했어요. NicknameDialog 생명주기 검사를 androidTest에 추가했어요.
+- `:app:connectedDebugAndroidTest`: Pixel 7 AVD(Android 17, API 37)에서 17개 통과.
+  상태 저장 뒤 닉네임 변경 결과가 재개 때 한 번 전달되고 다이얼로그가 닫히는지 확인했어요.
+- 로컬 Worker와 Pixel 7 AVD에서 `테스트` → `TedSong`으로 바꾸고 앱을 강제 종료·재실행한 뒤
+  계정 화면과 D1 `users.nickname`에 새 값이 남는 것을 확인했어요. 1자 입력은 요청 없이
+  입력 오류로 막히는 것도 확인했어요.
 - `apps/api/test/accounts.test.ts`에서 성공 `200`·응답 객체·`no-store`·`GET /v1/me`·DB 반영·기존 세션 유지,
   동시 변경에서 각 응답이 그 요청이 쓴 값인지, 빈 값·1자·21자·제어문자·줄바꿈·비문자열·누락의 `400`과 `fields.nickname`,
   세션 없음·만료 `401`, 본문 `userId`·`email` 거부, 알 수 없는 query와 16 KiB 초과 `413`을 확인해요.
 - `apps/api/test/reports.test.ts`에서 변경 전에 쓴 댓글과 변경 뒤에 쓴 댓글 모두
   작성자 표시가 새 닉네임인지 확인해요.
-- 미확인: 원격 Worker 배포, 실제 기기·에뮬레이터의 화면 표시, Android 수정 UI.
+- 미확인: 원격 Worker의 닉네임 변경 배포, 실제 기기(에뮬레이터가 아닌) 수동 확인.
 - 닉네임 이력·신고·차단 요구가 생기거나 댓글에 작성 당시 이름을 보존해야 하는 요구가 생기면 이 결정을 다시 검토해요.
 
 ## 반론과 변경 이력
 
 - 2026-11-22: [#76](https://github.com/ted-workshop/user-interface-ssu/issues/76)의 승인 범위에서
   API 계약·구현·회귀 검사를 함께 추가했어요. Android 연결은 후속으로 남겼어요.
+- 2026-11-23: Android 계정 화면의 읽기 전용 닉네임을 수정 다이얼로그와 연결했어요.
+  가입과 같은 `AuthInput` 검증, 서버 `fields.nickname` 안내, 상태 저장 뒤 결과 전달 검사를 함께 넣었어요.

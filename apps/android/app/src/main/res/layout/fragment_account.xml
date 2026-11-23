@@ -129,11 +129,20 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="16dp"
                     android:layout_weight="1"
-                    android:gravity="end"
+                    android:ellipsize="end"
+                    android:maxLines="1"
                     android:textColor="@color/q_ink_strong"
                     android:textSize="15sp"
                     android:textStyle="bold"
                     tools:text="창틴" />
+
+                <Button
+                    android:id="@+id/account_change_nickname"
+                    style="@style/QletterButton.Default"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/account_nickname_change" />
             </LinearLayout>
 
             <View

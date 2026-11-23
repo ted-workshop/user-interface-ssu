@@ -43,6 +43,18 @@ final class AccountApi {
     return call;
   }
 
+  /** 세션 사용자의 닉네임만 바꾸고 갱신된 계정을 돌려받아요. */
+  Call updateNickname(String nickname, JsonCall.Result<Account> result) {
+    Request request =
+        new Request.Builder()
+            .url(api.endpoint("me").build())
+            .patch(body(json("nickname", nickname)))
+            .build();
+    Call call = api.newCall(request);
+    JsonCall.enqueue(call, text -> Account.parse(new JSONObject(text)), result);
+    return call;
+  }
+
   Call recipients(JsonCall.Result<Page<Recipient>> result) {
     Request request =
         new Request.Builder()

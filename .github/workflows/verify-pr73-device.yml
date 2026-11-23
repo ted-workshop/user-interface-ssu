@@ -1,0 +1,91 @@
+name: PR 73 Pixel 7 API 37
+on:
+  push:
+    branches: [verify/73-device-53bb920]
+permissions:
+  contents: read
+jobs:
+  device:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db
+        with:
+          install_args: bun node java
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          packages: platform-tools
+          cmdline-tools-version: '15859902'
+      - uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d
+      - name: Pixel 7 API 37 기기 준비
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h "$HOME" "$ANDROID_HOME"
+          sdkmanager --list > "$RUNNER_TEMP/android-packages.txt"
+          image=$(awk '$1 ~ /^system-images;android-37([.]0)?;(google_apis(_ps16k)?|default);x86_64$/ { fallback=$1; if ($1 == "system-images;android-37.0;google_apis_ps16k;x86_64") preferred=$1 } END { print preferred ? preferred : fallback }' "$RUNNER_TEMP/android-packages.txt")
+          test -n "$image"
+          echo "System image: $image"
+          sdkmanager "platforms;android-37.0" "build-tools;36.0.0" emulator "$image"
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/qletter-avds"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --name QletterPixel7 --package "$image" --device pixel_7 --force
+          config="$ANDROID_AVD_HOME/QletterPixel7.avd/config.ini"
+          test -s "$config"
+          sed -i '/^disk.dataPartition.size=/d' "$config"
+          echo 'disk.dataPartition.size=3G' >> "$config"
+          df -h "$ANDROID_AVD_HOME"
+          adb start-server
+          emulator="$ANDROID_HOME/emulator/emulator"
+          if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+            sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+          fi
+          "$emulator" -accel-check
+          nohup "$emulator" -avd QletterPixel7 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader -accel on > "$RUNNER_TEMP/qletter-emulator.log" 2>&1 &
+          pid=$!
+          for attempt in {1..75}; do
+            if ! kill -0 "$pid" 2>/dev/null; then cat "$RUNNER_TEMP/qletter-emulator.log"; exit 1; fi
+            if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then break; fi
+            if ((attempt % 5 == 0)); then adb devices; tail -8 "$RUNNER_TEMP/qletter-emulator.log"; fi
+            sleep 5
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          echo "Profile: Pixel 7; model: $(adb shell getprop ro.product.model); Android $(adb shell getprop ro.build.version.release); API $(adb shell getprop ro.build.version.sdk); ABI $(adb shell getprop ro.product.cpu.abi)"
+          test "$(adb shell getprop ro.build.version.sdk | tr -d '\r')" = 37
+      - name: 검증 대상 커밋 고정
+        run: |
+          cp .github/pr73-device.py "$RUNNER_TEMP/pr73-device.py"
+          git checkout --detach 53bb920901ed3d2d352ec3e259371a06020b3cc1
+          test "$(git rev-parse HEAD)" = 53bb920901ed3d2d352ec3e259371a06020b3cc1
+      - name: API 37 리포트 시나리오 4개
+        run: |
+          mise exec -- apps/android/gradlew -p apps/android -Pqletter.apiBaseUrl=http://127.0.0.1:3000/ -Pandroid.testInstrumentationRunnerArguments.class=kr.ac.ssu.qletter.common.ReportFlowTest :app:connectedDebugAndroidTest :app:assembleRelease --console=plain
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          cases = [c for f in pathlib.Path('apps/android/app/build/outputs/androidTest-results/connected').rglob('TEST-*.xml') for c in ET.parse(f).iter('testcase')]
+          for c in cases: print(c.get('name'), [e.tag for e in c])
+          assert len(cases) == 4 and all(not any(c.find(t) is not None for t in ('failure','error','skipped')) for c in cases)
+          PY
+      - name: 로그인·재실행·리포트 조회 및 가로·큰 글씨 점검
+        env:
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          bun install --frozen-lockfile
+          cd apps/api
+          printf 'AUTH_TOKEN_KEY=%s\n' "$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')" > .dev.vars
+          bun run db:migrate
+          bun run dev > "$RUNNER_TEMP/qletter-api.log" 2>&1 &
+          trap 'kill $! 2>/dev/null || true' EXIT
+          for attempt in {1..60}; do curl -fsS http://127.0.0.1:3000/health >/dev/null && break; sleep 2; done
+          curl -fsS http://127.0.0.1:3000/health
+          adb reverse tcp:3000 tcp:3000
+          adb install -r -g ../android/app/build/outputs/apk/debug/app-debug.apk
+          python3 "$RUNNER_TEMP/pr73-device.py"

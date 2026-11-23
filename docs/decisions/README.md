@@ -42,7 +42,8 @@
 | [ADR-0030](0030-channel-settings-http.md) | 공식 채널 조회와 개인 구독·수신 설정 HTTP를 연결해요 | 확정 | 2026-11-05 |
 | [ADR-0031](0031-channel-check-execution.md) | 채널 첫 기준과 새 영상 확인을 D1 Cron 대기열로 실행해요 | 확정 | 2026-11-13 |
 | [ADR-0032](0032-gemini-single-call.md) | Gemini는 한 번만 호출하고 503은 사용자가 다시 시도하게 해요 | 대체 | 2026-11-07 |
-| [ADR-0033](0033-commit-week-prefix.md) | 커밋 제목 앞에 강의 주차를 표시해요 | 확정 | 2026-11-09 |
+| [ADR-0033](0033-commit-week-prefix.md) | 커밋 제목 앞에 강의 주차를 표시해요 | 대체 | 2026-11-09 |
+| [ADR-0047](0047-commit-author-name.md) | 커밋 제목에 주차 다음 작성자 이름을 적어요 | 확정 | 2026-11-23 |
 | [ADR-0034](0034-report-comments.md) | 리포트와 댓글은 리포트별 권한 행이 있는 사용자만 읽고 써요 | 확정 | 2026-11-09 |
 | [ADR-0035](0035-worker-provider-call-paths.md) | Workers에서 oEmbed와 Interactions 호출 경로를 고쳐요 | 확정 | 2026-11-10 |
 | [ADR-0036](0036-null-provider-fields.md) | 공급자 응답의 누락 필드는 null로 저장해요 | 확정 | 2026-11-10 |

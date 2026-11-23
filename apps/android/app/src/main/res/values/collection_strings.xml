@@ -27,7 +27,12 @@
     <string name="report_day_today">오늘</string>
     <string name="report_day_yesterday">어제</string>
     <string name="collection_more_collections">최근에 만든 모음 %1$d개까지 보여요.</string>
-    <string name="collection_more_reports">최근에 담은 리포트 %1$d편까지 보여요.</string>
+    <string name="collection_more">리포트 더 보기</string>
+    <string name="collection_more_loading">불러오는 중…</string>
+    <string name="collection_remove">빼기</string>
+    <string name="collection_remove_description">모음에서 빼기: %1$s</string>
+    <string name="collection_remove_title">모음에서 뺄까요?</string>
+    <string name="collection_remove_message">%1$s 리포트를 이 모음에서 빼요. 리포트는 내 리포트에 그대로 남아요.</string>
     <string name="collection_retry">다시 시도</string>
     <string name="report_untitled">제목 없음</string>
     <string name="report_unknown_channel">채널 정보 없음</string>

@@ -1,6 +1,7 @@
 package kr.ac.ssu.qletter.collection;
 
 import android.content.res.Resources;
+import androidx.annotation.Nullable;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -13,6 +14,7 @@ import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.common.QletterApi;
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -31,14 +33,17 @@ final class CollectionApi {
     void onError(String message);
   }
 
-  /** 한 번에 받은 목록과, 서버에 더 남은 항목이 있는지예요. */
+  /** 한 번에 받은 목록과, 서버에 더 남은 항목을 이어 받을 위치예요. */
   static final class Page<T> {
     final List<T> items;
     final boolean hasMore;
+    // 다음 요청에 그대로 보내는 값이에요. null이면 더 없어요.
+    @Nullable final String nextCursor;
 
-    Page(List<T> items, boolean hasMore) {
+    Page(List<T> items, @Nullable String nextCursor) {
       this.items = Collections.unmodifiableList(items);
-      this.hasMore = hasMore;
+      this.nextCursor = nextCursor;
+      this.hasMore = nextCursor != null;
     }
   }
 
@@ -68,15 +73,16 @@ final class CollectionApi {
     return send(request, this::parseList, R.string.collection_error_load, result);
   }
 
-  /** 모음에 담긴 리포트를 담은 시각 최신순으로 최대 100개 불러와요. */
-  Call reports(String id, Result<Page<CollectionReport>> result) {
-    Request request =
-        new Request.Builder()
-            .url(
-                api.endpoint("collections", id, "reports")
-                    .addQueryParameter("limit", limit())
-                    .build())
-            .build();
+  /** 모음 상세에서 한 번에 받는 리포트 수예요. 서버 기본값과 같아요. */
+  static final int REPORT_PAGE_LIMIT = 20;
+
+  /** 모음에 담긴 리포트를 담은 시각 최신순으로 20개씩 불러와요. cursor가 있으면 그 다음부터 받아요. */
+  Call reports(String id, @Nullable String cursor, Result<Page<CollectionReport>> result) {
+    HttpUrl.Builder url =
+        api.endpoint("collections", id, "reports")
+            .addQueryParameter("limit", String.valueOf(REPORT_PAGE_LIMIT));
+    if (cursor != null) url.addQueryParameter("cursor", cursor);
+    Request request = new Request.Builder().url(url.build()).build();
     return send(request, this::parseReports, R.string.collection_error_load_reports, result);
   }
 
@@ -181,7 +187,7 @@ final class CollectionApi {
     JSONArray items = page.getJSONArray("items");
     List<ReportCollection> collections = new ArrayList<>();
     for (int i = 0; i < items.length(); i++) collections.add(toCollection(items.getJSONObject(i)));
-    return new Page<>(collections, !page.isNull("nextCursor"));
+    return new Page<>(collections, nextCursor(page));
   }
 
   private Page<CollectionCheck> parseChecks(String json) throws JSONException {
@@ -193,7 +199,7 @@ final class CollectionApi {
       // containsReport는 reportId를 보낼 때만 붙어요(docs/api-contract.md 모음 절).
       checks.add(new CollectionCheck(toCollection(item), item.optBoolean("containsReport")));
     }
-    return new Page<>(checks, !page.isNull("nextCursor"));
+    return new Page<>(checks, nextCursor(page));
   }
 
   private Page<CollectionReport> parseReports(String json) throws JSONException {
@@ -205,6 +211,7 @@ final class CollectionApi {
       JSONObject viewer = item.optJSONObject("viewerContext");
       reports.add(
           new CollectionReport(
+              item.getString("id"),
               // 공급자가 주지 않은 제목·채널은 null로 와요(ADR-0036).
               textOr(item, "title", resources.getString(R.string.report_untitled)),
               textOr(item, "channelName", resources.getString(R.string.report_unknown_channel)),
@@ -212,7 +219,12 @@ final class CollectionApi {
               viewer != null && "channel".equals(viewer.optString("origin")),
               viewer != null && "failed".equals(viewer.optString("deliveryStatus"))));
     }
-    return new Page<>(reports, !page.isNull("nextCursor"));
+    return new Page<>(reports, nextCursor(page));
+  }
+
+  @Nullable
+  private static String nextCursor(JSONObject page) {
+    return page.isNull("nextCursor") ? null : page.optString("nextCursor", null);
   }
 
   /** 서버 시각(UTC, ISO 8601)을 밀리초로 바꿔요. minSdk 24라 java.time 대신 SimpleDateFormat을 써요. */

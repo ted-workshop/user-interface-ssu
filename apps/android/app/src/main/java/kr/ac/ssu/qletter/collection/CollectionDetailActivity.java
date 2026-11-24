@@ -81,7 +81,11 @@ public class CollectionDetailActivity extends AppCompatActivity {
 
     binding.detailBack.setOnClickListener(v -> finish());
     binding.detailRenameButton.setOnClickListener(
-        v -> CollectionNameSheet.show(getSupportFragmentManager(), collection));
+        v -> {
+          // 빼는 중에는 열지 않아요. 두 응답이 겹치면 헤더 개수가 두 번 줄어요.
+          if (Boolean.TRUE.equals(model.removingAny().getValue())) return;
+          CollectionNameSheet.show(getSupportFragmentManager(), collection);
+        });
     getSupportFragmentManager()
         .setFragmentResultListener(
             CollectionNameSheet.REQUEST_KEY,
@@ -146,6 +150,7 @@ public class CollectionDetailActivity extends AppCompatActivity {
     model.changes().observe(this, this::applyChange);
     model.status().observe(this, this::renderStatus);
     model.error().observe(this, this::renderError);
+    model.removingAny().observe(this, busy -> binding.detailRenameButton.setEnabled(!busy));
     model
         .reportCount()
         .observe(

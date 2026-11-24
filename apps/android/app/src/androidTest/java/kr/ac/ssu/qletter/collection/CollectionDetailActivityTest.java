@@ -166,6 +166,34 @@ public class CollectionDetailActivityTest {
     return ActivityScenario.launchActivityForResult(intent);
   }
 
+  @Test
+  public void 빼는_중에는_이름_바꾸기를_열지_않아서_개수가_한_번만_줄어요() {
+    removeDelay = 1500;
+    try (ActivityScenario<CollectionDetailActivity> screen = open()) {
+      await(screen, activity -> rows(activity) == 20);
+      remove(screen, 0);
+      // 빼기 응답이 오기 전에 이름 바꾸기를 눌러도 시트가 열리지 않아요.
+      await(screen, activity -> !activity.findViewById(R.id.detail_rename_button).isEnabled());
+      screen.onActivity(
+          activity -> {
+            activity.findViewById(R.id.detail_rename_button).performClick();
+            activity.getSupportFragmentManager().executePendingTransactions();
+            assertEquals(
+                null,
+                activity.getSupportFragmentManager().findFragmentByTag("collection_name_sheet"));
+          });
+      await(screen, activity -> rows(activity) == 19);
+      screen.onActivity(
+          activity -> {
+            assertEquals(true, activity.findViewById(R.id.detail_rename_button).isEnabled());
+            assertEquals(
+                activity.getString(R.string.collection_detail_summary, TOTAL - 1),
+                ((TextView) activity.findViewById(R.id.detail_count)).getText().toString());
+          });
+      assertEquals(1, removes.size());
+    }
+  }
+
   /** 줄의 빼기를 누르고 확인창에서 빼기를 눌러요. */
   private static void remove(ActivityScenario<CollectionDetailActivity> screen, int position) {
     screen.onActivity(

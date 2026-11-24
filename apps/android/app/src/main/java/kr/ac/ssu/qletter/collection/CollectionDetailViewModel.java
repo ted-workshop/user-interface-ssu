@@ -80,6 +80,8 @@ public final class CollectionDetailViewModel extends ViewModel {
   private final MutableLiveData<String> error = new MutableLiveData<>();
   // 헤더에 보여 줄 리포트 수예요. 빼기에 성공하면 줄어요.
   private final MutableLiveData<Integer> reportCount = new MutableLiveData<>();
+  // 빼는 요청이 하나라도 남아 있는지예요. 그동안 이름 바꾸기를 잠가요.
+  private final MutableLiveData<Boolean> removingAny = new MutableLiveData<>(false);
   private CollectionApi api;
   private String collectionId;
   private Call loadCall;
@@ -122,6 +124,14 @@ public final class CollectionDetailViewModel extends ViewModel {
 
   boolean isRemoving(String reportId) {
     return removing.contains(reportId);
+  }
+
+  /**
+   * 빼는 중인지예요. 이름 바꾸기 응답의 개수는 서버가 그 순간 센 값이라, 빼기와 겹치면 늦게 온 빼기 성공이 한 번 더 줄여요. 그래서 빼는 동안에는 이름 바꾸기를 열지
+   * 않아요.
+   */
+  LiveData<Boolean> removingAny() {
+    return removingAny;
   }
 
   LiveData<Change> changes() {
@@ -230,6 +240,7 @@ public final class CollectionDetailViewModel extends ViewModel {
   /** 리포트를 모음에서 빼요. 빼는 중인 리포트는 다시 보내지 않아요. 리포트는 내 리포트에 남아요. */
   void remove(String reportId) {
     if (reportId == null || !removing.add(reportId)) return;
+    removingAny.setValue(true);
     // 빼는 동안 그 줄의 빼기 버튼을 잠가요.
     notifyRow(reportId);
     track(
@@ -242,6 +253,7 @@ public final class CollectionDetailViewModel extends ViewModel {
                 onMain(
                     () -> {
                       removing.remove(reportId);
+                      removingAny.setValue(!removing.isEmpty());
                       changed = true;
                       Integer count = reportCount.getValue();
                       if (count != null && count > 0) reportCount.setValue(count - 1);
@@ -260,6 +272,7 @@ public final class CollectionDetailViewModel extends ViewModel {
                 onMain(
                     () -> {
                       removing.remove(reportId);
+                      removingAny.setValue(!removing.isEmpty());
                       notifyRow(reportId);
                       error.setValue(message);
                     });

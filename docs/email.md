@@ -6,10 +6,23 @@
 ## 현재 범위
 
 `apps/api/src/email.ts`는 Gmail SMTP 접속 검사와 수신 주소 한 개의 발송을 제공해요.
-기존 요약 서비스처럼 Nodemailer와 text·HTML 본문을 사용해요. 리포트 HTML을 만들 때는
-기존 서비스의 Markdown 정제 방식을 참고하되, 이번 이슈에 리포트 렌더러를 복사하지 않아요.
+Nodemailer로 text·HTML 본문을 함께 보내고, 채널 리포트 HTML은 `apps/api/src/report-mail.ts`가 만들어요.
 인증 메일은 [ADR-0028](decisions/0028-auth-http.md)의 대기열로 보내고, 채널 발송과 재시도는 #10·#15에서 연결해요.
 공개 HTTP 발송 경로를 만들지 않으며 기본 API 검사와 health는 Gmail 키 없이 실행돼요.
+
+## 리포트 메일 HTML
+
+채널 자동 요약은 마크다운 본문을 그대로 `<pre>`에 넣지 않고 `renderReportEmail(title, bodyMarkdown)`로
+메일용 HTML을 만들어요. marked 18.2.1로 구조를 해석하고 제목·문단·목록·인용·표·코드·시간 링크에
+Qletter 앱과 같은 흑백 팔레트의 인라인 스타일을 붙여요. 스타일을 `<style>` 블록에 모으지 않는 이유는
+Gmail·Apple Mail 등이 head 스타일을 제거하거나 제한할 수 있기 때문이에요.
+
+모델이 출력한 원문 HTML은 실행하지 않고 글자로 이스케이프해요. 링크는 `http`·`https`만 `href`로 만들고
+`javascript:`·`file:` 같은 스킴과 사용자 정보가 들어간 URL은 글자만 남겨요. 이미지는 원격 추적을 막기 위해
+불러오지 않고 `[이미지] 대체 문구`로 보여줘요.
+
+text 본문은 기존처럼 마크다운 원문을 보내요. HTML을 표시하지 못하는 클라이언트를 위한 대체 본문이에요.
+실제 Gmail·Apple Mail·Outlook의 렌더링과 다크 모드는 아직 확인하지 않았어요.
 
 ## 계정 준비
 

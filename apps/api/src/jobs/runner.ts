@@ -1,5 +1,6 @@
 import { runAuthMail } from "../auth-mail";
 import { EmailError, sendEmail } from "../email";
+import { renderReportEmail } from "../report-mail";
 import {
   generateReport,
   getVideoMetadata,
@@ -156,6 +157,21 @@ async function runDelivery(env: Env, io: JobProviders) {
   const claim = await claimDelivery(env.DB, io.now());
   if (!claim) return;
   const message = await getDeliveryMessage(env.DB, claim.id);
+  let html: string;
+  try {
+    html = renderReportEmail(message.title, message.bodyMarkdown);
+  } catch (error) {
+    // 렌더링 실패는 SMTP를 호출하지 않았으므로 결과 불명이 아니라 재시도하지 않는 실패예요.
+    console.error(
+      JSON.stringify({
+        event: "delivery.render_failed",
+        id: claim.id,
+        errorName: error instanceof Error ? error.name : "unknown",
+      }),
+    );
+    await failDelivery(env.DB, claim, "invalid_input", io.now());
+    return;
+  }
   if (!(await markDeliveryDispatched(env.DB, claim, io.now()))) {
     await cancelUndispatchedDelivery(env.DB, claim, io.now());
     return;
@@ -168,7 +184,7 @@ async function runDelivery(env: Env, io: JobProviders) {
         to: message.recipientEmail,
         subject: message.title.replace(/[\r\n]/g, " "),
         text: message.bodyMarkdown,
-        html: `<pre>${escapeHtml(message.bodyMarkdown)}</pre>`,
+        html,
       },
     );
   } catch (error) {
@@ -253,13 +269,4 @@ async function runChannelCheck(env: Env, io: JobProviders) {
   // 지금 확인은 구독이 상한보다 많으면 남은 구독을 확인할 후속 작업을 대기시켜요.
   if (claim.manual) await queueFollowUpCheck(env.DB, claim, io.now());
   await completeChannelCheck(env.DB, claim, io.now());
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
 }

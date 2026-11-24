@@ -56,6 +56,7 @@
 | [ADR-0042](0042-android-local-network-permission.md) | debug 앱의 로컬 API 접속에 Android 17 네트워크 권한을 써요 | 확정 | 2026-11-22 |
 | [ADR-0043](0043-android-auth-account-channel.md) | 인증 게이트와 계정·채널 화면을 API 계약에 맞춰 연결해요 | 확정 | 2026-11-22 |
 | [ADR-0044](0044-nickname-change-http.md) | 닉네임 변경은 세션 사용자의 계정 행만 갱신해요 | 확정 | 2026-11-22 |
+| [ADR-0049](0049-report-mail-html.md) | 채널 리포트 메일을 Qletter 스타일의 안전한 HTML로 렌더링해요 | 확정 | 2026-11-24 |
 
 상태는 채택 여부를 뜻해요. 구현·배포·실제 사용 검증 여부는 각 기록에서 따로 확인해요.
 

@@ -14,8 +14,11 @@ import kr.ac.ssu.qletter.databinding.ItemCollectionReportBinding;
 
 public class CollectionReportAdapter
     extends RecyclerView.Adapter<CollectionReportAdapter.ViewHolder> {
-  /** 줄의 빼기 버튼을 눌렀을 때 화면에 알려요. */
+  /** 줄이나 빼기 버튼을 눌렀을 때 화면에 알려요. */
   interface Listener {
+    /** 줄을 누르면 리포트 상세를 열어요. */
+    void onOpen(CollectionReport report);
+
     void onRemove(CollectionReport report);
 
     /** 빼는 중이면 버튼을 잠가 두 번 보내지 않아요. */
@@ -62,6 +65,11 @@ public class CollectionReportAdapter
         v -> {
           int current = holder.getBindingAdapterPosition();
           if (current != RecyclerView.NO_POSITION) listener.onRemove(items.get(current));
+        });
+    holder.itemView.setOnClickListener(
+        v -> {
+          int current = holder.getBindingAdapterPosition();
+          if (current != RecyclerView.NO_POSITION) listener.onOpen(items.get(current));
         });
   }
 

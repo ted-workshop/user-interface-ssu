@@ -91,7 +91,6 @@ public final class CollectionDetailViewModel extends ViewModel {
   // 다시 불러오면 1 늘려서, 그 전에 보낸 더 불러오기 요청의 응답을 버려요.
   private int generation;
   private int seq;
-  private boolean changed;
   private boolean cleared;
 
   /** 처음 한 번만 목록을 불러와요. 회전 뒤에는 들고 있던 목록을 그대로 써요. */
@@ -115,11 +114,6 @@ public final class CollectionDetailViewModel extends ViewModel {
   /** 서버에 더 받을 리포트가 남아 있는지예요. */
   boolean hasMore() {
     return cursor != null;
-  }
-
-  /** 리포트를 하나라도 뺐는지예요. 모음 목록이 개수를 다시 받게 알릴 때 써요. */
-  boolean changed() {
-    return changed;
   }
 
   boolean isRemoving(String reportId) {
@@ -199,6 +193,31 @@ public final class CollectionDetailViewModel extends ViewModel {
                 }));
   }
 
+  /** 리포트 상세의 모음에 담기 시트에서 이 모음이 바뀌었을 수 있을 때 불러요. 목록은 처음부터 다시 받고, 헤더 개수는 모음 목록에서 다시 받아요. */
+  void refresh() {
+    load();
+    track(
+        api.list(
+            new CollectionApi.Result<CollectionApi.Page<ReportCollection>>() {
+              @Override
+              public void onSuccess(CollectionApi.Page<ReportCollection> page) {
+                onMain(
+                    () -> {
+                      // 빼는 중이면 그 응답이 개수를 따로 줄여요. 두 번 줄지 않게 여기서는 맞추지 않아요.
+                      if (!removing.isEmpty()) return;
+                      for (ReportCollection item : page.items)
+                        if (item.getId().equals(collectionId))
+                          reportCount.setValue(item.getReportCount());
+                    });
+              }
+
+              @Override
+              public void onError(String message) {
+                // 개수만 못 맞춘 거라 목록 오류와 따로 알리지 않아요. 다음에 들어오면 다시 받아요.
+              }
+            }));
+  }
+
   /** 다음 20개를 받아 목록 아래에 붙여요. 받는 중이면 다시 보내지 않아요. */
   void loadMore() {
     Status now = current();
@@ -254,7 +273,6 @@ public final class CollectionDetailViewModel extends ViewModel {
                     () -> {
                       removing.remove(reportId);
                       removingAny.setValue(!removing.isEmpty());
-                      changed = true;
                       Integer count = reportCount.getValue();
                       if (count != null && count > 0) reportCount.setValue(count - 1);
                       // 요청 중에 목록이 다시 불러와졌을 수 있어 id로 위치를 다시 찾아요.

@@ -1,14 +1,11 @@
 package kr.ac.ssu.qletter.collection;
 
 import android.app.Activity;
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Toast;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
@@ -26,14 +23,6 @@ public class CollectionsFragment extends Fragment {
   private CollectionAdapter adapter;
   private Call loadCall;
   private CollectionApi collectionApi;
-
-  /** 상세에서 이름을 바꾸거나 모음을 지우면 RESULT_OK가 와서 목록을 다시 불러와요(07강 결과 받기). */
-  private final ActivityResultLauncher<Intent> detailLauncher =
-      registerForActivityResult(
-          new ActivityResultContracts.StartActivityForResult(),
-          result -> {
-            if (result.getResultCode() == Activity.RESULT_OK && binding != null) loadCollections();
-          });
 
   @Override
   public void onCreate(@Nullable Bundle savedInstanceState) {
@@ -153,13 +142,15 @@ public class CollectionsFragment extends Fragment {
         });
   }
 
+  /** 상세를 이 화면 자리에 열어 하단 탭을 유지해요. 뒤로 오면 이 화면이 다시 만들어지면서 목록을 새로 받아서, 상세에서 바꾼 이름·개수·삭제가 반영돼요. */
   private void openCollectionDetail(int position) {
-    ReportCollection item = items.get(position);
-    Intent intent = new Intent(requireContext(), CollectionDetailActivity.class);
-    intent.putExtra(CollectionDetailActivity.EXTRA_ID, item.getId());
-    intent.putExtra(CollectionDetailActivity.EXTRA_NAME, item.getName());
-    intent.putExtra(CollectionDetailActivity.EXTRA_REPORT_COUNT, item.getReportCount());
-    detailLauncher.launch(intent);
+    if (getParentFragmentManager().isStateSaved()) return;
+    getParentFragmentManager()
+        .beginTransaction()
+        .setReorderingAllowed(true)
+        .replace(getId(), CollectionDetailFragment.create(items.get(position)))
+        .addToBackStack("collection-detail")
+        .commit();
   }
 
   private void loadCollections() {

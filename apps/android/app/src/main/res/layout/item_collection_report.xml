@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 피그마 Report Link: 썸네일 자리, 제목, 채널·날짜·출처·발송 상태. 모음 상세에서는 제목 오른쪽에 빼기를 둬요. -->
+<!-- 피그마 Report Link: 썸네일 자리, 제목, 채널·날짜·출처·발송 상태. 모음 상세에서는 제목 오른쪽에 빼기를 둬요. 줄을 누르면 리포트 상세를 열어요. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
   android:layout_width="match_parent"
   android:layout_height="wrap_content"
   android:layout_marginBottom="4dp"
+  android:foreground="?attr/selectableItemBackground"
   android:orientation="horizontal"
   android:padding="8dp">
 

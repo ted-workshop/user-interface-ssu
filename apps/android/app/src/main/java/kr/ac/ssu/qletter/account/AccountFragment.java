@@ -80,6 +80,14 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
               showToast(getString(R.string.account_code_verified));
               loadRecipients();
             });
+    getChildFragmentManager()
+        .setFragmentResultListener(
+            NicknameDialog.REQUEST_KEY,
+            this,
+            (key, result) -> {
+              String nickname = result.getString(NicknameDialog.RESULT_NICKNAME);
+              if (nickname != null) applyNickname(nickname);
+            });
   }
 
   @Nullable
@@ -131,6 +139,7 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
           return false;
         });
     binding.accountIntervalValue.setOnClickListener(ignored -> chooseInterval());
+    binding.accountChangeNickname.setOnClickListener(ignored -> openNicknameDialog());
     binding.accountLogout.setOnClickListener(ignored -> logout());
     binding.accountRecipientInput.addTextChangedListener(
         new android.text.TextWatcher() {
@@ -519,6 +528,7 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
     if (binding != null) {
       binding.accountRecipientAdd.setEnabled(!value);
       binding.accountIntervalValue.setEnabled(!value && intervalLoaded);
+      binding.accountChangeNickname.setEnabled(!value);
       binding.accountLogout.setEnabled(!value);
     }
   }
@@ -555,6 +565,20 @@ public final class AccountFragment extends Fragment implements RecipientAdapter.
         getString(R.string.account_delete_recipient_message, recipient.email()),
         getString(R.string.account_delete_recipient_confirm),
         recipient.id());
+  }
+
+  /** 성공한 변경을 현재 화면과 계정 정보에 반영해요. */
+  private void applyNickname(String nickname) {
+    if (binding == null) return;
+    if (account != null) account = account.withNickname(nickname);
+    binding.accountNickname.setText(nickname);
+    showToast(getString(R.string.account_nickname_saved));
+  }
+
+  private void openNicknameDialog() {
+    if (binding == null || account == null || mutating) return;
+    if (!isResumed() || getChildFragmentManager().isStateSaved()) return;
+    NicknameDialog.open(getChildFragmentManager(), account.nickname());
   }
 
   void showRecipientCode(String id, String email) {

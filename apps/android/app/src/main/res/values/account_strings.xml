@@ -4,6 +4,12 @@
     <string name="account_section_me">내 계정</string>
     <string name="account_logout">로그아웃</string>
     <string name="account_nickname_label">닉네임</string>
+    <string name="account_nickname_change">바꾸기</string>
+    <string name="account_nickname_dialog_title">닉네임 바꾸기</string>
+    <string name="account_nickname_dialog_message">공개 이름이에요. 2~20자로 입력하면 리포트 댓글 작성자에도 새 이름이 보여요.</string>
+    <string name="account_nickname_hint">닉네임</string>
+    <string name="account_nickname_confirm">저장</string>
+    <string name="account_nickname_saved">닉네임을 바꿨어요.</string>
     <string name="account_change_password">비밀번호 바꾸기</string>
     <string name="account_recipients_title">채널 리포트 받는 주소</string>
     <string name="account_recipient_add_hint">받는 주소 추가</string>
@@ -30,6 +36,8 @@
     <string name="account_error_add">수신 주소를 추가하지 못했어요.</string>
     <string name="account_error_delete">수신 주소를 빼지 못했어요.</string>
     <string name="account_error_interval">확인 주기를 바꾸지 못했어요.</string>
+    <string name="account_error_nickname">닉네임은 2~20자로 입력해 주세요.</string>
+    <string name="account_error_nickname_save">닉네임을 바꾸지 못했어요.</string>
     <string name="account_error_sign_in">로그인이 필요해요.</string>
     <string name="account_error_network">네트워크 연결을 확인해 주세요.</string>
     <string name="account_error_exists">이미 추가한 수신 주소예요.</string>

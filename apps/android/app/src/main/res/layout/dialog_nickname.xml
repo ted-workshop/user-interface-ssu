@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/nickname_title"
+        style="@style/QletterText.Subhead"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/account_nickname_dialog_title" />
+
+    <TextView
+        android:id="@+id/nickname_message"
+        style="@style/QletterText.Sm"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/account_nickname_dialog_message" />
+
+    <EditText
+        android:id="@+id/nickname_input"
+        style="@style/QletterInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:autofillHints="name"
+        android:hint="@string/account_nickname_hint"
+        android:imeOptions="actionDone"
+        android:inputType="text"
+        tools:text="창틴" />
+
+    <TextView
+        android:id="@+id/nickname_error"
+        style="@style/QletterText.Error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:accessibilityLiveRegion="polite"
+        android:visibility="gone"
+        tools:text="닉네임은 2~20자로 입력해 주세요." />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:gravity="end|center_vertical"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/nickname_cancel"
+            style="@style/QletterButton.Default"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/common_cancel" />
+
+        <Button
+            android:id="@+id/nickname_confirm"
+            style="@style/QletterButton.Primary"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="@string/account_nickname_confirm" />
+    </LinearLayout>
+</LinearLayout>

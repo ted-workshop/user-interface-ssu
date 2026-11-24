@@ -37,6 +37,11 @@ public final class Account {
     return nickname;
   }
 
+  /** 닉네임 변경 응답을 기존 계정 정보에 반영해요. */
+  public Account withNickname(String changed) {
+    return new Account(id, email, changed, emailVerified);
+  }
+
   public boolean emailVerified() {
     return emailVerified;
   }

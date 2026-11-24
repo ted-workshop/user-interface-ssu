@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 피그마 Report Link: 썸네일 자리, 제목, 채널·날짜·출처·발송 상태 -->
+<!-- 피그마 Report Link: 썸네일 자리, 제목, 채널·날짜·출처·발송 상태. 모음 상세에서는 제목 오른쪽에 빼기를 둬요. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:app="http://schemas.android.com/apk/res-auto"
   xmlns:tools="http://schemas.android.com/tools"
@@ -21,14 +21,41 @@
     android:layout_weight="1"
     android:orientation="vertical">
 
-    <TextView
-      android:id="@+id/report_title"
-      style="@style/QletterText.SmStrong"
+    <!-- 글자 기준선을 맞추지 않아요. 맞추면 제목이 빼기 버튼 글자 높이로 밀려 잘려요. -->
+    <LinearLayout
       android:layout_width="match_parent"
       android:layout_height="wrap_content"
-      android:ellipsize="end"
-      android:maxLines="2"
-      tools:text="왜 앱의 80%가 사라진다고 말하는가" />
+      android:baselineAligned="false"
+      android:orientation="horizontal">
+
+      <TextView
+        android:id="@+id/report_title"
+        style="@style/QletterText.SmStrong"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="2"
+        tools:text="왜 앱의 80%가 사라진다고 말하는가" />
+
+      <!-- 피그마에 없는 동작이라 댓글 삭제와 같은 글자 버튼으로 둬요(ADR-0048).
+           누르는 영역은 48dp로 두고, 위아래 음수 여백으로 줄 높이는 늘리지 않아요.
+           채널·날짜 줄은 피그마처럼 전체 너비를 써요. -->
+      <TextView
+        android:id="@+id/report_remove"
+        style="@style/QletterText.Xs"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="4dp"
+        android:layout_marginTop="-14dp"
+        android:layout_marginBottom="-14dp"
+        android:background="?attr/selectableItemBackground"
+        android:gravity="center"
+        android:minWidth="48dp"
+        android:minHeight="48dp"
+        android:text="@string/collection_remove"
+        android:textColor="@color/q_ink_subtle" />
+    </LinearLayout>
 
     <LinearLayout
       android:layout_width="match_parent"

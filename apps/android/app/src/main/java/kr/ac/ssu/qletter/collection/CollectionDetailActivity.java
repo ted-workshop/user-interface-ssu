@@ -1,5 +1,6 @@
 package kr.ac.ssu.qletter.collection;
 
+import android.annotation.SuppressLint;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Toast;
@@ -9,15 +10,14 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import kr.ac.ssu.qletter.R;
+import kr.ac.ssu.qletter.common.ConfirmDialog;
 import kr.ac.ssu.qletter.common.QletterApplication;
 import kr.ac.ssu.qletter.common.SessionStore;
 import kr.ac.ssu.qletter.databinding.ActivityCollectionDetailBinding;
-import okhttp3.Call;
 
 public class CollectionDetailActivity extends AppCompatActivity {
   public static final String EXTRA_ID = "id";
@@ -27,10 +27,14 @@ public class CollectionDetailActivity extends AppCompatActivity {
   private static final String STATE_REPORT_COUNT = "state_report_count";
   private static final String STATE_CHANGED = "state_changed";
 
+  private static final String REMOVE_REQUEST_KEY = "collection_remove_report";
+  private static final String REMOVE_DIALOG_TAG = "collection_remove_dialog";
+
   private ActivityCollectionDetailBinding binding;
-  private final List<CollectionReport> reports = new ArrayList<>();
   private CollectionReportAdapter adapter;
-  private Call loadCall;
+  private CollectionDetailViewModel model;
+  // 이 화면의 어댑터가 반영한 마지막 변경 번호예요.
+  private int appliedSeq;
   private CollectionApi collectionApi;
   private ReportCollection collection;
   private SessionStore sessions;
@@ -57,7 +61,11 @@ public class CollectionDetailActivity extends AppCompatActivity {
     collection = new ReportCollection(name, reportCount, getIntent().getStringExtra(EXTRA_ID));
     QletterApplication app = (QletterApplication) getApplication();
     collectionApi = new CollectionApi(app.api(), getResources());
-    binding.detailRetry.setOnClickListener(v -> loadReports(collection.getId()));
+    // Activity 범위 ViewModel이라 회전해도 같은 목록과 요청을 이어 받아요.
+    model = new ViewModelProvider(this).get(CollectionDetailViewModel.class);
+    model.start(collectionApi, collection.getId(), reportCount);
+    binding.detailRetry.setOnClickListener(v -> model.load());
+    binding.detailMore.setOnClickListener(v -> model.loadMore());
     showHeader();
 
     // 상세는 별도 Activity라 MainActivity의 세션 관찰이 닿지 않아요. 여기서도 세션이 바뀌면 닫아요(ADR-0038).
@@ -73,7 +81,11 @@ public class CollectionDetailActivity extends AppCompatActivity {
 
     binding.detailBack.setOnClickListener(v -> finish());
     binding.detailRenameButton.setOnClickListener(
-        v -> CollectionNameSheet.show(getSupportFragmentManager(), collection));
+        v -> {
+          // 빼는 중에는 열지 않아요. 두 응답이 겹치면 헤더 개수가 두 번 줄어요.
+          if (Boolean.TRUE.equals(model.removingAny().getValue())) return;
+          CollectionNameSheet.show(getSupportFragmentManager(), collection);
+        });
     getSupportFragmentManager()
         .setFragmentResultListener(
             CollectionNameSheet.REQUEST_KEY,
@@ -81,6 +93,7 @@ public class CollectionDetailActivity extends AppCompatActivity {
             (key, result) -> {
               if (sessionChanged()) return;
               collection = CollectionNameSheet.collectionFrom(result);
+              model.setReportCount(collection.getReportCount());
               changed = true;
               showHeader();
               // 목록 화면도 바뀐 이름을 다시 불러오게 알려요.
@@ -90,10 +103,33 @@ public class CollectionDetailActivity extends AppCompatActivity {
         .setFragmentResultListener(
             CollectionDeleteDialog.REQUEST_KEY, this, (key, result) -> deleteCollection());
     binding.detailDeleteButton.setOnClickListener(v -> confirmDelete());
+    getSupportFragmentManager()
+        .setFragmentResultListener(
+            REMOVE_REQUEST_KEY,
+            this,
+            (key, result) -> {
+              if (sessionChanged()) return;
+              model.remove(result.getString(ConfirmDialog.RESULT_ID));
+            });
 
-    adapter = new CollectionReportAdapter(reports);
+    adapter =
+        new CollectionReportAdapter(
+            model.reports(),
+            new CollectionReportAdapter.Listener() {
+              @Override
+              public void onRemove(CollectionReport report) {
+                confirmRemove(report);
+              }
+
+              @Override
+              public boolean isRemoving(CollectionReport report) {
+                return model.isRemoving(report.getId());
+              }
+            });
     binding.detailReportsList.setLayoutManager(new LinearLayoutManager(this));
     binding.detailReportsList.setAdapter(adapter);
+    // 새 어댑터는 지금 목록을 통째로 그리니 지금까지의 변경은 이미 반영한 셈이에요.
+    appliedSeq = model.seq();
 
     // XML의 피그마 여백(좌우 16, 위 32)에 시스템 바 영역을 더해요.
     int start = binding.getRoot().getPaddingStart();
@@ -111,7 +147,20 @@ public class CollectionDetailActivity extends AppCompatActivity {
           return insets;
         });
 
-    loadReports(collection.getId());
+    model.changes().observe(this, this::applyChange);
+    model.status().observe(this, this::renderStatus);
+    model.error().observe(this, this::renderError);
+    model.removingAny().observe(this, busy -> binding.detailRenameButton.setEnabled(!busy));
+    model
+        .reportCount()
+        .observe(
+            this,
+            count -> {
+              collection = new ReportCollection(collection.getName(), count, collection.getId());
+              showHeader();
+              // 하나라도 뺐으면 모음 목록이 개수를 다시 받게 알려요.
+              if (model.changed()) markChanged();
+            });
   }
 
   @Override
@@ -136,12 +185,16 @@ public class CollectionDetailActivity extends AppCompatActivity {
 
   private void closeForSessionChange() {
     if (isFinishing()) return;
-    if (loadCall != null) loadCall.cancel();
+    // 개인 데이터를 먼저 숨기고 닫아요. 진행 중인 요청은 ViewModel이 정리될 때 취소돼요.
     binding.detailName.setText("");
     binding.detailCount.setText("");
-    reports.clear();
-    adapter.notifyDataSetChanged();
+    binding.detailReportsList.setVisibility(View.GONE);
     finish();
+  }
+
+  private void markChanged() {
+    changed = true;
+    setResult(RESULT_OK);
   }
 
   private void showHeader() {
@@ -179,55 +232,59 @@ public class CollectionDetailActivity extends AppCompatActivity {
         });
   }
 
-  @Override
-  protected void onDestroy() {
-    if (loadCall != null) loadCall.cancel();
-    loadCall = null;
-    super.onDestroy();
+  private void confirmRemove(CollectionReport report) {
+    ConfirmDialog.show(
+        getSupportFragmentManager(),
+        REMOVE_DIALOG_TAG,
+        REMOVE_REQUEST_KEY,
+        getString(R.string.collection_remove_title),
+        getString(R.string.collection_remove_message, report.getTitle()),
+        getString(R.string.collection_remove),
+        report.getId());
   }
 
-  private void loadReports(String id) {
-    binding.detailLoading.setVisibility(View.VISIBLE);
-    binding.detailMore.setVisibility(View.GONE);
-    binding.detailState.setVisibility(View.GONE);
-    if (loadCall != null) loadCall.cancel();
+  /** ViewModel이 바꾼 만큼만 목록을 다시 그려요. 놓친 변경이 있으면 전체를 다시 그려요. */
+  @SuppressLint("NotifyDataSetChanged")
+  private void applyChange(CollectionDetailViewModel.Change change) {
+    if (change == null || change.seq <= appliedSeq) return;
+    if (change.seq != appliedSeq + 1 || change.kind == CollectionDetailViewModel.RELOADED) {
+      adapter.notifyDataSetChanged();
+    } else if (change.kind == CollectionDetailViewModel.APPENDED) {
+      adapter.notifyItemRangeInserted(change.position, change.count);
+    } else if (change.kind == CollectionDetailViewModel.REMOVED) {
+      adapter.notifyItemRemoved(change.position);
+    } else {
+      adapter.notifyItemChanged(change.position);
+    }
+    appliedSeq = change.seq;
+    renderStatus(model.status().getValue());
+  }
 
-    loadCall =
-        collectionApi.reports(
-            id,
-            new CollectionApi.Result<CollectionApi.Page<CollectionReport>>() {
-              @Override
-              public void onSuccess(CollectionApi.Page<CollectionReport> page) {
-                runOnUiThread(
-                    () -> {
-                      if (isDestroyed() || sessionChanged()) return;
-                      binding.detailLoading.setVisibility(View.GONE);
-                      reports.clear();
-                      reports.addAll(page.items);
-                      adapter.notifyDataSetChanged();
-                      if (reports.isEmpty())
-                        showState(getString(R.string.collection_detail_empty), false);
-                      // 헤더의 리포트 수보다 적게 받았으면 몇 편까지 보이는지 알려요.
-                      if (page.hasMore) {
-                        binding.detailMore.setText(
-                            getString(R.string.collection_more_reports, reports.size()));
-                        binding.detailMore.setVisibility(View.VISIBLE);
-                      }
-                    });
-              }
+  private void renderStatus(CollectionDetailViewModel.Status status) {
+    if (status == null) return;
+    binding.detailLoading.setVisibility(status.loading ? View.VISIBLE : View.GONE);
+    if (status.loadError != null) {
+      showState(status.loadError, true);
+    } else if (!status.loading && model.reports().isEmpty() && !model.hasMore()) {
+      showState(getString(R.string.collection_detail_empty), false);
+    } else {
+      binding.detailState.setVisibility(View.GONE);
+    }
+    boolean more = !status.loading && status.loadError == null && model.hasMore();
+    binding.detailMore.setVisibility(more ? View.VISIBLE : View.GONE);
+    binding.detailMore.setEnabled(!status.moreLoading);
+    binding.detailMore.setText(
+        status.moreLoading ? R.string.collection_more_loading : R.string.collection_more);
+    binding.detailMoreError.setText(status.moreError);
+    binding.detailMoreError.setVisibility(
+        more && status.moreError != null ? View.VISIBLE : View.GONE);
+  }
 
-              @Override
-              public void onError(String message) {
-                runOnUiThread(
-                    () -> {
-                      if (isDestroyed() || sessionChanged()) return;
-                      binding.detailLoading.setVisibility(View.GONE);
-                      reports.clear();
-                      adapter.notifyDataSetChanged();
-                      showState(message, true);
-                    });
-              }
-            });
+  /** 빼기 실패는 한 번만 알려요. 회전 뒤에 다시 뜨지 않게 보여 준 뒤 비워요. */
+  private void renderError(String message) {
+    if (message == null) return;
+    Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    model.consumeError();
   }
 
   private void showState(String message, boolean retry) {

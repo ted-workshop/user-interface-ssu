@@ -15,6 +15,7 @@ import kr.ac.ssu.qletter.account.AccountFragment;
 import kr.ac.ssu.qletter.auth.AuthActivity;
 import kr.ac.ssu.qletter.channel.ChannelsFragment;
 import kr.ac.ssu.qletter.databinding.ActivityMainBinding;
+import kr.ac.ssu.qletter.report.ReportsTabFragment;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Request;
@@ -126,11 +127,13 @@ public class MainActivity extends AppCompatActivity {
     Fragment next;
     if (id == R.id.tab_channels) next = new ChannelsFragment();
     else if (id == R.id.tab_account) next = new AccountFragment();
+    else if (id == R.id.tab_reports) next = new ReportsTabFragment();
     else next = TabFragment.create(id);
     getSupportFragmentManager()
         .beginTransaction()
         .setReorderingAllowed(true)
         .replace(R.id.tab_content, next, tag)
+        .setPrimaryNavigationFragment(next)
         .commitNow();
   }
 }

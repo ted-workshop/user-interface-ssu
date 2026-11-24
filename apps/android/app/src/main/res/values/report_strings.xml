@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="report_intro">직접 요약한 영상과 채널에서 받은 영상을 한곳에 모아 둬요.</string>
+  <string name="report_mine">내 리포트</string>
+  <string name="report_collections">모음</string>
+  <string name="report_search_hint">제목으로 찾기</string>
+  <string name="report_search">검색</string>
+  <string name="report_search_limit">검색어는 100자 이내로 입력해 주세요.</string>
+  <string name="report_origin_filter">생성 경로</string>
+  <string name="report_delivery_filter">발송 상태</string>
+  <string name="report_delivery_none">발송 안 함</string>
+  <string name="report_delivery_pending">발송 대기</string>
+  <string name="report_delivery_sent">발송됨</string>
+  <string name="report_metadata">%1$s · %2$s (UTC)\n%3$s · %4$s</string>
+  <string name="report_same_channel">%1$s 채널만 보기</string>
+  <string name="report_channel_active">선택한 채널의 리포트만 보고 있어요.</string>
+  <string name="report_reset">검색·필터 초기화</string>
+  <string name="report_empty">아직 저장된 리포트가 없어요.\n영상 요약에서 첫 리포트를 만들어 보세요.</string>
+  <string name="report_no_matches">조건에 맞는 리포트가 없어요.\n검색어와 필터를 바꿔 보세요.</string>
+  <string name="report_loading">리포트를 불러오고 있어요.</string>
+  <string name="report_more">리포트 더 보기</string>
+  <string name="report_retry">다시 시도</string>
+  <string name="report_sign_in">로그인하면 내 리포트를 볼 수 있어요.</string>
+  <string name="report_not_found">리포트를 찾을 수 없거나 읽을 권한이 없어요.</string>
+  <string name="report_error_network">네트워크 연결을 확인하고 다시 시도해 주세요.</string>
+  <string name="report_error_server">리포트를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</string>
+  <string name="report_error_response">리포트를 읽지 못했어요. 다시 시도해 주세요.</string>
+  <string name="report_back">← 내 리포트</string>
+  <string name="report_video">YouTube에서 보기</string>
+  <string name="report_ai_notice">AI가 작성한 리포트예요. 중요한 내용은 원본 영상과 함께 확인해 주세요.</string>
+  <string name="report_time_notice">AI가 작성한 리포트예요. 시간 링크는 원본과 대조하지 않았으니 영상에서 확인해 주세요.</string>
+  <string name="report_link_unavailable">이 링크를 열 수 없어요.</string>
+  <string-array name="report_origins">
+    <item>생성 경로 전체</item>
+    <item>@string/report_origin_direct</item>
+    <item>@string/report_origin_channel</item>
+  </string-array>
+  <string-array name="report_deliveries">
+    <item>발송 상태 전체</item>
+    <item>@string/report_delivery_none</item>
+    <item>@string/report_delivery_pending</item>
+    <item>@string/report_delivery_sent</item>
+    <item>@string/report_delivery_failed</item>
+  </string-array>
+</resources>

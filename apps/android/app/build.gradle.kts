@@ -82,6 +82,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel)
     implementation(libs.lifecycle.livedata)
     implementation(libs.okhttp)
+    implementation(libs.markwon.core)
     debugImplementation(libs.moshi)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.arch.core.testing)

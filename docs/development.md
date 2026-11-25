@@ -116,7 +116,7 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 홈의 최근 리포트와 요약 완료 카드에서 상세를 열면 뒤로 가기로 원래 화면에 돌아와요.
 요약 탭은 입력·진행 상태와 요청 목록을 보여 주고, `상태 다시 확인`은 GET, `요약 다시 시도`만 POST예요.
 앱이 백그라운드이거나 다른 탭을 보고 있으면 자동 조회를 멈춰요. 서버의 요약 작업은 계속돼요.
-범위·한계는 [ADR-0050](decisions/0050-android-home-summary.md)에 있어요.
+범위·한계는 [ADR-0051](decisions/0051-android-home-summary.md)에 있어요.
 
 기기가 연결된 환경에서 아래 검사를 실행해요. `TestApi`가 기기 내부 MockWebServer를 사용하므로 외부 API·메일 비밀값은 필요 없어요.
 

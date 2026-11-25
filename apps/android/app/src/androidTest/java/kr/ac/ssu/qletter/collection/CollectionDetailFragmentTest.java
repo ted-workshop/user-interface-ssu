@@ -53,6 +53,10 @@ public class CollectionDetailFragmentTest {
   private MockWebServer server;
   private TestApi api;
   private volatile long removeDelay;
+  // 서버가 지금 세는 모음의 리포트 수예요. 빼면 줄어요. 기본은 시트에서 하나를 뺐다고 보고 하나 적어요.
+  private volatile int serverCount = TOTAL - 1;
+  // 0보다 크면 다시 받기(모음 목록과 두 번째 리포트 목록) 응답을 이만큼 늦게 줘요. 응답 내용은 요청 시각 기준이에요.
+  private volatile long refreshDelay;
 
   @BeforeClass
   public static void 로컬_네트워크_권한을_미리_허용해요() {
@@ -77,6 +81,7 @@ public class CollectionDetailFragmentTest {
           public MockResponse dispatch(RecordedRequest request) {
             if ("DELETE".equals(request.getMethod())) {
               removes.add(request.getPath());
+              serverCount--;
               return new MockResponse()
                   .setResponseCode(204)
                   .setHeadersDelay(removeDelay, TimeUnit.MILLISECONDS);
@@ -91,12 +96,12 @@ public class CollectionDetailFragmentTest {
             // 모음 목록이에요. 시트에서 하나를 뺐다고 보고 개수를 하나 줄여 줘요.
             if (path.startsWith("/v1/collections?")) {
               collectionLists.incrementAndGet();
-              return json(
-                  "{\"items\":[{\"id\":\"k1\",\"name\":\"AI 공부\",\"reportCount\":"
-                      + (TOTAL - 1)
-                      + "}],\"nextCursor\":null}");
+              return json("{\"items\":[{\"id\":\"k1\",\"name\":\"AI 공부\",\"reportCount\":"
+                      + serverCount
+                      + "}],\"nextCursor\":null}")
+                  .setBodyDelay(refreshDelay, TimeUnit.MILLISECONDS);
             }
-            lists.incrementAndGet();
+            long delay = lists.incrementAndGet() > 1 ? refreshDelay : 0;
             // 서버처럼 담은 시각 최신순으로 20개를 주고, cursor가 있으면 그다음을 줘요.
             boolean next = request.getRequestUrl().queryParameter("cursor") != null;
             int from = next ? 20 : 0;
@@ -105,7 +110,8 @@ public class CollectionDetailFragmentTest {
             for (int i = from; i < to; i++)
               items.append(i == from ? "" : ",").append(report("r" + i, "리포트 " + i));
             String cursor = next ? "null" : "\"next\"";
-            return json("{\"items\":[" + items + "],\"nextCursor\":" + cursor + "}");
+            return json("{\"items\":[" + items + "],\"nextCursor\":" + cursor + "}")
+                .setBodyDelay(delay, TimeUnit.MILLISECONDS);
           }
         });
     server.start();
@@ -270,6 +276,49 @@ public class CollectionDetailFragmentTest {
                   && text(activity, R.id.detail_count)
                       .equals(activity.getString(R.string.collection_detail_summary, TOTAL - 1)));
       assertEquals(1, collectionLists.get());
+    }
+  }
+
+  @Test
+  public void 다시_받는_중에_빼도_늦게_온_응답이_뺀_리포트와_개수를_되돌리지_않아요() {
+    serverCount = TOTAL;
+    try (ActivityScenario<MainActivity> screen = open()) {
+      await(screen, activity -> rows(activity) == 20);
+      screen.onActivity(activity -> row(activity, 0).performClick());
+      await(screen, activity -> report(activity) != null && report(activity).getView() != null);
+      screen.onActivity(
+          activity ->
+              report(activity)
+                  .getChildFragmentManager()
+                  .setFragmentResult(AddToCollectionSheet.REQUEST_KEY, new Bundle()));
+      refreshDelay = 1500;
+      screen.onActivity(
+          activity -> report(activity).requireView().findViewById(R.id.report_back).performClick());
+      // 다시 받기 요청이 서버에 닿았지만 응답은 아직 오지 않았어요. 그사이 첫 리포트를 빼요.
+      await(
+          screen,
+          activity -> lists.get() == 2 && collectionLists.get() == 1 && rows(activity) == 20);
+      remove(screen, 0);
+      // 늦게 온 응답은 빼기 전 목록·개수예요. 뺀 리포트가 돌아오지 않고, 개수는 다시 받아 맞춰요.
+      await(
+          screen,
+          activity ->
+              collectionLists.get() == 2
+                  && view(activity, R.id.detail_loading).getVisibility() == View.GONE
+                  && rows(activity) == 19
+                  && text(activity, R.id.detail_count)
+                      .equals(activity.getString(R.string.collection_detail_summary, TOTAL - 1)));
+      SystemClock.sleep(2000);
+      screen.onActivity(
+          activity -> {
+            assertEquals(19, rows(activity));
+            assertEquals("리포트 1", title(activity, 0));
+            assertEquals(
+                activity.getString(R.string.collection_detail_summary, TOTAL - 1),
+                text(activity, R.id.detail_count));
+          });
+      assertEquals(List.of("/v1/collections/k1/reports/r0"), removes);
+      assertEquals(2, collectionLists.get());
     }
   }
 

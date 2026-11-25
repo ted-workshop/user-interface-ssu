@@ -72,6 +72,8 @@ public final class CollectionDetailViewModel extends ViewModel {
   private final Handler main = new Handler(Looper.getMainLooper());
   private final List<CollectionReport> reports = new ArrayList<>();
   private final Set<String> removing = new HashSet<>();
+  // 다시 불러오기를 시작한 뒤 빼기에 성공한 리포트예요. 그보다 늦게 온 목록 응답에 남아 있어도 다시 넣지 않아요.
+  private final Set<String> removedSinceLoad = new HashSet<>();
   private final List<Call> calls = new ArrayList<>();
   private final MutableLiveData<Change> changes = new MutableLiveData<>();
   private final MutableLiveData<Status> status =
@@ -91,6 +93,12 @@ public final class CollectionDetailViewModel extends ViewModel {
   // 다시 불러오면 1 늘려서, 그 전에 보낸 더 불러오기 요청의 응답을 버려요.
   private int generation;
   private int seq;
+  // 헤더 개수를 바꾼 횟수예요. 개수 조회를 보낸 뒤 바뀌었으면 그 응답은 낡은 값이라 버려요.
+  private int countEdits;
+  // 시트에서 돌아와 개수를 다시 받아야 하는데 아직 맞추지 못했는지예요. 빼기가 끝나면 다시 조회해요.
+  private boolean countWanted;
+  // 개수 조회는 한 번에 하나만 보내요.
+  private boolean countLoading;
   private boolean cleared;
 
   /** 처음 한 번만 목록을 불러와요. 회전 뒤에는 들고 있던 목록을 그대로 써요. */
@@ -150,6 +158,8 @@ public final class CollectionDetailViewModel extends ViewModel {
 
   /** 이름을 바꾸면 서버가 준 최신 개수로 맞춰요. */
   void setReportCount(int count) {
+    countEdits++;
+    countWanted = false;
     reportCount.setValue(count);
   }
 
@@ -158,6 +168,7 @@ public final class CollectionDetailViewModel extends ViewModel {
     if (loadCall != null) loadCall.cancel();
     if (moreCall != null) moreCall.cancel();
     int request = ++generation;
+    removedSinceLoad.clear();
     status.setValue(current().loading(true, null));
     loadCall =
         track(
@@ -171,7 +182,8 @@ public final class CollectionDetailViewModel extends ViewModel {
                         () -> {
                           if (request != generation) return;
                           reports.clear();
-                          reports.addAll(page.items);
+                          for (CollectionReport report : page.items)
+                            if (!removedSinceLoad.contains(report.getId())) reports.add(report);
                           cursor = page.nextCursor;
                           publish(RELOADED, -1, 0);
                           status.setValue(current().loading(false, null));
@@ -196,6 +208,19 @@ public final class CollectionDetailViewModel extends ViewModel {
   /** 리포트 상세의 모음에 담기 시트에서 이 모음이 바뀌었을 수 있을 때 불러요. 목록은 처음부터 다시 받고, 헤더 개수는 모음 목록에서 다시 받아요. */
   void refresh() {
     load();
+    countWanted = true;
+    loadCount();
+  }
+
+  /**
+   * 모음 목록에서 이 모음의 개수를 받아 헤더에 맞춰요. 빼는 중이면 보내지 않고, 빼기가 끝난 뒤 다시 불러요.
+   *
+   * <p>응답이 오기 전에 빼기가 성공하면 그 응답은 빼기 전 개수일 수 있어요. 그때는 버리고 다시 조회해요.
+   */
+  private void loadCount() {
+    if (!countWanted || countLoading || !removing.isEmpty()) return;
+    countLoading = true;
+    int edits = countEdits;
     track(
         api.list(
             new CollectionApi.Result<CollectionApi.Page<ReportCollection>>() {
@@ -203,8 +228,15 @@ public final class CollectionDetailViewModel extends ViewModel {
               public void onSuccess(CollectionApi.Page<ReportCollection> page) {
                 onMain(
                     () -> {
-                      // 빼는 중이면 그 응답이 개수를 따로 줄여요. 두 번 줄지 않게 여기서는 맞추지 않아요.
+                      countLoading = false;
+                      if (!countWanted) return;
+                      if (edits != countEdits) {
+                        loadCount();
+                        return;
+                      }
+                      // 그사이 빼기를 시작했으면 그 빼기가 끝난 뒤 다시 조회해요.
                       if (!removing.isEmpty()) return;
+                      countWanted = false;
                       for (ReportCollection item : page.items)
                         if (item.getId().equals(collectionId))
                           reportCount.setValue(item.getReportCount());
@@ -214,6 +246,11 @@ public final class CollectionDetailViewModel extends ViewModel {
               @Override
               public void onError(String message) {
                 // 개수만 못 맞춘 거라 목록 오류와 따로 알리지 않아요. 다음에 들어오면 다시 받아요.
+                onMain(
+                    () -> {
+                      countLoading = false;
+                      countWanted = false;
+                    });
               }
             }));
   }
@@ -237,8 +274,10 @@ public final class CollectionDetailViewModel extends ViewModel {
                           if (request != generation) return;
                           // 그사이 같은 리포트를 이미 받았으면 두 번 넣지 않아요.
                           int start = reports.size();
+                          // 요청 뒤에 뺀 리포트도 다시 넣지 않아요.
                           for (CollectionReport report : page.items)
-                            if (indexOf(report.getId()) == -1) reports.add(report);
+                            if (indexOf(report.getId()) == -1
+                                && !removedSinceLoad.contains(report.getId())) reports.add(report);
                           cursor = page.nextCursor;
                           publish(APPENDED, start, reports.size() - start);
                           status.setValue(current().more(false, null));
@@ -273,8 +312,12 @@ public final class CollectionDetailViewModel extends ViewModel {
                     () -> {
                       removing.remove(reportId);
                       removingAny.setValue(!removing.isEmpty());
+                      removedSinceLoad.add(reportId);
+                      countEdits++;
                       Integer count = reportCount.getValue();
                       if (count != null && count > 0) reportCount.setValue(count - 1);
+                      // 시트에서 돌아와 맞추던 개수가 있으면 빼기가 다 끝난 지금 다시 받아요.
+                      loadCount();
                       // 요청 중에 목록이 다시 불러와졌을 수 있어 id로 위치를 다시 찾아요.
                       int position = indexOf(reportId);
                       if (position == -1) return;
@@ -293,6 +336,7 @@ public final class CollectionDetailViewModel extends ViewModel {
                       removingAny.setValue(!removing.isEmpty());
                       notifyRow(reportId);
                       error.setValue(message);
+                      loadCount();
                     });
               }
             }));

@@ -69,13 +69,30 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp" />
 
-      <Button
-        android:id="@+id/detail_video"
-        style="@style/QletterButton.Default"
-        android:layout_width="wrap_content"
+      <!-- 피그마 60:166처럼 영상 보기 옆에 모음에 담기를 둬요. -->
+      <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:text="@string/report_video" />
+        android:baselineAligned="false"
+        android:orientation="horizontal">
+
+        <!-- 큰 글씨에서 한 버튼만 두 줄이 돼도 두 버튼 높이를 맞춰요. -->
+        <Button
+          android:id="@+id/detail_video"
+          style="@style/QletterButton.Default"
+          android:layout_width="wrap_content"
+          android:layout_height="match_parent"
+          android:text="@string/report_video" />
+
+        <Button
+          android:id="@+id/detail_add_collection"
+          style="@style/QletterButton.Default"
+          android:layout_width="wrap_content"
+          android:layout_height="match_parent"
+          android:layout_marginStart="8dp"
+          android:text="@string/add_to_collection_title" />
+      </LinearLayout>
 
       <TextView
         android:id="@+id/detail_verification"
@@ -95,6 +112,13 @@
         android:textColorLink="@color/q_ink_strong"
         android:textSize="16sp"
         android:lineSpacingExtra="6sp" />
+
+      <!-- 피그마 61:265 댓글 영역이에요. 본문을 받은 뒤 ReportCommentsFragment를 넣어요. -->
+      <androidx.fragment.app.FragmentContainerView
+        android:id="@+id/detail_comments"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp" />
     </LinearLayout>
   </androidx.core.widget.NestedScrollView>
 </LinearLayout>

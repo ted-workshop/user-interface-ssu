@@ -41,6 +41,7 @@
 | [ADR-0029](0029-collections-http.md) | 모음 항목은 본인의 보관 권한 행을 가리켜요 | 확정 | 2026-11-05 |
 | [ADR-0045](0045-android-add-to-collection-sheet.md) | 담기 시트는 일부만 저장돼도 바로 알려요 | 확정 | 2026-11-22 |
 | [ADR-0048](0048-android-collection-detail.md) | 모음 상세는 20개씩 이어 받고 줄마다 빼기를 둬요 | 확정 | 2026-11-23 |
+| [ADR-0050](0050-android-report-detail-links.md) | 리포트 상세에 모음에 담기·댓글을 붙이고 모음 상세를 리포트 탭 안 Fragment로 바꿔요 | 확정 | 2026-11-24 |
 | [ADR-0030](0030-channel-settings-http.md) | 공식 채널 조회와 개인 구독·수신 설정 HTTP를 연결해요 | 확정 | 2026-11-05 |
 | [ADR-0031](0031-channel-check-execution.md) | 채널 첫 기준과 새 영상 확인을 D1 Cron 대기열로 실행해요 | 확정 | 2026-11-13 |
 | [ADR-0032](0032-gemini-single-call.md) | Gemini는 한 번만 호출하고 503은 사용자가 다시 시도하게 해요 | 대체 | 2026-11-07 |

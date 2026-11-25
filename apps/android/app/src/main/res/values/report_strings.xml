@@ -26,6 +26,8 @@
   <string name="report_error_server">리포트를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.</string>
   <string name="report_error_response">리포트를 읽지 못했어요. 다시 시도해 주세요.</string>
   <string name="report_back">← 내 리포트</string>
+  <!-- 모음 상세에서 열면 돌아갈 모음 이름을 보여 줘요. -->
+  <string name="report_back_to">← %1$s</string>
   <string name="report_video">YouTube에서 보기</string>
   <string name="report_ai_notice">AI가 작성한 리포트예요. 중요한 내용은 원본 영상과 함께 확인해 주세요.</string>
   <string name="report_time_notice">AI가 작성한 리포트예요. 시간 링크는 원본과 대조하지 않았으니 영상에서 확인해 주세요.</string>

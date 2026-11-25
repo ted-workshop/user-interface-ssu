@@ -63,7 +63,7 @@ public class HomeSummaryFlowTest {
           @Override
           public MockResponse dispatch(RecordedRequest request) {
             String path = request.getRequestUrl().encodedPath();
-            if (path.equals("/v1/me")) return json("{}");
+            if (path.equals("/v1/me")) return json("{\"nickname\":\"홈요약검증\"}");
             if (path.equals("/v1/dashboard")) {
               if (homeFailure) return json("{}").setResponseCode(503);
               return json(
@@ -72,6 +72,9 @@ public class HomeSummaryFlowTest {
                       + "],\"activeChannelCount\":2,\"summaryCounts\":{\"queued\":1,\"running\":0,\"failed\":0},\"deliveryCounts\":{\"pending\":0,\"failed\":1},\"lastCheckedAt\":null,\"nextCheckAt\":null}");
             }
             if (path.equals("/v1/reports/" + REPORT)) return json(report(true));
+            // #90에서 상세에 붙인 댓글 영역도 정상 응답으로 열어요.
+            if (path.equals("/v1/reports/" + REPORT + "/comments"))
+              return json("{\"items\":[],\"nextCursor\":null}");
             if (path.equals("/v1/summary-requests") && request.getMethod().equals("POST")) {
               submissions.incrementAndGet();
               accepted = true;

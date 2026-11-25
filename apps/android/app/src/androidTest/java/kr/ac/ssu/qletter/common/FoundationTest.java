@@ -81,9 +81,9 @@ public class FoundationTest {
   public void 탭을_바꾸고_화면을_다시_만들어도_선택을_유지해요() throws Exception {
     app().sessions().signIn(TOKEN, EXPIRY);
     try (ActivityScenario<MainActivity> page = ActivityScenario.launch(MainActivity.class)) {
-      onView(withId(R.id.tab_title)).check(matches(withText(R.string.tab_home)));
+      onView(withId(R.id.home_title)).check(matches(withText(R.string.tab_home)));
       onView(withId(R.id.tab_summary)).perform(click());
-      onView(withId(R.id.tab_title)).check(matches(withText(R.string.page_summary)));
+      onView(withId(R.id.summary_title)).check(matches(withText(R.string.page_summary)));
       onView(withId(R.id.tab_reports)).perform(click());
       onView(withId(R.id.tab_channels)).perform(click());
       onView(withId(R.id.channel_title)).check(matches(withText(R.string.channel_title)));

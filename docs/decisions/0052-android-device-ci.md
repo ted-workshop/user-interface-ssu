@@ -44,3 +44,4 @@ workflow 구문·shell·경로를 확인하고, 원격 실행에서 공통 테�
 ## 반론과 변경 이력
 
 - 2026-11-26: 새 리뷰 요청은 없지만 기기 검증이 남아 있음을 확인하고 실행 환경을 추가했어요. 실행 전이므로 기기 완료 조건은 미체크로 유지해요.
+- 2026-11-26: `161b93a`의 전체 Quality 검사에서 API·Android·Infra가 통과했어요. 최초 기기 실행은 Ubuntu runner의 `libpulse.so.0` 누락으로 에뮬레이터 버전 확인 중 종료됐어요([실행 로그](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45751841794)). 소리를 끄는 옵션과 별개로 실행 파일이 필요한 라이브러리여서 `libpulse0` 설치를 추가했어요. 앱 기기 테스트는 아직 시작되지 않았어요.

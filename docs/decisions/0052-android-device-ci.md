@@ -4,7 +4,7 @@
 - 작성일: 2026-11-26
 - 확정 근거: 사용자가 담당 범위의 남은 작업을 진행하도록 요청했어요. #28·PR #91의 기기 검증을 마무리하기 위한 실행 방법을 판단했어요.
 - 관련 기록: [ADR-0051](0051-android-home-summary.md), [ADR-0046](0046-android-report-library.md), [ADR-0011](0011-scoped-quality-checks.md)
-- 구현·검증 상태: `2946af5`의 전체 Quality와 API 35 기기 검사 16개가 실패·오류·생략 없이 통과했어요. PNG 19개 수집을 확인했으며, 홈·요약 9개와 리포트 10개의 검토용 화면을 직접 확인했어요. 홈 오류의 단색 캡처도 해결했어요. API 37·개인 기기·실제 공급자 검증은 남아 있어요.
+- 구현·검증 상태: `2946af5`의 전체 Quality와 API 35 기기 검사 16개가 실패·오류·생략 없이 통과했어요. PNG 19개 수집을 확인했으며, 홈·요약 9개와 리포트 10개의 검토용 화면을 직접 확인했어요. 홈 오류의 단색 캡처도 해결했어요. 후속 `ff72397` 실행에서 launcher ANR을 확인해 부팅 준비를 수정했으며, 수정 후 검증 결과는 PR #91의 최종 HEAD 검사에 기록해요. API 37·개인 기기·실제 공급자 검증은 남아 있어요.
 
 ## 문제와 현재 상태
 
@@ -18,6 +18,7 @@
 - `ReportFlowTest`가 전용 주소 이외의 빌드를 건너뛰므로 `qletter.apiBaseUrl=http://127.0.0.1:3000/`을 명시해요. 테스트는 기기 내부 MockWebServer를 사용해요.
 - XML에 실패·오류·생략이 있거나 필수 상태 화면 19개가 없으면 실패시켜요. 실패 시에도 로그와 생성된 화면을 수집해요.
 - `android.injected.androidTest.leaveApksInstalledAfterRun=true`로 검사 후 APK를 유지해 캡처를 가져와요. 수집이 끝나면 임시 에뮬레이터를 종료해요.
+- 부팅 완료 뒤 키 이벤트를 보내지 않고 `svc power stayon true`와 `wm dismiss-keyguard`로 화면 켜짐과 잠금 해제를 준비해요. launcher가 아직 포커스를 얻지 못했을 때 입력 대기 ANR이 생기는 경로를 피해야 해요.
 - 커밋 SHA·에뮬레이터 버전, 결과 XML·HTML, PNG와 진단 로그를 artifact에 14일 보관해요. 검토에 사용할 화면은 별도로 PR에 첨부해요.
 - checkout 자격증명을 저장하지 않고 `contents: read`만 사용해요. 앱 비밀값이나 운영 API를 사용하지 않아요. 기존 필수 `quality` 검사와 별도로 결과를 확인해요.
 
@@ -26,6 +27,7 @@
 - [GitHub 실행 환경](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)은 Linux에서 Android 하드웨어 가속을 지원해요(2026-11-26 확인).
 - [Android CLI 검사](https://developer.android.com/studio/test/command-line)와 [에뮬레이터 실행](https://developer.android.com/studio/run/emulator-commandline)을 따라 기존 Gradle 시나리오를 실행해요(2026-11-26 확인).
 - [AGP 옵션 정의](https://android.googlesource.com/platform/tools/base/+/77b69cf85219f333699ba865d83ad999cbd8e077/build-system/gradle-core/src/main/java/com/android/build/gradle/options/BooleanOption.kt)에서 검사 뒤 APK 삭제가 기본값임을 확인했어요. 앱 외부 파일의 캡처를 수집해야 하므로 이 실행에만 APK 유지 옵션을 사용해요(2026-11-26 확인).
+- AOSP의 [PowerCommand](https://android.googlesource.com/platform/frameworks/base/+/master/cmds/svc/src/com/android/commands/svc/PowerCommand.java)와 [WindowManagerShellCommand](https://android.googlesource.com/platform/frameworks/base/+/master/services/core/java/com/android/server/wm/WindowManagerShellCommand.java)에서 화면 켜짐 유지와 잠금 해제 명령을 확인했어요(2026-11-26). 임시 CI 에뮬레이터에만 적용하며 앱의 ANR 감지나 테스트 실패 판정을 끄지 않아요. 실패 실행을 단순 재시도하는 대신 관찰된 입력 원인을 제거해요.
 - 홈·요약 캡처는 화면 문구 확인과 main thread idle 뒤에도 시작 창이 덮여 있을 수 있어요. 시스템 표시줄을 제외한 앱 영역이 단색이면 최대 5초 동안 캡처만 다시 시도하고, 계속 단색이면 검사를 실패시켜요. 파일 존재와 실제 상태는 별도로 시각 확인해요.
 - 개인 기기에서 실행하면 실제 사용 환경을 확인할 수 있지만 사용자의 PC에 의존해요. 이를 대체 완료로 간주하지 않고, 반복 가능한 에뮬레이터 검증을 먼저 확보해요.
 - 로컬 소프트웨어 에뮬레이션 재시도는 이미 부팅 실패가 확인됐어요. 유료 기기 서비스·별도 공급자 계정 대신 기존 GitHub 작업 흐름에서 실행해요.
@@ -52,3 +54,4 @@ workflow 구문·shell·경로를 확인하고, 원격 실행에서 공통 테�
 - 2026-11-26: `0a2cf4a`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45753122901)에서 16개 통과·생략 0개와 PNG 19개 수집을 확인했어요. 이미지를 열어 보니 홈 오류는 첫 창 전환 중에 캡처됐고, 리포트 상세의 기존 fixture가 #90 댓글 응답을 제공하지 않았어요. 오류 문구가 보이는지 확인하고 화면 안정 후 캡처하도록 바꿨어요. 리포트 검사의 닉네임·댓글 응답과 모음 로딩 종료 대기도 현재 계약에 맞췄어요. 다른 담당자의 기능 구현은 바꾸지 않았어요.
 - 2026-11-26: `fc437f1`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45754132092)에서 16개와 전체 Quality가 다시 통과했고, 댓글·모음 화면도 확인했어요. 홈 오류는 여전히 단색이었어요. logcat의 캡처 시각(04:19:45.917 UTC) 뒤에 시작 창 제거(04:19:46.129 UTC)가 기록돼, 접근성 idle 대기만으로는 시작 창 종료를 보장하지 못함을 확인했어요. 이 대기 대신 단색 캡처를 거부하고 제한 시간 안에서 다시 캡처해요. 앱 요청·검사 결과를 재시도하거나 성공으로 바꾸지는 않아요.
 - 2026-11-26: `2946af5`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755187642)이 3분 52초에 성공했어요. 공통 검사 16개, 실패·오류·생략 0개, 필수 PNG 19개를 확인했어요. 홈 오류에서 안내 문구와 새로고침 버튼이 실제 캡처에 표시됐어요. PR 첨부 화면은 이 실행의 홈·요약 9개와 앞선 `fc437f1` 실행의 리포트 10개예요. 두 실행 사이 제품 코드는 동일하며, 캡처 검사와 기록만 바뀌었어요. [전체 Quality](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755187713)도 API·Android·Infra·quality가 모두 통과했어요.
+- 2026-11-26: 기록만 추가한 `ff72397`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755818401)은 16개 중 11개가 `RootViewWithoutFocusException`으로 실패했어요. logcat에는 앱 실행 전 launcher의 입력 포커스 대기와 ANR, 시스템 오류창 생성이 순서대로 남아 있었어요(04:34:15~22 UTC). 부팅 직후 `input keyevent 82`가 아직 준비되지 않은 launcher로 전달된 것으로 판단해 키 입력을 제거하고 시스템 명령으로 화면을 준비해요. 이 실행의 실패는 보존하고 동일한 16개 시나리오와 19개 화면 조건으로 다시 검사해요.

@@ -65,7 +65,9 @@ jobs:
           trap collect EXIT
           "$ANDROID_HOME/emulator/emulator" -avd qletter -port 5554 -accel on -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -camera-back none -camera-front none -memory 2048 -cores 2 > "$evidence/emulator.txt" 2>&1 &
           timeout 600s bash -c 'until [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" == 1 ]]; do sleep 2; done'
-          adb shell input keyevent 82
+          # 부팅 중 launcher에 키 이벤트를 보내면 포커스 대기 ANR이 생길 수 있어요.
+          adb shell svc power stayon true
+          adb shell wm dismiss-keyguard
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0

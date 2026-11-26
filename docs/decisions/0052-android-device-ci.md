@@ -4,7 +4,7 @@
 - 작성일: 2026-11-26
 - 확정 근거: 사용자가 담당 범위의 남은 작업을 진행하도록 요청했어요. #28·PR #91의 기기 검증을 마무리하기 위한 실행 방법을 판단했어요.
 - 관련 기록: [ADR-0051](0051-android-home-summary.md), [ADR-0046](0046-android-report-library.md), [ADR-0011](0011-scoped-quality-checks.md)
-- 구현·검증 상태: workflow의 구문 검사와 전체 Quality CI가 통과했어요. API 35 에뮬레이터에서 공통 테스트 16개가 실패·오류·생략 없이 통과하고 PNG 19개를 수집했어요. 시각 검토에서 홈 오류의 빈 캡처와 상세 댓글 fixture 누락을 찾아 보완했고, 재검증 전이에요.
+- 구현·검증 상태: workflow의 구문 검사와 전체 Quality CI가 통과했어요. API 35 에뮬레이터에서 공통 테스트 16개가 실패·오류·생략 없이 통과하고 PNG 19개를 수집했어요. 상세 댓글·모음 캡처는 정상 상태를 확인했어요. 홈 오류 캡처는 시작 창이 사라지기 전에 저장돼 단색 이미지 검사를 보완했고, 재검증 전이에요.
 
 ## 문제와 현재 상태
 
@@ -26,7 +26,7 @@
 - [GitHub 실행 환경](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)은 Linux에서 Android 하드웨어 가속을 지원해요(2026-11-26 확인).
 - [Android CLI 검사](https://developer.android.com/studio/test/command-line)와 [에뮬레이터 실행](https://developer.android.com/studio/run/emulator-commandline)을 따라 기존 Gradle 시나리오를 실행해요(2026-11-26 확인).
 - [AGP 옵션 정의](https://android.googlesource.com/platform/tools/base/+/77b69cf85219f333699ba865d83ad999cbd8e077/build-system/gradle-core/src/main/java/com/android/build/gradle/options/BooleanOption.kt)에서 검사 뒤 APK 삭제가 기본값임을 확인했어요. 앱 외부 파일의 캡처를 수집해야 하므로 이 실행에만 APK 유지 옵션을 사용해요(2026-11-26 확인).
-- 홈·요약 캡처는 [UiAutomation.waitForIdle](https://developer.android.com/reference/android/app/UiAutomation#waitForIdle(long,%20long))로 화면 전환 이벤트가 잠잠해진 뒤 저장해요. 이미지 파일 존재와 화면의 실제 상태는 별도로 확인해요(2026-11-26 확인).
+- 홈·요약 캡처는 화면 문구 확인과 main thread idle 뒤에도 시작 창이 덮여 있을 수 있어요. 시스템 표시줄을 제외한 앱 영역이 단색이면 최대 5초 동안 캡처만 다시 시도하고, 계속 단색이면 검사를 실패시켜요. 파일 존재와 실제 상태는 별도로 시각 확인해요.
 - 개인 기기에서 실행하면 실제 사용 환경을 확인할 수 있지만 사용자의 PC에 의존해요. 이를 대체 완료로 간주하지 않고, 반복 가능한 에뮬레이터 검증을 먼저 확보해요.
 - 로컬 소프트웨어 에뮬레이션 재시도는 이미 부팅 실패가 확인됐어요. 유료 기기 서비스·별도 공급자 계정 대신 기존 GitHub 작업 흐름에서 실행해요.
 - API 35는 현재 앱의 지원 범위 안에서 UI·세션·상태 전이를 검증하기 위한 선택이에요. API 37의 로컬 네트워크 권한 분기는 별도로 검증해야 해요.
@@ -50,3 +50,4 @@ workflow 구문·shell·경로를 확인하고, 원격 실행에서 공통 테�
 - 2026-11-26: `161b93a`의 전체 Quality 검사에서 API·Android·Infra가 통과했어요. 최초 기기 실행은 Ubuntu runner의 `libpulse.so.0` 누락으로 에뮬레이터 버전 확인 중 종료됐어요([실행 로그](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45751841794)). 소리를 끄는 옵션과 별개로 실행 파일이 필요한 라이브러리여서 `libpulse0` 설치를 추가했어요. 앱 기기 테스트는 아직 시작되지 않았어요.
 - 2026-11-26: `d312031`에서 공통 테스트 16개와 전체 Quality가 통과했어요. 다만 검사 후 앱 파일 경로가 없어 필수 화면 19개 수집이 실패했어요([실행 로그](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45752133098)). AGP의 기본 APK 삭제 동작을 확인해 유지 옵션을 추가했어요. 화면 누락 검사는 그대로 두고 재실행해요.
 - 2026-11-26: `0a2cf4a`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45753122901)에서 16개 통과·생략 0개와 PNG 19개 수집을 확인했어요. 이미지를 열어 보니 홈 오류는 첫 창 전환 중에 캡처됐고, 리포트 상세의 기존 fixture가 #90 댓글 응답을 제공하지 않았어요. 오류 문구가 보이는지 확인하고 화면 안정 후 캡처하도록 바꿨어요. 리포트 검사의 닉네임·댓글 응답과 모음 로딩 종료 대기도 현재 계약에 맞췄어요. 다른 담당자의 기능 구현은 바꾸지 않았어요.
+- 2026-11-26: `fc437f1`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45754132092)에서 16개와 전체 Quality가 다시 통과했고, 댓글·모음 화면도 확인했어요. 홈 오류는 여전히 단색이었어요. logcat의 캡처 시각(04:19:45.917 UTC) 뒤에 시작 창 제거(04:19:46.129 UTC)가 기록돼, 접근성 idle 대기만으로는 시작 창 종료를 보장하지 못함을 확인했어요. 이 대기 대신 단색 캡처를 거부하고 제한 시간 안에서 다시 캡처해요. 앱 요청·검사 결과를 재시도하거나 성공으로 바꾸지는 않아요.

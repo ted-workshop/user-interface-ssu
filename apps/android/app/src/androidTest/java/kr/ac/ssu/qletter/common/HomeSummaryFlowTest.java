@@ -324,21 +324,41 @@ public class HomeSummaryFlowTest {
 
   private static void capture(String name) throws Exception {
     InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-    // 첫 화면 전환이 끝나기 전에 빈 창을 캡처하지 않도록 기다려요.
-    InstrumentationRegistry.getInstrumentation().getUiAutomation().waitForIdle(500, 5000);
+    // 뷰가 표시된 뒤에도 시작 창이 잠시 덮을 수 있어요. 단색 화면은 저장하지 않아요.
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
     Bitmap image = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
     assertNotNull(image);
-    File directory =
-        new File(
-            InstrumentationRegistry.getInstrumentation()
-                .getTargetContext()
-                .getExternalFilesDir(null),
-            "home-summary-check");
-    assertTrue(directory.isDirectory() || directory.mkdirs());
-    try (FileOutputStream out = new FileOutputStream(new File(directory, name + ".png"))) {
-      assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, out));
+    while (!hasContent(image) && System.nanoTime() < deadline) {
+      image.recycle();
+      Thread.sleep(100);
+      image = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
+      assertNotNull(image);
+    }
+    try {
+      assertTrue("앱 내용이 없는 단색 캡처예요: " + name, hasContent(image));
+      File directory =
+          new File(
+              InstrumentationRegistry.getInstrumentation()
+                  .getTargetContext()
+                  .getExternalFilesDir(null),
+              "home-summary-check");
+      assertTrue(directory.isDirectory() || directory.mkdirs());
+      try (FileOutputStream out = new FileOutputStream(new File(directory, name + ".png"))) {
+        assertTrue(image.compress(Bitmap.CompressFormat.PNG, 100, out));
+      }
     } finally {
       image.recycle();
     }
+  }
+
+  private static boolean hasContent(Bitmap image) {
+    // 시스템 시계·탐색 막대가 아니라 앱 내용 영역에 서로 다른 픽셀이 있는지 확인해요.
+    int color = image.getPixel(image.getWidth() / 2, image.getHeight() / 2);
+    for (int y = image.getHeight() / 8; y < image.getHeight() * 7 / 8; y += 16) {
+      for (int x = image.getWidth() / 8; x < image.getWidth() * 7 / 8; x += 16) {
+        if (image.getPixel(x, y) != color) return true;
+      }
+    }
+    return false;
   }
 }

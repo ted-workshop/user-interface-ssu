@@ -245,6 +245,7 @@ public class HomeSummaryFlowTest {
     try (ActivityScenario<MainActivity> screen = ActivityScenario.launch(MainActivity.class)) {
       await(
           () -> onView(withId(R.id.home_error)).check(matches(withText(R.string.home_load_error))));
+      onView(withId(R.id.home_error)).perform(scrollTo()).check(matches(isDisplayed()));
       capture("home-error");
       homeFailure = false;
       onView(withId(R.id.home_refresh)).perform(scrollTo(), click());
@@ -322,6 +323,9 @@ public class HomeSummaryFlowTest {
   }
 
   private static void capture(String name) throws Exception {
+    InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+    // 첫 화면 전환이 끝나기 전에 빈 창을 캡처하지 않도록 기다려요.
+    InstrumentationRegistry.getInstrumentation().getUiAutomation().waitForIdle(500, 5000);
     Bitmap image = InstrumentationRegistry.getInstrumentation().getUiAutomation().takeScreenshot();
     assertNotNull(image);
     File directory =

@@ -59,7 +59,7 @@ public class ReportFlowTest {
           @Override
           public MockResponse dispatch(RecordedRequest request) {
             String path = request.getRequestUrl().encodedPath();
-            if (path.equals("/v1/me")) return json("{}");
+            if (path.equals("/v1/me")) return json("{\"nickname\":\"리포트검증\"}");
             if (path.equals("/v1/collections")) return json("{\"items\":[],\"nextCursor\":null}");
             if (path.equals("/v1/reports")) {
               listCalls.incrementAndGet();
@@ -76,6 +76,7 @@ public class ReportFlowTest {
             }
             if (path.startsWith("/v1/reports/")) {
               if (missing) return json("{}").setResponseCode(404);
+              if (path.endsWith("/comments")) return json("{\"items\":[],\"nextCursor\":null}");
               return json(report(FIRST, "첫 번째 리포트", true));
             }
             return json("{}").setResponseCode(404);
@@ -133,6 +134,7 @@ public class ReportFlowTest {
           () ->
               onView(withId(R.id.detail_body))
                   .check(matches(withText(containsString("기기 검증 본문")))));
+      awaitCheck(() -> onView(withId(R.id.comment_empty)).check(matches(isDisplayed())));
       capture("report-detail");
       screen.recreate();
       screen.recreate();
@@ -183,6 +185,7 @@ public class ReportFlowTest {
       awaitCheck(() -> onView(withId(R.id.new_collection_button)).check(matches(isDisplayed())));
       screen.recreate();
       onView(withId(R.id.new_collection_button)).check(matches(isDisplayed()));
+      awaitText(app.getString(R.string.collection_empty));
       capture("reports-collections");
       screen.recreate();
       onView(withText(R.string.report_mine)).perform(click());

@@ -69,7 +69,7 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
-          mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest -Pqletter.apiBaseUrl=http://127.0.0.1:3000/ -Pandroid.testInstrumentationRunnerArguments.package=kr.ac.ssu.qletter.common
+          mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest -Pqletter.apiBaseUrl=http://127.0.0.1:3000/ -Pandroid.testInstrumentationRunnerArguments.package=kr.ac.ssu.qletter.common -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
       - name: 생략된 검사와 누락된 화면 확인
         run: |
           python3 - <<'PY'

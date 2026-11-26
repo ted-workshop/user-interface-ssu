@@ -122,10 +122,11 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 
 ```sh
 mise run android:check
-mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.ac.ssu.qletter.common.HomeSummaryFlowTest
+mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.ac.ssu.qletter.common.HomeSummaryFlowTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
 adb pull /sdcard/Android/data/kr.ac.ssu.qletter.debug/files/home-summary-check ./home-summary-check
 ```
 
+검사 뒤 APK를 유지하는 옵션은 앱 삭제로 캡처까지 사라지는 것을 막아요. 캡처를 가져온 뒤 테스트 앱을 삭제해도 돼요.
 캡처는 실제 앱에 검증용 데이터를 표시한 결과예요. 실제 Gemini 요약·Gmail 수신 검증과 구분해 PR에 첨부해요.
 
 개인 기기가 없어도 Android 변경 PR의 `Android device` workflow에서 공통 기기 검사를 실행해요.

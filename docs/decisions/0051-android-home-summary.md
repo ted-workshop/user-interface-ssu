@@ -4,7 +4,7 @@
 - 작성일: 2026-11-25
 - 확정 근거: 사용자가 재운님 담당의 남은 GitHub 작업을 실행하도록 요청했어요. #28 범위 안에서 구현 방법을 판단했어요.
 - 관련 기록: [ADR-0038](0038-android-foundation.md), [ADR-0039](0039-android-feature-packages.md), [ADR-0024](0024-direct-summary-http.md), [ADR-0046](0046-android-report-library.md), [API 계약](../api-contract.md).
-- 구현·검증 상태: 홈·요약 화면 구현과 JVM·lint·APK 빌드 검사를 통과했어요. 기기 시나리오와 스크린샷은 아직 확인하지 못했어요. 실제 공급자·운영 배포는 이 작업에서 검증하지 않아요.
+- 구현·검증 상태: 홈·요약 구현, JVM·lint·APK 빌드, 전체 Quality CI를 통과했어요. API 35 Pixel 7 에뮬레이터에서 홈·요약 4개를 포함한 공통 기기 검사 16개가 통과했고 상태별 화면을 확인했어요. 실행 근거는 [ADR-0052](0052-android-device-ci.md)에 있어요. 실제 공급자·운영 배포는 이 작업에서 검증하지 않아요.
 
 ## 문제와 현재 상태
 
@@ -52,6 +52,7 @@ main `0758c74`에는 리포트 목록·상세가 있지만 홈·영상 요약 �
 - Bun 1.4.4, Gradle Wrapper 9.6.0, Android SDK 37.0을 사용했어요. 실행 환경의 JDK는 Temurin 25.0.5.1+2이며, 저장소의 버전 설정은 바꾸지 않았어요. 고정 JDK의 검증은 PR CI에서 다시 확인해야 해요.
 - API 37.0 / emulator 37.3.10에서 실행을 시도했지만, 환경에 `/dev/kvm`이 없고 소프트웨어 에뮬레이션도 부팅 완료 전에 종료됐어요. `HomeSummaryFlowTest`는 컴파일만 확인했으며 기기 테스트·화면 캡처 통과로 보고하지 않아요. 실제 기기/하드웨어 가속 AVD에서 `docs/development.md`의 명령으로 이어가야 해요.
 - `git diff --check`와 관련 링크·담당 경로를 확인했어요. 실제 Gemini·SMTP 호출, 운영 배포는 수행하지 않았어요.
+- 2026-11-26: `2946af5`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755187642)에서 공통 검사 16개가 실패·오류·생략 없이 통과했어요. API 35 Pixel 7 / emulator 37.3.10.0 / GitHub Ubuntu 24.04 KVM 환경이며, 기기 내부 MockWebServer를 사용했어요. 홈·요약 9개 화면을 확인했고, 같은 커밋의 [전체 Quality](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755187713)도 통과했어요. API 37 권한 분기·개인 기기·실제 공급자 검증을 대신하지 않아요.
 
 ## 반론과 변경 이력
 

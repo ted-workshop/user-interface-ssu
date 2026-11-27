@@ -101,7 +101,7 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 
 ### Android 화면에서 공통 기반 사용
 
-- **화면 연결.** `MainActivity.showTab`에서 선택한 메뉴 ID를 화면 Fragment로 연결해요. `TabFragment.create`에는 현재 다섯 탭의 제목이 있어요. #27은 채널·계정, #28은 홈·요약·리포트, #29는 모음·리포트 댓글을 연결해요. 공통 화면은 View Binding으로 XML의 뷰를 참조하고, Fragment의 관찰자는 `getViewLifecycleOwner()`에 연결해요.
+- **화면 연결.** `MainActivity.showTab`에서 선택한 메뉴 ID를 화면 Fragment로 연결해요. 홈은 `HomeFragment`, 영상 요약은 `SummaryFragment`가 담당해요. #27은 채널·계정, #28은 홈·요약·리포트, #29는 모음·리포트 댓글을 연결해요. 공통 화면은 View Binding으로 XML의 뷰를 참조하고, Fragment의 관찰자는 `getViewLifecycleOwner()`에 연결해요.
 - **색상.** Figma `bg/default`는 `@color/q_bg_default`, `ink/on-ink`는 `@color/q_ink_on_ink`예요. 전체 값은 [색상 리소스](../apps/android/app/src/main/res/values/qletter_colors.xml)에 있어요. 앱을 다시 빌드하면 리소스 변경이 반영돼요.
 - **로그인 성공.** #27의 인증 화면에서 서버 응답을 받은 뒤 `app.sessions().signInAsync(session.token, session.expiresAt, error -> { ... })`을 호출해요. `app`은 `(QletterApplication) requireActivity().getApplication()`이에요. 디스크·Keystore 저장은 내부 작업 스레드에서 실행해요. 콜백은 메인 스레드에서 호출돼요. 화면이 살아 있고 오류가 없을 때 다음 화면으로 이동하고, 저장 오류가 나면 재시도를 제공해요. 토큰을 화면 인자나 로그에 넣지 않아요.
 - **개인 API.** `app.api().endpoint("reports").addQueryParameter("limit", "20").build()`로 URL을 만들고 `app.api().newCall(new Request.Builder().url(url).build())`을 실행해요. `execute()`는 작업 스레드에서 사용하고 `Response`는 닫아요. 앱 시작 시 세션 파일 읽기와 Keystore 복호화는 작업 스레드에서 실행해요. 복원이 끝나면 세션 변경을 알리고, 유효한 세션이 있으면 `GET /v1/me`로 확인해요.
@@ -110,6 +110,33 @@ Android Studio 빌드에도 같은 URL을 쓰려면 개인 ~/.gradle/gradle.prop
 - **검증.** 기본 검사는 `mise run android:check`예요. 기기를 연결하고 `mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest`로 탭 복원과 Android Keystore 저장·복원을 확인해요. 로그인 화면 통합 뒤에는 로그인 → 앱 재시작 → 로그아웃을 실제 계정으로 확인해요.
   2026-11-22 Pixel 7 AVD(Android 17, API 37)에서 가입 → 이메일 확인 코드 → 로그인 → 앱 재시작 → 계정·채널 화면 → 로그아웃과 비밀번호 재설정을 로컬 API로 확인했어요.
   로컬 `.dev.vars`에 SMTP·YouTube 키가 없어 실제 메일 수신과 실제 채널 조회·등록은 확인하지 않았어요.
+
+### 홈·영상 요약 검증
+
+홈의 최근 리포트와 요약 완료 카드에서 상세를 열면 뒤로 가기로 원래 화면에 돌아와요.
+요약 탭은 입력·진행 상태와 요청 목록을 보여 주고, `상태 다시 확인`은 GET, `요약 다시 시도`만 POST예요.
+앱이 백그라운드이거나 다른 탭을 보고 있으면 자동 조회를 멈춰요. 서버의 요약 작업은 계속돼요.
+범위·한계는 [ADR-0051](decisions/0051-android-home-summary.md)에 있어요.
+
+기기가 연결된 환경에서 아래 검사를 실행해요. `TestApi`가 기기 내부 MockWebServer를 사용하므로 외부 API·메일 비밀값은 필요 없어요.
+
+```sh
+mise run android:check
+mise exec -- apps/android/gradlew -p apps/android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=kr.ac.ssu.qletter.common.HomeSummaryFlowTest -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true
+adb pull /sdcard/Android/data/kr.ac.ssu.qletter.debug/files/home-summary-check ./home-summary-check
+```
+
+검사 뒤 APK를 유지하는 옵션은 앱 삭제로 캡처까지 사라지는 것을 막아요. 캡처를 가져온 뒤 테스트 앱을 삭제해도 돼요.
+캡처는 실제 앱에 검증용 데이터를 표시한 결과예요. 실제 Gemini 요약·Gmail 수신 검증과 구분해 PR에 첨부해요.
+
+개인 기기가 없어도 Android 변경 PR의 `Android device` workflow에서 공통 기기 검사를 실행해요.
+API 35와 API 37.0의 Pixel 7 에뮬레이터에서 홈·요약·리포트·세션·확인창을 각각 검사하며, 리포트 검사가 생략되지 않도록
+검사용 API 주소를 `http://127.0.0.1:3000/`으로 빌드해요. 실패·생략이나 필수 캡처 누락은 성공으로 표시하지 않아요.
+Actions 실행의 `Artifacts`에서 `android-device-api35-실행번호`, `android-device-api37-실행번호`를 내려받으면 결과 XML·HTML과
+`home-summary-check`, `report-check`의 화면을 볼 수 있어요. 보관 기간은 14일이므로 확인한 화면은 PR에도 첨부해요.
+API 37에서는 테스트가 로컬 네트워크 권한을 사전 허용하고, 실행 후 권한 상태도 검사해요.
+실행 근거·한계는 [ADR-0052](decisions/0052-android-device-ci.md)에 있어요. 시스템 권한창에서 직접 거부·허용하는 흐름과
+`10.0.2.2` 개발 서버 접속, 개인 기기·실제 공급자 검증은 이 검사와 구분해요.
 
 ## 로컬 D1과 환경 타입
 

@@ -9,13 +9,17 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
 import java.io.IOException;
 import kr.ac.ssu.qletter.R;
 import kr.ac.ssu.qletter.account.AccountFragment;
 import kr.ac.ssu.qletter.auth.AuthActivity;
 import kr.ac.ssu.qletter.channel.ChannelsFragment;
 import kr.ac.ssu.qletter.databinding.ActivityMainBinding;
+import kr.ac.ssu.qletter.home.HomeFragment;
+import kr.ac.ssu.qletter.report.ReportDetailFragment;
 import kr.ac.ssu.qletter.report.ReportsTabFragment;
+import kr.ac.ssu.qletter.summary.SummaryFragment;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Request;
@@ -25,6 +29,7 @@ import okhttp3.Response;
 public class MainActivity extends AppCompatActivity {
   private boolean openingAuth;
   private Call validation;
+  private ActivityMainBinding binding;
 
   @Override
   protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
       return;
     }
     EdgeToEdge.enable(this);
-    ActivityMainBinding binding = ActivityMainBinding.inflate(getLayoutInflater());
+    binding = ActivityMainBinding.inflate(getLayoutInflater());
     setContentView(binding.getRoot());
     LocalNetworkPermission.request(this);
     WindowInsetsControllerCompat bars =
@@ -47,7 +52,9 @@ public class MainActivity extends AppCompatActivity {
           Insets barsInset =
               insets.getInsets(
                   WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
-          view.setPadding(barsInset.left, barsInset.top, barsInset.right, barsInset.bottom);
+          int bottom =
+              Math.max(barsInset.bottom, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom);
+          view.setPadding(barsInset.left, barsInset.top, barsInset.right, bottom);
           return new WindowInsetsCompat.Builder(insets)
               .setInsets(
                   WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout(),
@@ -121,6 +128,8 @@ public class MainActivity extends AppCompatActivity {
   }
 
   private void showTab(int id) {
+    getSupportFragmentManager()
+        .popBackStackImmediate(null, FragmentManager.POP_BACK_STACK_INCLUSIVE);
     String tag = getResources().getResourceEntryName(id);
     Fragment current = getSupportFragmentManager().findFragmentById(R.id.tab_content);
     if (current != null && tag.equals(current.getTag())) return;
@@ -128,6 +137,8 @@ public class MainActivity extends AppCompatActivity {
     if (id == R.id.tab_channels) next = new ChannelsFragment();
     else if (id == R.id.tab_account) next = new AccountFragment();
     else if (id == R.id.tab_reports) next = new ReportsTabFragment();
+    else if (id == R.id.tab_home) next = new HomeFragment();
+    else if (id == R.id.tab_summary) next = new SummaryFragment();
     else next = TabFragment.create(id);
     getSupportFragmentManager()
         .beginTransaction()
@@ -135,5 +146,24 @@ public class MainActivity extends AppCompatActivity {
         .replace(R.id.tab_content, next, tag)
         .setPrimaryNavigationFragment(next)
         .commitNow();
+  }
+
+  /** 홈의 바로 가기도 하단 탭 선택 상태와 함께 이동해요. */
+  public void openTab(int id) {
+    if (binding != null && binding.tabs.getMenu().findItem(id) != null)
+      binding.tabs.setSelectedItemId(id);
+  }
+
+  /** 홈·요약에서 읽은 뒤 뒤로 가면 열었던 화면으로 돌아와요. */
+  public void openReport(String reportId) {
+    if (getSupportFragmentManager().isStateSaved() || openingAuth) return;
+    Fragment detail = ReportDetailFragment.create(reportId);
+    getSupportFragmentManager()
+        .beginTransaction()
+        .setReorderingAllowed(true)
+        .replace(R.id.tab_content, detail)
+        .setPrimaryNavigationFragment(detail)
+        .addToBackStack("report-from-tab")
+        .commit();
   }
 }

@@ -130,11 +130,13 @@ adb pull /sdcard/Android/data/kr.ac.ssu.qletter.debug/files/home-summary-check .
 캡처는 실제 앱에 검증용 데이터를 표시한 결과예요. 실제 Gemini 요약·Gmail 수신 검증과 구분해 PR에 첨부해요.
 
 개인 기기가 없어도 Android 변경 PR의 `Android device` workflow에서 공통 기기 검사를 실행해요.
-API 35 Pixel 7 에뮬레이터에서 홈·요약·리포트·세션·확인창을 검사하며, 리포트 검사가 생략되지 않도록
+API 35와 API 37.0의 Pixel 7 에뮬레이터에서 홈·요약·리포트·세션·확인창을 각각 검사하며, 리포트 검사가 생략되지 않도록
 검사용 API 주소를 `http://127.0.0.1:3000/`으로 빌드해요. 실패·생략이나 필수 캡처 누락은 성공으로 표시하지 않아요.
-Actions 실행의 `Artifacts`에서 `android-device-api35-실행번호`를 내려받으면 결과 XML·HTML과
+Actions 실행의 `Artifacts`에서 `android-device-api35-실행번호`, `android-device-api37-실행번호`를 내려받으면 결과 XML·HTML과
 `home-summary-check`, `report-check`의 화면을 볼 수 있어요. 보관 기간은 14일이므로 확인한 화면은 PR에도 첨부해요.
-실행 근거·한계는 [ADR-0052](decisions/0052-android-device-ci.md)에 있어요. API 37 권한과 실제 공급자 검증은 별도예요.
+API 37에서는 테스트가 로컬 네트워크 권한을 사전 허용하고, 실행 후 권한 상태도 검사해요.
+실행 근거·한계는 [ADR-0052](decisions/0052-android-device-ci.md)에 있어요. 시스템 권한창에서 직접 거부·허용하는 흐름과
+`10.0.2.2` 개발 서버 접속, 개인 기기·실제 공급자 검증은 이 검사와 구분해요.
 
 ## 로컬 D1과 환경 타입
 

@@ -4,7 +4,7 @@
 - 작성일: 2026-11-26
 - 확정 근거: 사용자가 담당 범위의 남은 작업을 진행하도록 요청했어요. #28·PR #91의 기기 검증을 마무리하기 위한 실행 방법을 판단했어요.
 - 관련 기록: [ADR-0051](0051-android-home-summary.md), [ADR-0046](0046-android-report-library.md), [ADR-0011](0011-scoped-quality-checks.md)
-- 구현·검증 상태: `2946af5`의 전체 Quality와 API 35 기기 검사 16개가 실패·오류·생략 없이 통과했어요. PNG 19개 수집을 확인했으며, 홈·요약 9개와 리포트 10개의 검토용 화면을 직접 확인했어요. 홈 오류의 단색 캡처도 해결했어요. 후속 `ff72397` 실행에서 launcher ANR을 확인해 부팅 준비를 수정했으며, 수정 후 검증 결과는 PR #91의 최종 HEAD 검사에 기록해요. API 37·개인 기기·실제 공급자 검증은 남아 있어요.
+- 구현·검증 상태: `a98dd07`의 전체 Quality와 API 35 기기 검사 16개가 실패·오류·생략 없이 통과했어요. PNG 19개를 수집했고 홈 오류의 단색 캡처와 launcher ANR도 해결했어요. 2026-11-27 API 37.0 실행을 추가했으며 각 API의 결과는 PR #91의 최종 HEAD 검사에 기록해요. 개인 기기·실제 공급자와 시스템 권한창 조작은 별도 검증이에요.
 
 ## 문제와 현재 상태
 
@@ -14,9 +14,10 @@
 ## 결정
 
 - 별도 `Android device` workflow에서 GitHub의 `ubuntu-24.04`와 KVM을 사용해요. Android·도구 버전·이 workflow가 바뀐 PR에서 실행하고, main 반영 뒤에는 수동 실행도 가능해요.
-- compile SDK 37.0과 저장소의 JDK·Bun을 유지하고, Pixel 7 형태의 API 35 Google APIs x86_64 에뮬레이터에서 `common` 패키지를 검사해요. 홈·요약, 리포트, 세션·탭 복원과 확인창이 대상이에요.
+- compile SDK 37.0과 저장소의 JDK·Bun을 유지하고, Pixel 7 형태의 API 35 Google APIs와 API 37.0 Google APIs 16 KB x86_64 에뮬레이터에서 `common` 패키지를 각각 검사해요. 홈·요약, 리포트, 세션·탭 복원과 확인창이 대상이에요. 한 환경의 실패로 다른 환경의 검사가 취소되지 않게 해요.
 - `ReportFlowTest`가 전용 주소 이외의 빌드를 건너뛰므로 `qletter.apiBaseUrl=http://127.0.0.1:3000/`을 명시해요. 테스트는 기기 내부 MockWebServer를 사용해요.
 - XML에 실패·오류·생략이 있거나 필수 상태 화면 19개가 없으면 실패시켜요. 실패 시에도 로그와 생성된 화면을 수집해요.
+- 실행 기기의 실제 API가 지정한 값과 같은지 확인하고, API별로 결과를 보관해요. API 37은 기존 테스트의 로컬 네트워크 권한 사전 허용 분기를 실행하며, 검사 후 `dumpsys package`의 허용 상태도 확인해요.
 - `android.injected.androidTest.leaveApksInstalledAfterRun=true`로 검사 후 APK를 유지해 캡처를 가져와요. 수집이 끝나면 임시 에뮬레이터를 종료해요.
 - 부팅 완료 뒤 키 이벤트를 보내지 않고 `svc power stayon true`와 `wm dismiss-keyguard`로 화면 켜짐과 잠금 해제를 준비해요. launcher가 아직 포커스를 얻지 못했을 때 입력 대기 ANR이 생기는 경로를 피해야 해요.
 - 커밋 SHA·에뮬레이터 버전, 결과 XML·HTML, PNG와 진단 로그를 artifact에 14일 보관해요. 검토에 사용할 화면은 별도로 PR에 첨부해요.
@@ -31,20 +32,21 @@
 - 홈·요약 캡처는 화면 문구 확인과 main thread idle 뒤에도 시작 창이 덮여 있을 수 있어요. 시스템 표시줄을 제외한 앱 영역이 단색이면 최대 5초 동안 캡처만 다시 시도하고, 계속 단색이면 검사를 실패시켜요. 파일 존재와 실제 상태는 별도로 시각 확인해요.
 - 개인 기기에서 실행하면 실제 사용 환경을 확인할 수 있지만 사용자의 PC에 의존해요. 이를 대체 완료로 간주하지 않고, 반복 가능한 에뮬레이터 검증을 먼저 확보해요.
 - 로컬 소프트웨어 에뮬레이션 재시도는 이미 부팅 실패가 확인됐어요. 유료 기기 서비스·별도 공급자 계정 대신 기존 GitHub 작업 흐름에서 실행해요.
-- API 35는 현재 앱의 지원 범위 안에서 UI·세션·상태 전이를 검증하기 위한 선택이에요. API 37의 로컬 네트워크 권한 분기는 별도로 검증해야 해요.
+- API 35는 이전 Android 동작을, API 37.0은 앱의 target SDK와 같은 실행 환경을 확인해요. Google [시스템 이미지 목록](https://dl.google.com/android/repository/sys-img/google_apis/sys-img2-3.xml)의 `system-images;android-37.0;google_apis_ps16k;x86_64` 안정 채널 제공을 확인했어요(2026-11-27). API 35를 교체하면 이전 버전 회귀를 놓치므로 두 환경을 유지해요.
+- [Android 로컬 네트워크 권한 문서](https://developer.android.com/privacy-and-security/local-network-permission)는 target SDK 37 앱의 런타임 권한 요구를 설명해요(2026-11-27 확인). 이번 공통 검사는 사전 허용과 이후 화면 흐름을 확인하며, 사용자 거부·재허용과 개발 PC 주소 연결 성공을 대신하지 않아요.
 
 ## 가정·한계와 영향
 
-추가 workflow는 Android 변경마다 최대 25분의 runner 사용량을 더해요. 같은 PR의 새 실행은 이전 실행을 취소해요.
+추가 workflow는 Android 변경마다 두 runner를 사용하며 각 최대 25분, 합계 최대 50분의 runner 사용량을 더해요. 같은 PR의 새 실행은 이전 실행을 취소해요.
 소스에 고정한 action SHA를 사용하지만 에뮬레이터와 시스템 이미지의 패치 버전은 SDK 저장소에 따라 달라질 수 있어 실행 버전을 함께 남겨요.
-실제 Gemini 요약·Gmail 수신, TalkBack 청취, 개인 기기와 API 37 검증, 팀 리뷰·머지는 완료로 표시하지 않아요.
+실제 Gemini 요약·Gmail 수신, TalkBack 청취, 개인 기기, 시스템 권한창의 거부·재허용과 `10.0.2.2` 서버 접속, 팀 리뷰·머지는 이 공통 검사 통과로 완료 표시하지 않아요.
 다른 담당자의 계정·채널·모음·댓글 구현은 변경하지 않아요.
 
 ## 검증과 재검토 조건
 
 workflow 구문·shell·경로를 확인하고, 원격 실행에서 공통 테스트가 생략 없이 통과하며 PNG가 실제 화면인지 확인해요.
 기기 테스트의 실패는 원인을 확인한 뒤 담당 범위에서 수정해요. 성공으로 만들기 위한 테스트 삭제·생략은 하지 않아요.
-실행 시간이 제한을 넘거나 API 37 기기 검증이 필요하면 시스템 이미지·실행 범위를 다시 판단해요.
+실행 시간이 제한을 넘거나 새로운 target SDK 검증이 필요하면 시스템 이미지·실행 범위를 다시 판단해요.
 
 ## 반론과 변경 이력
 
@@ -55,3 +57,5 @@ workflow 구문·shell·경로를 확인하고, 원격 실행에서 공통 테�
 - 2026-11-26: `fc437f1`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45754132092)에서 16개와 전체 Quality가 다시 통과했고, 댓글·모음 화면도 확인했어요. 홈 오류는 여전히 단색이었어요. logcat의 캡처 시각(04:19:45.917 UTC) 뒤에 시작 창 제거(04:19:46.129 UTC)가 기록돼, 접근성 idle 대기만으로는 시작 창 종료를 보장하지 못함을 확인했어요. 이 대기 대신 단색 캡처를 거부하고 제한 시간 안에서 다시 캡처해요. 앱 요청·검사 결과를 재시도하거나 성공으로 바꾸지는 않아요.
 - 2026-11-26: `2946af5`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755187642)이 3분 52초에 성공했어요. 공통 검사 16개, 실패·오류·생략 0개, 필수 PNG 19개를 확인했어요. 홈 오류에서 안내 문구와 새로고침 버튼이 실제 캡처에 표시됐어요. PR 첨부 화면은 이 실행의 홈·요약 9개와 앞선 `fc437f1` 실행의 리포트 10개예요. 두 실행 사이 제품 코드는 동일하며, 캡처 검사와 기록만 바뀌었어요. [전체 Quality](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755187713)도 API·Android·Infra·quality가 모두 통과했어요.
 - 2026-11-26: 기록만 추가한 `ff72397`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45755818401)은 16개 중 11개가 `RootViewWithoutFocusException`으로 실패했어요. logcat에는 앱 실행 전 launcher의 입력 포커스 대기와 ANR, 시스템 오류창 생성이 순서대로 남아 있었어요(04:34:15~22 UTC). 부팅 직후 `input keyevent 82`가 아직 준비되지 않은 launcher로 전달된 것으로 판단해 키 입력을 제거하고 시스템 명령으로 화면을 준비해요. 이 실행의 실패는 보존하고 동일한 16개 시나리오와 19개 화면 조건으로 다시 검사해요.
+- 2026-11-26: `a98dd07`의 [기기 실행](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45756973855)에서 16개 통과·실패/오류/생략 0개와 화면 19개를 확인했어요. launcher ANR과 앱의 치명적 예외는 기록되지 않았어요. 같은 커밋의 [Quality](https://github.com/ted-workshop/user-interface-ssu/actions/runs/45756973834)도 모두 통과했어요.
+- 2026-11-27: 새 리뷰 요청은 없고 target SDK 37 기기 검증이 남아 있어 API 37.0 행을 추가했어요. 기존 API 35 시나리오·실패 판정은 유지하고, 실제 실행 API와 권한 허용 상태를 검사해요. 개인 PC를 기다리지 않고 기존 KVM runner에서 검증하며, 이 변경으로 실제 공급자 호출이나 개인 기기 검증을 주장하지 않아요. 두 환경의 최종 결과는 PR에 연결해요.
